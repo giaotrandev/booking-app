@@ -1,7 +1,9 @@
+import 'module-alias/register';
 import http from 'http';
 import app from './app';
 import connectDB from './config/db';
 import { initSocket } from './services/socketService';
+import { setupScheduledTasks } from './services/scheduledTasks';
 // Connect to MongoDB
 connectDB();
 
@@ -12,6 +14,9 @@ const server = http.createServer(app);
 
 // Initialize Socket.IO
 initSocket(server);
+
+// Setup scheduled tasks
+setupScheduledTasks();
 
 // Start server
 server.listen(PORT, () => {

@@ -1,6 +1,6 @@
 import { Server as SocketServer } from 'socket.io';
 import { Server } from 'http';
-import { IBooking } from '../models/bookingModel';
+import { IBooking } from '#models/bookingModel';
 
 let io: SocketServer;
 

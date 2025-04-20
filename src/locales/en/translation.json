@@ -1,0 +1,69 @@
+{
+    "common": {
+        "success": "Operation successful",
+        "error": "An error occurred",
+        "notFound": "Resource not found",
+        "unauthorized": "Unauthorized access",
+        "forbidden": "Access forbidden",
+        "badRequest": "Bad request",
+        "serverError": "Internal server error",
+        "created": "Resource created successfully",
+        "updated": "Resource updated successfully",
+        "deleted": "Resource deleted successfully"
+    },
+    "errors": {
+        "name": {
+            "required": "Please add a name"
+        },
+        "email": {
+            "required": "Please add an email",
+            "invalid": "Please add a valid email"
+        },
+        "password": {
+            "minLength": "Password must be at least 6 characters long"
+        },
+        "status": {
+            "invalid": "Invalid status: {{value}}"
+        }
+    },
+    "auth": {
+        "loginSuccess": "Login successful",
+        "loginFailed": "Login failed",
+        "invalidCredentials": "Invalid email or password",
+        "accountCreated": "Account created successfully",
+        "emailExists": "Email already exists",
+        "passwordResetSent": "Password reset instructions sent to your email",
+        "passwordResetSuccess": "Password has been reset successfully",
+        "logoutSuccess": "Logged out successfully",
+        "tokenExpired": "Session expired, please login again",
+        "accountLocked": "Account locked due to multiple failed attempts",
+        "userNotFound": "User not found",
+        "emailSent": "Email sent successfully",
+        "passwordAndTokenRequired": "Password and token are required",
+        "invalidOrExpiredToken": "Invalid or expired token",
+        "emailNotVerified": "Your email is not verified. Please check your inbox for the verification email or request a new one",
+        "verificationEmailSent": "Verification email sent. Please check your inbox and verify your account within 10 minutes",
+        "verificationEmailResent": "Verification email has been resent. Please check your inbox",
+        "emailVerified": "Email verified successfully",
+        "alreadyVerified": "Email is already verified",
+        "invalidToken": "Invalid or expired verification token"
+    },
+    "user": {
+        "profileUpdated": "Profile updated successfully",
+        "passwordChanged": "Password changed successfully",
+        "emailVerified": "Email verified successfully",
+        "accountDeleted": "Account deleted successfully"
+    },
+    "booking": {
+        "bookingCreated": "Booking created successfully",
+        "bookingUpdated": "Booking updated successfully",
+        "bookingCancelled": "Booking cancelled successfully",
+        "bookingConfirmed": "Booking confirmed successfully",
+        "noBusAvailable": "No bus available for selected route and date",
+        "seatNotAvailable": "Selected seat is not available",
+        "invalidSeat": "Invalid seat selection",
+        "bookingExpired": "Booking time expired, please try again",
+        "paymentRequired": "Payment required to confirm booking",
+        "bookingNotFound": "Booking not found"
+    }
+}

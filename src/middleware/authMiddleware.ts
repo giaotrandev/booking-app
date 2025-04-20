@@ -9,10 +9,10 @@ interface JwtPayload {
 // Extend Request type to include user
 declare global {
   namespace Express {
-    interface User extends IUser {}  // This makes Express.User compatible with your IUser
+    interface User extends IUser {} // This makes Express.User compatible with your IUser
 
     interface Request {
-      user?: User;  // Now using the extended User type
+      user?: User; // Now using the extended User type
     }
   }
 }
@@ -36,7 +36,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
 
     // Get user from token
     const user = await User.findById(decoded.id).select('-password');
-    
+
     if (!user) {
       res.status(401).json({ message: 'Not authorized, user not found' });
       return;

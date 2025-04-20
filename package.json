@@ -6,11 +6,26 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node dist/server.js",
-    "dev": "nodemon src/server.ts",
-    "build": "tsc -p ."
+    "dev": "nodemon -r tsconfig-paths/register src/server.ts",
+    "build": "tsc -p .",
+    "prepare": "husky",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\""
   },
-  "keywords": [],
-  "author": "",
+  "lint-staged": {
+    "src/**/*.{js,ts}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  },
+  "keywords": [
+    "ticket",
+    "booking",
+    "bus",
+    "system"
+  ],
+  "author": "Jeo péo",
   "license": "ISC",
   "dependencies": {
     "@sendgrid/mail": "^8.1.4",
@@ -21,14 +36,20 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "helmet": "^8.0.0",
+    "i18next": "^24.2.3",
+    "i18next-http-middleware": "^3.7.2",
     "jsonwebtoken": "^9.0.2",
+    "module-alias": "^2.2.3",
     "mongoose": "^8.12.1",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.10.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.25.0",
     "@types/bcrypt": "^5.0.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
@@ -36,11 +57,42 @@
     "@types/jsonwebtoken": "^9.0.9",
     "@types/mongoose": "^5.11.97",
     "@types/node": "^22.13.10",
+    "@types/node-cron": "^3.0.11",
     "@types/passport": "^1.0.17",
     "@types/passport-google-oauth20": "^2.0.16",
+    "@typescript-eslint/eslint-plugin": "^8.30.1",
+    "@typescript-eslint/parser": "^8.30.1",
+    "eslint": "^9.25.0",
+    "eslint-config-prettier": "^10.1.2",
+    "eslint-plugin-prettier": "^5.2.6",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.1",
     "nodemon": "^3.1.9",
+    "prettier": "^3.5.3",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.2"
+    "tsconfig-paths": "^4.2.0",
+    "twilio": "^5.5.2",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.30.1"
+  },
+  "imports": {
+    "#src/*": "./src/*",
+    "#controllers/*": "./src/controllers/*",
+    "#emails/*": "./src/emails/*",
+    "#models/*": "./src/models/*",
+    "#middlewares/*": "./src/middlewares/*",
+    "#routes/*": "./src/routes/*",
+    "#utils/*": "./src/utils/*"
+  },
+  "_moduleAliases": {
+    "#src": "./src",
+    "#emails": "./src/emails",
+    "#controllers/*": "./src/controllers/*",
+    "#emails/*": "./src/emails/*",
+    "#models/*": "./src/models/*",
+    "#middlewares/*": "./src/middlewares/*",
+    "#routes/*": "./src/routes/*",
+    "#utils/*": "./src/utils/*"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

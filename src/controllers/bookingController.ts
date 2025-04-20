@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
-import Booking, { IBooking } from '../models/bookingModel';
-import Bus from '../models/busModel';
-import { emitBookingUpdate } from '../services/socketService';
+import Booking, { IBooking } from '#models/bookingModel';
+import Bus from '#models/busModel';
+import { emitBookingUpdate } from '#services/socketService';
 
 // @desc    Create a booking
 // @route   POST /api/bookings
@@ -49,9 +49,9 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
 
     res.status(201).json(booking);
   } catch (error) {
-    res.status(500).json({ 
-      message: 'Server error', 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    res.status(500).json({
+      message: 'Server error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 };
@@ -66,15 +66,13 @@ export const getUserBookings = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    const bookings = await Booking.find({ userId: req.user._id })
-      .populate('busId')
-      .sort('-createdAt');
+    const bookings = await Booking.find({ userId: req.user._id }).populate('busId').sort('-createdAt');
 
     res.status(200).json(bookings);
   } catch (error) {
-    res.status(500).json({ 
-      message: 'Server error', 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    res.status(500).json({
+      message: 'Server error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 };
@@ -85,7 +83,7 @@ export const getUserBookings = async (req: Request, res: Response): Promise<void
 export const updateBookingStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const { status, paymentStatus } = req.body;
-    
+
     const booking = await Booking.findById(req.params.id);
 
     if (!booking) {
@@ -94,7 +92,7 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
     }
 
     // Check if user owns this booking or is admin
-    if ((req.user?._id.toString() !== booking.userId.toString()) && req.user?.role !== 'admin') {
+    if (req.user?._id.toString() !== booking.userId.toString() && req.user?.role !== 'admin') {
       res.status(403).json({ message: 'Not authorized' });
       return;
     }
@@ -102,17 +100,17 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
     // Update booking
     booking.status = status || booking.status;
     booking.paymentStatus = paymentStatus || booking.paymentStatus;
-    
+
     const updatedBooking = await booking.save();
-    
+
     // Emit socket event for realtime updates
     emitBookingUpdate(updatedBooking);
 
     res.status(200).json(updatedBooking);
   } catch (error) {
-    res.status(500).json({ 
-      message: 'Server error', 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    res.status(500).json({
+      message: 'Server error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 };

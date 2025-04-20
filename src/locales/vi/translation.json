@@ -1,0 +1,72 @@
+{
+    "common": {
+        "success": "Thao tác thành công",
+        "error": "Đã xảy ra lỗi",
+        "notFound": "Không tìm thấy tài nguyên",
+        "unauthorized": "Truy cập không được ủy quyền",
+        "forbidden": "Truy cập bị cấm",
+        "badRequest": "Yêu cầu không hợp lệ",
+        "serverError": "Lỗi máy chủ nội bộ",
+        "created": "Tạo tài nguyên thành công",
+        "updated": "Cập nhật tài nguyên thành công",
+        "deleted": "Xóa tài nguyên thành công"
+    },
+    "errors": {
+        "name": {
+            "required": "Vui lòng nhập tên"
+        },
+        "email": {
+            "required": "Vui lòng nhập email",
+            "invalid": "Email không hợp lệ"
+        },
+        "password": {
+            "minLength": "Mật khẩu phải có ít nhất 6 ký tự"
+        },
+        "status": {
+            "invalid": "Trạng thái không hợp lệ: {{value}}"
+        },
+        "validationFailed": "Lỗi xác thực",
+        "duplicateField": "{{field}} đã tồn tại",
+        "invalidFieldType": "Kiểu dữ liệu không hợp lệ cho trường {{field}}, yêu cầu {{expectedType}}"
+    },
+    "auth": {
+        "loginSuccess": "Đăng nhập thành công",
+        "loginFailed": "Đăng nhập thất bại",
+        "invalidCredentials": "Email hoặc mật khẩu không hợp lệ",
+        "accountCreated": "Tạo tài khoản thành công",
+        "emailExists": "Email đã tồn tại",
+        "passwordResetSent": "Hướng dẫn đặt lại mật khẩu đã được gửi đến email của bạn",
+        "passwordResetSuccess": "Đặt lại mật khẩu thành công",
+        "logoutSuccess": "Đăng xuất thành công",
+        "tokenExpired": "Phiên đã hết hạn, vui lòng đăng nhập lại",
+        "accountLocked": "Tài khoản bị khóa do nhiều lần đăng nhập không thành công",
+        "userNotFound": "Không tìm thấy người dùng",
+        "emailSent": "Email đã được gửi thành công",
+        "passwordAndTokenRequired": "Cần mật khẩu và mã bảo mật",
+        "invalidOrExpiredToken": "Mã bảo mật không hợp lệ hoặc đã hết hạn",
+        "emailNotVerified": "Email của bạn chưa được xác thực. Vui lòng kiểm tra hộp thư để xác thực hoặc yêu cầu gửi lại email xác thực",
+        "verificationEmailSent": "Email xác thực đã được gửi. Vui lòng kiểm tra hộp thư và xác thực tài khoản trong vòng 10 phút",
+        "verificationEmailResent": "Email xác thực đã được gửi lại. Vui lòng kiểm tra hộp thư",
+        "emailVerified": "Xác thực email thành công",
+        "alreadyVerified": "Email đã được xác thực",
+        "invalidToken": "Mã xác thực không hợp lệ hoặc đã hết hạn"
+    },
+    "user": {
+        "profileUpdated": "Cập nhật hồ sơ thành công",
+        "passwordChanged": "Thay đổi mật khẩu thành công",
+        "emailVerified": "Xác minh email thành công",
+        "accountDeleted": "Xóa tài khoản thành công"
+    },
+    "booking": {
+        "bookingCreated": "Đặt vé thành công",
+        "bookingUpdated": "Cập nhật đặt vé thành công",
+        "bookingCancelled": "Hủy đặt vé thành công",
+        "bookingConfirmed": "Xác nhận đặt vé thành công",
+        "noBusAvailable": "Không có xe buýt cho tuyến đường và ngày đã chọn",
+        "seatNotAvailable": "Ghế được chọn không khả dụng",
+        "invalidSeat": "Lựa chọn ghế không hợp lệ",
+        "bookingExpired": "Thời gian đặt vé đã hết hạn, vui lòng thử lại",
+        "paymentRequired": "Cần thanh toán để xác nhận đặt vé",
+        "bookingNotFound": "Không tìm thấy đặt vé"
+    }
+}

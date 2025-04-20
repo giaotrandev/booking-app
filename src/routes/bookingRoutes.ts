@@ -1,9 +1,5 @@
 import express from 'express';
-import { 
-  createBooking, 
-  getUserBookings, 
-  updateBookingStatus 
-} from '../controllers/bookingController';
+import { createBooking, getUserBookings, updateBookingStatus } from '../controllers/bookingController';
 import { protect, admin } from '../middleware/authMiddleware';
 
 const router = express.Router();
