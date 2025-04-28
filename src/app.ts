@@ -52,6 +52,7 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(express.static('public'));
 app.use(express.urlencoded({ extended: false }));
 app.use(passport.initialize());
 app.use(languageMiddleware);
@@ -60,14 +61,18 @@ app.use(setupI18n());
 app.use(cookieParser());
 
 // Routes
+app.get('/', (req: Request, res: Response) => {
+  res.redirect('/api/docs');
+});
 app.get('/api/docs', (req: Request, res: Response) => {
   res.send(`
     <!DOCTYPE html>
     <html>
       <head>
-        <title>API Documentation</title>
+        <title>Booking App API Documentation</title>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" type="image/x-icon" href="/favicon.ico">
         <style>
           body { margin: 0; }
         </style>
@@ -77,6 +82,7 @@ app.get('/api/docs', (req: Request, res: Response) => {
           nonce="${nonce}"
           id="api-reference"
           data-url="/openapi.json"
+          data-theme="dark"
           src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@latest/dist/browser/standalone.min.js"
         ></script>
       </body>
