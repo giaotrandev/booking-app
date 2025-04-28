@@ -27,19 +27,3 @@ export const languageDetector = (req: Request, res: Response, next: NextFunction
 
   next();
 };
-
-// Thêm định nghĩa kiểu cho Request và Response
-declare global {
-  namespace Express {
-    interface Request {
-      language?: string;
-      t?: (key: string, options?: any) => string;
-    }
-    interface Response {
-      locals: {
-        language?: string;
-        [key: string]: any;
-      };
-    }
-  }
-}

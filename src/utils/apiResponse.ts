@@ -29,13 +29,10 @@ export const sendResponse = <T>(
   language: string = 'en',
   options?: Record<string, any>
 ): void => {
-  // Đảm bảo language chỉ là 'en' hoặc 'vi'
-  const lang = ['en', 'vi'].includes(language) ? language : 'en';
+  const lang = ['en', 'vi'].includes(language) ? language : process.env.DEFAULT_LANGUAGE || 'en';
 
-  // Dịch message
   const translatedMessage = translate(messageKey, lang, options);
 
-  // Gửi response
   res.status(statusCode).json({
     success,
     message: translatedMessage,
@@ -149,6 +146,24 @@ export const sendNotFound = <T>(
   options?: Record<string, any>
 ): void => {
   sendResponse(res, 404, false, messageKey, data, language, options);
+};
+
+/**
+ * Gửi response khi quá nhiều yêu cầu (HTTP 429 Too Many Requests)
+ * @param res - Express Response object
+ * @param messageKey - Key của message lỗi
+ * @param data - Dữ liệu tùy chọn
+ * @param language - Mã ngôn ngữ (en, vi)
+ * @param options - Tham số tùy chọn
+ */
+export const sendTooManyRequests = <T>(
+  res: Response,
+  messageKey: string = 'common.tooManyRequests',
+  data: T | null = null,
+  language: string = 'en',
+  options?: Record<string, any>
+): void => {
+  sendResponse(res, 429, false, messageKey, data, language, options);
 };
 
 /**

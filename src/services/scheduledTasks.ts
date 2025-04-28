@@ -1,18 +1,24 @@
 import cron from 'node-cron';
-import User from '#models/userModel';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 /**
  * Hàm xóa các user chưa xác thực và đã hết hạn
  */
 export const cleanupUnverifiedUsers = async (): Promise<void> => {
   try {
-    const result = await User.deleteMany({
-      isEmailVerified: false,
-      emailVerificationExpire: { $lt: Date.now() },
+    const result = await prisma.user.deleteMany({
+      where: {
+        isEmailVerified: false,
+        emailVerificationExpire: {
+          lt: new Date(),
+        },
+      },
     });
 
-    if (result.deletedCount > 0) {
-      console.log(`Cleaned up ${result.deletedCount} unverified users`);
+    if (result.count > 0) {
+      console.log(`Cleaned up ${result.count} unverified users`);
     }
   } catch (error) {
     console.error('Error cleaning up unverified users:', error);

@@ -9,7 +9,30 @@
         "serverError": "Lỗi máy chủ nội bộ",
         "created": "Tạo tài nguyên thành công",
         "updated": "Cập nhật tài nguyên thành công",
-        "deleted": "Xóa tài nguyên thành công"
+        "deleted": "Xóa tài nguyên thành công",
+        "tooManyRequests": "Quá nhiều yêu cầu, vui lòng thử lại sau"
+    },
+    "validation": {
+        "invalidData": "Thông tin không chính xác",
+        "required": "Trường này là bắt buộc",
+        "invalid": "Trường này không hợp lệ",
+        "invalidEmail": "Định dạng email không hợp lệ",
+        "tooShort": "Phải có ít nhất {{limit}} ký tự",
+        "tooLong": "Phải có ít hơn {{limit}} ký tự",
+        "tooSmall": "Phải lớn hơn hoặc bằng {{limit}}",
+        "tooLarge": "Phải nhỏ hơn hoặc bằng {{limit}}",
+        "invalidFormat": "Định dạng không hợp lệ",
+        "invalidType": "Kiểu dữ liệu không hợp lệ, cần: {{type}}",
+        "invalidOption": "Phải là một trong: {{options}}",
+        "passwordMismatch": "Mật khẩu không khớp",
+        "passwordRequirements": "Mật khẩu phải chứa chữ hoa, chữ thường, số và ký tự đặc biệt",
+        "unknownField": "Trường không tồn tại",
+        "invalidSelection": "Trường chọn không hợp lệ",
+        "invalidReference": "Tham chiếu không hợp lệ",
+        "constraintFailed": "Kiểm tra ràng buộc thất bại",
+        "duplicate": "Giá trị này đã được sử dụng",
+        "invalidString": "Định dạng chuỗi không hợp lệ",
+        "mustBeNumber": "Phải là một số"
     },
     "errors": {
         "name": {
@@ -41,7 +64,9 @@
         "tokenExpired": "Phiên đã hết hạn, vui lòng đăng nhập lại",
         "accountLocked": "Tài khoản bị khóa do nhiều lần đăng nhập không thành công",
         "userNotFound": "Không tìm thấy người dùng",
+        "verifyEmail": "Xác thực tài khoản của bạn",
         "emailSent": "Email đã được gửi thành công",
+        "emailNotSent": "Không thể gửi email, vui lòng thử lại sau",
         "passwordAndTokenRequired": "Cần mật khẩu và mã bảo mật",
         "invalidOrExpiredToken": "Mã bảo mật không hợp lệ hoặc đã hết hạn",
         "emailNotVerified": "Email của bạn chưa được xác thực. Vui lòng kiểm tra hộp thư để xác thực hoặc yêu cầu gửi lại email xác thực",
@@ -49,7 +74,15 @@
         "verificationEmailResent": "Email xác thực đã được gửi lại. Vui lòng kiểm tra hộp thư",
         "emailVerified": "Xác thực email thành công",
         "alreadyVerified": "Email đã được xác thực",
-        "invalidToken": "Mã xác thực không hợp lệ hoặc đã hết hạn"
+        "invalidToken": "Mã xác thực không lệ hoặc đã hết hạn",
+        "noToken": "Vui lòng đăng nhập để tiếp tục",
+        "insufficientPermissions": "Bạn không có quyền truy cập vào tài nguyên này",
+        "permissionCheckFailed": "Kiểm tra quyền truy cập thất bại",
+        "noActiveSession": "Không tìm thấy phiên hoạt động nào",
+        "logoutAllDevicesSuccess": "Đăng xuất khỏi tất cả thiết bị thành công",
+        "tokenRefreshed": "Làm mới mã bảo mật thành công",
+        "noRefreshToken": "Không tìm thấy mã bảo mật để làm mới",
+        "invalidRefreshToken": "Mã bảo mật không hợp lệ"
     },
     "user": {
         "profileUpdated": "Cập nhật hồ sơ thành công",

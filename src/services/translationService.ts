@@ -8,9 +8,7 @@ import i18next from '#src/config/i18n';
  * @returns Chuỗi đã được dịch
  */
 export const translate = (key: string, lang: string = 'en', options?: Record<string, any>): string => {
-  // Đảm bảo lang chỉ là 'en' hoặc 'vi', mặc định là 'en'
-  const language = ['en', 'vi'].includes(lang) ? lang : 'en';
+  const language = ['en', 'vi'].includes(lang) ? lang : process.env.DEFAULT_LANGUAGE || 'en';
 
-  // Dịch key message
   return i18next.t(key, { lng: language, ...options });
 };

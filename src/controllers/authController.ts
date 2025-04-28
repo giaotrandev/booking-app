@@ -1,12 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import ms from 'ms';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import User, { IUser } from '#models/userModel';
-import { sendEmail } from '#emails/sendEmail';
-import { resetPasswordEmailTemplate } from '#emails/templates/resetPasswordEmail';
-import { verificationEmailTemplate } from '#emails/templates/verificationEmail';
 import {
   sendSuccess,
   sendBadRequest,
@@ -14,7 +11,14 @@ import {
   sendUnauthorized,
   sendCreated,
   sendServerError,
-} from '#src/utils/apiResponse';
+} from '#utils/apiResponse';
+import * as TokenHandler from '#utils/tokenHandler';
+import { sendEmail } from '#emails/sendEmail';
+import { resetPasswordEmailTemplate } from '#emails/templates/resetPasswordEmail';
+import { verificationEmailTemplate } from '#emails/templates/verificationEmail';
+import { prisma } from '#config/db';
+import { translate } from '#src/services/translationService';
+import { TokenPayload } from '#src/types/auth';
 
 // Generate JWT
 const generateToken = (id: string): string => {
@@ -23,125 +27,89 @@ const generateToken = (id: string): string => {
   });
 };
 
-/**
- * @desc    Register user
- * @route   POST /api/auth/register
- * @access  Public
- */
+const EMAIL_VERIFICATION_EXPIRATION = process.env.EMAIL_VERIFICATION_EXPIRATION || '10m';
+
 export const registerUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const language = (req.query.lang as string) || 'en';
+    const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
     const { name, email, password, gender, phoneNumber, age, address } = req.body;
 
-    // Check if user exists and if verified
-    const existingUser = await User.findOne({ email });
-
-    // if (existingUser) {
-    //   // Nếu đã tồn tại và đã xác thực => không cho đăng ký
-    //   if (existingUser.isEmailVerified) {
-    //     sendBadRequest(res, 'auth.emailExists', null, language);
-    //     return;
-    //   }
-
-    //   // Nếu đã tồn tại nhưng chưa xác thực => cho phép ghi đè
-    //   // Cập nhật thông tin
-    //   existingUser.name = name;
-    //   existingUser.password = password;
-    //   existingUser.gender = gender;
-    //   existingUser.phoneNumber = phoneNumber;
-    //   existingUser.age = age;
-    //   existingUser.address = address;
-
-    //   // Tạo token xác thực mới
-    //   const verificationToken = existingUser.getEmailVerificationToken();
-    //   await existingUser.save();
-
-    //   // Tạo verification link
-    //   const verificationLink = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
-
-    //   // Gửi email xác thực
-    //   await sendEmail(email, 'Xác thực tài khoản của bạn', verificationEmailTemplate, {
-    //     username: name,
-    //     verificationLink,
-    //   });
-
-    //   // Set timeout để xóa user nếu không xác thực sau 10 phút
-    //   setTimeout(
-    //     async () => {
-    //       const user = await User.findOne({
-    //         email,
-    //         isEmailVerified: false,
-    //         emailVerificationExpire: { $lt: Date.now() },
-    //       });
-
-    //       if (user) {
-    //         await User.deleteOne({ _id: user._id });
-    //         console.log(`User ${email} deleted due to verification timeout`);
-    //       }
-    //     },
-    //     parseInt(process.env.EMAIL_VERIFICATION_EXPIRATION || '600000')
-    //   );
-
-    //   sendCreated(
-    //     res,
-    //     'auth.verificationEmailSent',
-    //     {
-    //       _id: existingUser._id,
-    //       name: existingUser.name,
-    //       email: existingUser.email,
-    //     },
-    //     language
-    //   );
-    //   return;
-    // }
-
-    // Create new user
-    const newUser = await User.create({
-      name,
-      email,
-      password,
-      gender,
-      phoneNumber,
-      age,
-      address,
-      isEmailVerified: false,
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
     });
 
-    // Generate verification token
-    const verificationToken = newUser.getEmailVerificationToken();
-    await newUser.save();
+    if (existingUser && existingUser.isEmailVerified) {
+      sendBadRequest(res, 'auth.emailExists', null, language);
+      return;
+    }
 
-    // Tạo verification link
+    // Hash password
+    const hashedPassword = await TokenHandler.hashPassword(password);
+
+    // Create or update user (if exists)
+    const { verificationToken, hashedToken, emailVerificationExpire } = TokenHandler.generateEmailVerificationToken();
+
+    const newUser = await prisma.user.upsert({
+      where: { email },
+      update: {
+        name,
+        password: hashedPassword, // Hash password here
+        gender: gender as 'MALE' | 'FEMALE',
+        phoneNumber,
+        age,
+        address,
+        emailVerificationToken: hashedToken,
+        emailVerificationExpire,
+        isEmailVerified: false,
+      },
+      create: {
+        name,
+        email,
+        password: hashedPassword, // Hash password here
+        gender: gender as 'MALE' | 'FEMALE',
+        phoneNumber,
+        age,
+        address,
+        emailVerificationToken: hashedToken,
+        emailVerificationExpire,
+        isEmailVerified: false,
+        role: {
+          connect: { name: 'USER' },
+        },
+        status: 'PENDING',
+      },
+    });
+
+    // Create verification URL
     const verificationLink = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
 
-    // Gửi email xác thực
-    await sendEmail(email, 'Xác thực tài khoản của bạn', verificationEmailTemplate, {
+    // Send verification email
+    await sendEmail(email, translate('auth.verifyEmail', language), verificationEmailTemplate, {
       username: name,
       verificationLink,
+      language,
     });
 
-    // Set timeout để xóa user nếu không xác thực sau 10 phút
+    // Set timeout to delete user if not verified
     setTimeout(
       async () => {
-        const user = await User.findOne({
-          email,
-          isEmailVerified: false,
-          emailVerificationExpire: { $lt: Date.now() },
+        await prisma.user.deleteMany({
+          where: {
+            email,
+            isEmailVerified: false,
+            emailVerificationExpire: { lt: new Date() },
+          },
         });
-
-        if (user) {
-          await User.deleteOne({ _id: user._id });
-          console.log(`User ${email} deleted due to verification timeout`);
-        }
       },
-      parseInt(process.env.EMAIL_VERIFICATION_EXPIRATION || '600000')
+      ms(EMAIL_VERIFICATION_EXPIRATION as ms.StringValue)
     );
 
     sendCreated(
       res,
       'auth.verificationEmailSent',
       {
-        _id: newUser._id,
+        id: newUser.id,
         name: newUser.name,
         email: newUser.email,
       },
@@ -149,30 +117,25 @@ export const registerUser = async (req: Request, res: Response, next: NextFuncti
     );
   } catch (error) {
     next(error);
-    // console.log('Error code: ', error?.statusCode);
-    // console.error('Register error:', error);
-
-    // sendServerError(
-    //   res,
-    //   'common.serverError',
-    //   error instanceof Error ? { message: error.message } : null,
-    //   (req.query.lang as string) || 'en'
-    // );
   }
 };
 
-/**
- * @desc    Login user
- * @route   POST /api/auth/login
- * @access  Public
- */
 export const loginUser = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
   try {
-    const language = (req.query.lang as string) || 'en';
-    const { email, password } = req.body;
+    const { email, password, rememberMe } = req.body;
 
     // Check for user email
-    const user = await User.findOne({ email });
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: {
+        role: {
+          include: {
+            permissions: true,
+          },
+        },
+      },
+    });
 
     if (!user) {
       sendUnauthorized(res, 'auth.invalidCredentials', null, language);
@@ -186,58 +149,184 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Check password
-    const isMatch = await user.comparePassword(password);
+    const isMatch = await TokenHandler.comparePassword(password, user.password);
 
     if (!isMatch) {
       sendUnauthorized(res, 'auth.invalidCredentials', null, language);
       return;
     }
 
-    // Đăng nhập thành công
+    // Parse token expiration from environment variables
+    const ACCESS_TOKEN_EXPIRATION = process.env.ACCESS_TOKEN_EXPIRATION || '1d';
+    const REFRESH_TOKEN_EXPIRATION = process.env.REFRESH_TOKEN_EXPIRATION || '30d';
+
+    // Convert time strings to milliseconds
+    const accessTokenExpirationMs = ms(ACCESS_TOKEN_EXPIRATION as ms.StringValue);
+    const refreshTokenExpirationMs = ms(REFRESH_TOKEN_EXPIRATION as ms.StringValue);
+
+    // Remove old login sessions
+    await prisma.loginSession.deleteMany({
+      where: {
+        userId: user.id,
+        lastActivityAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // 30 days
+      },
+    });
+
+    // Create new login session
+    const session = await prisma.loginSession.create({
+      data: {
+        userId: user.id,
+        ip: req.ip || 'unknown',
+        userAgent: req.get('User-Agent') || 'unknown',
+        isActive: true,
+      },
+    });
+
+    // Create access token
+    const accessToken = TokenHandler.generateAccessToken({
+      userId: user.id,
+      role: user.role.name,
+      sessionId: session.id,
+    });
+
+    // Prepare cookie options with environment-based configuration
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? ('strict' as const) : ('lax' as const),
+      expires: new Date(Date.now() + accessTokenExpirationMs),
+      path: '/',
+    };
+
+    // Conditional cookie name based on environment
+    const accessTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-at' : 'at';
+
+    const refreshTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-rt' : 'rt';
+
+    // Set access token cookie
+    res.cookie(accessTokenCookieName, accessToken, {
+      ...cookieOptions,
+      ...(process.env.NODE_ENV === 'production' && {
+        secure: true,
+      }),
+    });
+
+    // Initialize refresh token as null
+    let refreshToken = null;
+
+    // Handle remember me functionality
+    if (rememberMe) {
+      const refreshTokenString = TokenHandler.generateRefreshToken({
+        userId: user.id,
+        sessionId: session.id,
+      });
+
+      // Store refresh token in database
+      await prisma.refreshToken.create({
+        data: {
+          token: refreshTokenString,
+          sessionId: session.id,
+          expiresAt: new Date(Date.now() + refreshTokenExpirationMs),
+          isRevoked: false,
+        },
+      });
+
+      // Set refresh token cookie
+      res.cookie(refreshTokenCookieName, refreshTokenString, {
+        ...cookieOptions,
+        expires: new Date(Date.now() + refreshTokenExpirationMs),
+        ...(process.env.NODE_ENV === 'production' && {
+          secure: true,
+        }),
+      });
+
+      refreshToken = refreshTokenString;
+    }
+
+    // Successful login response
     sendSuccess(
       res,
       'auth.loginSuccess',
       {
-        _id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: user.role.name,
+        permissions: user.role.permissions.map((p) => p.code),
         gender: user.gender,
         phoneNumber: user.phoneNumber,
         age: user.age,
         address: user.address,
-        token: generateToken(user._id.toHexString()),
+        accessToken,
+        // refreshToken,
       },
       language
     );
   } catch (error) {
-    console.error('Login error:', error);
-    sendServerError(
-      res,
-      'common.serverError',
-      error instanceof Error ? { message: error.message } : null,
-      (req.query.lang as string) || 'en'
-    );
+    sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
   }
 };
 
-/**
- * @desc    Verify email
- * @route   GET /api/auth/verify-email/:token
- * @access  Public
- */
-export const verifyEmail = async (req: Request, res: Response): Promise<void> => {
+export const refreshAccessToken = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
   try {
-    const language = (req.query.lang as string) || 'en';
+    // Lấy refresh token từ cookie hoặc body
+    const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+
+    if (!refreshToken) {
+      sendUnauthorized(res, 'auth.noRefreshToken', null, language);
+      return;
+    }
+
+    // Xác thực refresh token
+    const decoded = TokenHandler.verifyToken(refreshToken, 'refresh') as { userId: string; sessionId: string };
+
+    // Kiểm tra refresh token trong DB
+    const storedToken = await prisma.refreshToken.findFirst({
+      where: {
+        token: refreshToken,
+        isRevoked: false,
+        expiresAt: { gt: new Date() },
+      },
+      include: { session: { include: { user: { include: { role: true } } } } },
+    });
+
+    if (!storedToken) {
+      sendUnauthorized(res, 'auth.invalidRefreshToken', null, language);
+      return;
+    }
+
+    // Tạo access token mới
+    const accessToken = TokenHandler.generateAccessToken({
+      userId: storedToken.session.userId,
+      role: storedToken.session.user.role.name,
+      sessionId: storedToken.sessionId,
+    });
+
+    // Cập nhật hoạt động của phiên
+    await prisma.loginSession.update({
+      where: { id: storedToken.sessionId },
+      data: { lastActivityAt: new Date() },
+    });
+
+    sendSuccess(res, 'auth.tokenRefreshed', { accessToken }, language);
+  } catch (error) {
+    sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
+  }
+};
+
+export const verifyEmail = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+  try {
     const { token } = req.params;
 
-    // Hash token
-    // const emailVerificationToken = crypto.createHash('sha256').update(token).digest('hex');
+    const hashedToken = TokenHandler.hashToken(token);
 
-    // Find user by token
-    const user = await User.findOne({
-      emailVerificationToken: token,
-      emailVerificationExpire: { $gt: Date.now() },
+    const user = await prisma.user.findFirst({
+      where: {
+        emailVerificationToken: hashedToken,
+        emailVerificationExpire: { gt: new Date() },
+      },
     });
 
     if (!user) {
@@ -245,126 +334,123 @@ export const verifyEmail = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Update user
-    user.isEmailVerified = true;
-    user.emailVerificationToken = undefined;
-    user.emailVerificationExpire = undefined;
-    await user.save();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isEmailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpire: null,
+      },
+    });
 
     sendSuccess(
       res,
       'auth.emailVerified',
-      {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        token: generateToken(user._id.toHexString()),
-      },
+      {},
+      // {
+      //   id: user.id,
+      //   name: user.name,
+      //   email: user.email,
+      //   token: generateToken(user.id),
+      // },
       language
     );
   } catch (error) {
-    console.error('Email verification error:', error);
-    sendServerError(
-      res,
-      'common.serverError',
-      error instanceof Error ? { message: error.message } : null,
-      (req.query.lang as string) || 'en'
-    );
+    sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
   }
 };
 
-/**
- * @desc    Resend verification email
- * @route   POST /api/auth/resend-verification
- * @access  Public
- */
 export const resendVerification = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
   try {
-    const language = (req.query.lang as string) || 'en';
     const { email } = req.body;
 
-    // Find user
-    const user = await User.findOne({ email });
+    const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
       sendNotFound(res, 'auth.userNotFound', null, language);
       return;
     }
 
-    // Check if already verified
     if (user.isEmailVerified) {
       sendBadRequest(res, 'auth.alreadyVerified', null, language);
       return;
     }
 
-    // Generate new verification token
-    const verificationToken = user.getEmailVerificationToken();
-    await user.save();
+    const { verificationToken, hashedToken, emailVerificationExpire } = TokenHandler.generateEmailVerificationToken();
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerificationToken: hashedToken,
+        emailVerificationExpire,
+      },
+    });
 
     const verificationLink = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
 
-    // Send verification email
-    // await sendVerificationEmail(email, user.name, verificationToken);
-    await sendEmail(email, 'Xác thực tài khoản của bạn', verificationEmailTemplate, {
+    await sendEmail(email, translate('auth.verifyEmail', language), verificationEmailTemplate, {
       username: user.name,
       verificationLink,
+      language,
     });
 
-    // Set timeout để xóa user nếu không xác thực sau 10 phút
     setTimeout(
       async () => {
-        const updatedUser = await User.findOne({
-          email,
-          isEmailVerified: false,
-          emailVerificationExpire: { $lt: Date.now() },
+        await prisma.user.deleteMany({
+          where: {
+            email,
+            isEmailVerified: false,
+            emailVerificationExpire: { lt: new Date() },
+          },
         });
-
-        if (updatedUser) {
-          await User.deleteOne({ _id: updatedUser._id });
-          console.log(`User ${email} deleted due to verification timeout`);
-        }
+        console.log(`User ${email} deleted due to verification timeout`);
       },
-      parseInt(process.env.EMAIL_VERIFICATION_EXPIRATION || '600000')
+      ms(EMAIL_VERIFICATION_EXPIRATION as ms.StringValue)
     );
 
     sendSuccess(res, 'auth.verificationEmailResent', null, language);
   } catch (error) {
-    console.error('Resend verification error:', error);
-    sendServerError(
-      res,
-      'common.serverError',
-      error instanceof Error ? { message: error.message } : null,
-      (req.query.lang as string) || 'en'
-    );
+    sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
   }
 };
 
-// @desc    Get user profile
-// @route   GET /api/auth/profile
-// @access  Private
-export const getUserProfile = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const user = await User.findById(req.user?._id).select('-password');
+// export const getUserProfile = async (req: Request, res: Response): Promise<void> => {
+//   const lang =
+//     req.language || res.locals.language || (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+//   try {
+//     const user = await prisma.user.findUnique({
+//       where: { id: req.user?.id },
+//       select: {
+//         id: true,
+//         name: true,
+//         email: true,
+//         role: true,
+//         gender: true,
+//         phoneNumber: true,
+//         age: true,
+//         address: true,
+//         createdAt: true,
+//         updatedAt: true,
+//       },
+//     });
 
-    if (!user) {
-      res.status(404).json({ message: 'User not found' });
-      return;
-    }
+//     if (!user) {
+//       sendNotFound(res, 'auth.userNotFound', null, lang);
+//       return;
+//     }
 
-    res.status(200).json(user);
-  } catch (error) {
-    res.status(500).json({
-      message: 'Server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-};
+//     res.status(200).json(user);
+//   } catch (error) {
+//     sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, lang);
+//   }
+// };
 
 export const forgotPassword = async (req: Request, res: Response) => {
-  const lang = req.language || res.locals.language || (req.query.lang as string) || 'en';
+  const lang = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email });
+    const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
       sendNotFound(res, 'auth.userNotFound', null, lang);
@@ -372,12 +458,20 @@ export const forgotPassword = async (req: Request, res: Response) => {
     }
 
     // Generate reset token
-    const resetToken = user.getResetPasswordToken();
-    await user.save({ validateBeforeSave: false });
+    const { resetToken, hashedToken, resetTokenExpire } = TokenHandler.generateResetPasswordToken();
+
+    // Update user
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetPasswordToken: hashedToken,
+        resetPasswordExpire: resetTokenExpire,
+      },
+    });
 
     // Create reset URL
     const resetUrl = `${req.protocol}://${req.get('host')}/api/auth/reset-password/${resetToken}`;
-    const message = `You requested a password reset. Click the link below to reset your password:\n\n${resetUrl}\n\nIf you did not request this, please ignore this email.`;
+
     try {
       await sendEmail(email, 'Reset Your Password', resetPasswordEmailTemplate, {
         username: user.name || '',
@@ -388,25 +482,27 @@ export const forgotPassword = async (req: Request, res: Response) => {
       sendServerError(res, 'auth.emailNotSent', error, lang);
     }
   } catch (error) {
-    console.error('Error in forgotPassword:', error);
     sendServerError(res, 'common.serverError', error, lang);
   }
 };
 
 export const resetPassword = async (req: Request, res: Response): Promise<void> => {
-  const lang = req.language || res.locals.language || (req.query.lang as string) || 'en';
+  const lang =
+    req.language || res.locals.language || (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
   try {
-    const { newPassword, token } = req.body;
+    const { token, password, confirmPassword } = req.body;
 
-    if (!newPassword || !token) {
+    if (!password || !token || !confirmPassword) {
       sendBadRequest(res, 'auth.passwordAndTokenRequired', null, lang);
       return;
     }
 
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-    const user = await User.findOne({
-      resetPasswordToken: hashedToken,
-      resetPasswordExpire: { $gt: new Date() },
+    const user = await prisma.user.findFirst({
+      where: {
+        resetPasswordToken: hashedToken,
+        resetPasswordExpire: { gt: new Date() },
+      },
     });
 
     if (!user) {
@@ -414,52 +510,453 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    user.password = newPassword;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
-    await user.save({ validateBeforeSave: false });
+    // Hash new password
+    const bcrypt = await import('bcrypt');
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Update user
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetPasswordToken: null,
+        resetPasswordExpire: null,
+      },
+    });
 
     sendSuccess(res, 'auth.passwordResetSuccess', null, lang);
   } catch (error) {
-    console.error('Error in resetPassword:', error);
     sendServerError(res, 'common.serverError', error, lang);
   }
 };
 
+// Configure Google OAuth Strategy
 passport.use(
   new GoogleStrategy(
     {
-      clientID: process.env.GOOGLE_CLIENT_ID || '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-      callbackURL: 'http://localhost:5000/api/auth/google/callback',
+      clientID: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      callbackURL: process.env.GOOGLE_CALLBACK_URL!,
+      passReqToCallback: true,
       scope: ['profile', 'email'],
     },
-    async (accessToken, refreshToken, profile, done) => {
+    async (req, accessToken, refreshToken, profile, done) => {
       try {
-        let user = await User.findOne({ googleId: profile.id });
+        // Extract necessary information from Google profile
+        const email = profile.emails?.[0]?.value;
+        const name = profile.displayName;
+        const googleId = profile.id;
+        const avatar = profile.photos?.[0]?.value || null;
 
-        if (!user) {
-          user = await User.create({
-            googleId: profile.id,
-            name: profile.displayName,
-            email: profile.emails?.[0].value,
-            avatar: profile.photos?.[0].value,
+        if (!email) {
+          return done(new Error('No email found in Google profile'));
+        }
+
+        // Find existing user
+        const existingUser = await prisma.user.findUnique({
+          where: {
+            email: email,
+          },
+          include: {
+            role: {
+              include: {
+                permissions: true,
+              },
+            },
+          },
+        });
+
+        let user;
+        if (existingUser) {
+          // If user exists and already has a password, don't overwrite
+          if (existingUser.password && !existingUser.googleId) {
+            // User has a password but hasn't linked Google account
+            return done(null, false, {
+              message: 'Account already exists with a different login method',
+            });
+          }
+
+          // Update existing user with Google ID if not already set
+          if (!existingUser.googleId) {
+            user = await prisma.user.update({
+              where: { email },
+              data: {
+                googleId,
+                // Only update these if they're not already set
+                ...(existingUser.avatar ? {} : { avatar }),
+                ...(existingUser.name === 'User' ? { name } : {}),
+                isEmailVerified: true,
+                status: 'AVAILABLE',
+              },
+              include: {
+                role: {
+                  include: {
+                    permissions: true,
+                  },
+                },
+              },
+            });
+          } else {
+            user = existingUser;
+          }
+        } else {
+          // Create new user
+          user = await prisma.user.create({
+            data: {
+              email,
+              name,
+              googleId,
+              isEmailVerified: true,
+              // Only set a random password if no existing password
+              password: await TokenHandler.hashPassword(TokenHandler.generateRandomToken()),
+              role: {
+                connect: { name: 'USER' },
+              },
+              status: 'AVAILABLE',
+              age: 0, // Default value for required field
+              gender: 'MALE', // Default value for required field
+              phoneNumber: '', // Default value for required field
+              address: '', // Default value for required field
+              avatar,
+            },
+            include: {
+              role: {
+                include: {
+                  permissions: true,
+                },
+              },
+            },
           });
         }
 
         return done(null, user);
       } catch (error) {
-        return done(error, undefined);
+        return done(error);
       }
     }
   )
 );
 
-passport.serializeUser((user: IUser, done) => {
-  done(null, user.id);
-});
+// Google OAuth Routes
+export const googleAuthRoutes = {
+  // Initiate Google OAuth
+  initiateGoogleAuth: (req: Request, res: Response, next: NextFunction) => {
+    const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+    passport.authenticate('google', {
+      scope: ['profile', 'email'],
+      state: language,
+    })(req, res, next);
+  },
 
-passport.deserializeUser(async (id, done) => {
-  const user = await User.findById(id);
-  done(null, user);
-});
+  // Google OAuth Callback
+  handleGoogleCallback: async (req: Request, res: Response, next: NextFunction) => {
+    const language = (req.query.state as string) || process.env.DEFAULT_LANGUAGE || 'en';
+
+    passport.authenticate('google', async (err: Error | null, user: any, info: any) => {
+      // Create a universal error response script
+      const nonce = TokenHandler.generateRandomToken(16);
+      res.setHeader('Content-Security-Policy', `script-src 'self' 'nonce-${nonce}'`);
+      const createErrorResponseScript = (errorMessage: string) => `
+        <html>
+        <head>
+          <script nonce="${nonce}">
+            // try {
+            //   window.opener.postMessage({
+            //     success: false,
+            //     message: '${errorMessage}',
+            //     type: 'AUTH_ERROR'
+            //   }, '*');
+            // } catch (e) {
+            //   console.error('Error sending message to opener', e);
+            // }
+            
+            // Always attempt to close
+            window.close();
+          </script>
+        </head>
+        <body>
+          <h1>Authentication Error</h1>
+          <p>${errorMessage}</p>
+        </body>
+        </html>
+      `;
+
+      // Various error scenarios
+      if (err) {
+        console.error('Google OAuth Authentication Error:', err);
+        return res.status(400).send(createErrorResponseScript('Authentication failed'));
+      }
+
+      // Policy rejection or user cancellation
+      if (info && info.message === 'User cancelled login') {
+        return res.status(403).send(createErrorResponseScript('Login cancelled by user'));
+      }
+
+      // No user found
+      if (!user) {
+        return res.status(401).send(createErrorResponseScript('No user account found'));
+      }
+
+      try {
+        // Parse token expiration from environment variables
+        const ACCESS_TOKEN_EXPIRATION = process.env.ACCESS_TOKEN_EXPIRATION || '1d';
+        const REFRESH_TOKEN_EXPIRATION = process.env.REFRESH_TOKEN_EXPIRATION || '30d';
+
+        // Convert time strings to milliseconds
+        const accessTokenExpirationMs = ms(ACCESS_TOKEN_EXPIRATION as ms.StringValue);
+        const refreshTokenExpirationMs = ms(REFRESH_TOKEN_EXPIRATION as ms.StringValue);
+
+        // Remove old login sessions
+        await prisma.loginSession.deleteMany({
+          where: {
+            userId: user.id,
+            lastActivityAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // 30 days
+          },
+        });
+
+        // Create new login session
+        const session = await prisma.loginSession.create({
+          data: {
+            userId: user.id,
+            ip: req.ip || 'unknown',
+            userAgent: req.get('User-Agent') || 'unknown',
+            isActive: true,
+          },
+        });
+
+        // Create access token
+        const accessToken = TokenHandler.generateAccessToken({
+          userId: user.id,
+          role: user.role.name,
+          sessionId: session.id,
+        });
+
+        // Prepare cookie options with environment-based configuration
+        const cookieOptions = {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? ('strict' as const) : ('lax' as const),
+          expires: new Date(Date.now() + accessTokenExpirationMs),
+          path: '/',
+        };
+
+        // Conditional cookie name based on environment
+        const accessTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-at' : 'at';
+        const refreshTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-rt' : 'rt';
+
+        // Set access token cookie
+        res.cookie(accessTokenCookieName, accessToken, {
+          ...cookieOptions,
+          ...(process.env.NODE_ENV === 'production' && {
+            secure: true,
+          }),
+        });
+
+        // Generate refresh token
+        const refreshTokenString = TokenHandler.generateRefreshToken({
+          userId: user.id,
+          sessionId: session.id,
+        });
+
+        // Store refresh token in database
+        await prisma.refreshToken.create({
+          data: {
+            token: refreshTokenString,
+            sessionId: session.id,
+            expiresAt: new Date(Date.now() + refreshTokenExpirationMs),
+            isRevoked: false,
+          },
+        });
+
+        // Set refresh token cookie
+        res.cookie(refreshTokenCookieName, refreshTokenString, {
+          ...cookieOptions,
+          expires: new Date(Date.now() + refreshTokenExpirationMs),
+          ...(process.env.NODE_ENV === 'production' && {
+            secure: true,
+          }),
+        });
+
+        const createSuccessResponseScript = () => `
+          <html>
+          <head>
+            <script nonce="${nonce}">
+              // window.opener.postMessage({
+              //   success: true,
+              //   token: '${accessToken}',
+              //   user: {
+              //     id: '${user.id}',
+              //     name: '${user.name}',
+              //     email: '${user.email}'
+              //   }
+              // }, '*');
+              
+              // Đóng cửa sổ sau khi gửi message
+              window.close();
+            </script>
+          </head>
+          <body>Đang xử lý...</body>
+          </html>
+        `;
+
+        return res.status(200).send(createSuccessResponseScript());
+      } catch (processingError) {
+        console.error('Error processing Google OAuth login:', processingError);
+        return res.status(500).send(createErrorResponseScript('Internal server error'));
+      }
+    })(req, res, next);
+  },
+};
+
+export const logoutUser = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+
+  try {
+    // Extract access token from cookies
+    const accessTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-at' : 'at';
+    const refreshTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-rt' : 'rt';
+
+    const accessToken = req.cookies[accessTokenCookieName];
+    const refreshToken = req.cookies[refreshTokenCookieName];
+
+    // If no access token, return early
+    if (!accessToken) {
+      sendUnauthorized(res, 'auth.noActiveSession', null, language);
+      return;
+    }
+
+    // Verify the access token to get user and session information
+    let decoded: TokenPayload;
+    try {
+      decoded = TokenHandler.verifyToken(accessToken) as TokenPayload;
+    } catch (error) {
+      sendUnauthorized(res, 'auth.invalidToken', null, language);
+      return;
+    }
+
+    // Deactivate the login session
+    await prisma.loginSession.updateMany({
+      where: {
+        id: decoded.sessionId,
+        userId: decoded.userId,
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+        logoutAt: new Date(),
+      },
+    });
+
+    // Revoke refresh token if it exists
+    if (refreshToken) {
+      await prisma.refreshToken.updateMany({
+        where: {
+          token: refreshToken,
+          sessionId: decoded.sessionId,
+          isRevoked: false,
+        },
+        data: {
+          isRevoked: true,
+        },
+      });
+    }
+
+    // Prepare cookie options for clearing
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? ('strict' as const) : ('lax' as const),
+      path: '/',
+    };
+
+    // Clear access token cookie
+    res.clearCookie(accessTokenCookieName, cookieOptions);
+
+    // Clear refresh token cookie if it exists
+    if (refreshToken) {
+      res.clearCookie(refreshTokenCookieName, cookieOptions);
+    }
+
+    // Successful logout response
+    sendSuccess(res, 'auth.logoutSuccess', {}, language);
+  } catch (error) {
+    console.error('Logout Error:', error);
+
+    sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
+  }
+};
+
+// Logout from all devices
+export const logoutAllDevices = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+
+  try {
+    // Extract access token from cookies
+    const accessTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-at' : 'at';
+    const refreshTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-rt' : 'rt';
+
+    const accessToken = req.cookies[accessTokenCookieName];
+
+    // If no access token, return early
+    if (!accessToken) {
+      sendUnauthorized(res, 'auth.noActiveSession', null, language);
+      return;
+    }
+
+    // Verify the access token to get user information
+    let decoded: TokenPayload;
+    try {
+      decoded = TokenHandler.verifyToken(accessToken) as TokenPayload;
+    } catch (error) {
+      sendUnauthorized(res, 'auth.invalidToken', null, language);
+      return;
+    }
+
+    // Deactivate all active login sessions for the user
+    const { count: sessionsUpdated } = await prisma.loginSession.updateMany({
+      where: {
+        userId: decoded.userId,
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+        logoutAt: new Date(),
+      },
+    });
+
+    // Revoke all active refresh tokens for the user
+    const { count: tokensRevoked } = await prisma.refreshToken.updateMany({
+      where: {
+        session: {
+          userId: decoded.userId,
+        },
+        isRevoked: false,
+      },
+      data: {
+        isRevoked: true,
+      },
+    });
+
+    // Prepare cookie options for clearing
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? ('strict' as const) : ('lax' as const),
+      path: '/',
+    };
+
+    // Clear access token cookie
+    res.clearCookie(accessTokenCookieName, cookieOptions);
+
+    // Clear refresh token cookie
+    res.clearCookie(refreshTokenCookieName, cookieOptions);
+
+    // Successful logout from all devices response
+    sendSuccess(res, 'auth.logoutAllDevicesSuccess', {}, language);
+  } catch (error) {
+    console.error('Logout All Devices Error:', error);
+
+    sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
+  }
+};

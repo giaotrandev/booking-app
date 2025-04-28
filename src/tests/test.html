@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Login Example</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .login-container {
+            max-width: 400px;
+            width: 100%;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+            text-align: center;
+        }
+
+        h2 {
+            margin-bottom: 1.5rem;
+            color: #333;
+        }
+
+        .google-login-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 12px 16px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 500;
+            color: #757575;
+            cursor: pointer;
+            transition: background-color 0.3s, box-shadow 0.3s;
+        }
+
+        .google-login-button:before {
+            content: '';
+            background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj48cGF0aCBkPSJNMTcuNiA5LjJsLS4xLTEuOEg5djMuNGg0LjhDMTMuNiAxMiAxMyAxMyAxMiAxMy42djIuMmgzYTguOCA4LjggMCAwIDAgMi42LTYuNnoiIGZpbGw9IiM0Mjg1RjQiIGZpbGwtcnVsZT0ibm9uemVybyIvPjxwYXRoIGQ9Ik05IDE4YzIuNCAwIDQuNS0uOCA2LTIuMmwtMy0yLjJhNS40IDUuNCAwIDAgMS04LTIuOUgxVjEzYTkgOSAwIDAgMCA4IDV6IiBmaWxsPSIjMzRBODUzIiBmaWxsLXJ1bGU9Im5vbnplcm8iLz48cGF0aCBkPSJNNCAxMC43YTUuNCA1LjQgMCAwIDEgMC0zLjRWNUgxYTkgOSAwIDAgMCAwIDhsMy0yLjN6IiBmaWxsPSIjRkJCQzA1IiBmaWxsLXJ1bGU9Im5vbnplcm8iLz48cGF0aCBkPSJNOSAzLjZjMS4zIDAgMi41LjQgMy40IDEuM0wxNSAyLjNBOSA5IDAgMCAwIDEgNWwzIDIuNGE1LjQgNS40IDAgMCAxIDUtMy43eiIgZmlsbD0iI0VBNDMzNSIgZmlsbC1ydWxlPSJub256ZXJvIi8+PHBhdGggZD0iTTAgMGgxOHYxOEgweiIvPjwvZz48L3N2Zz4=');
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            margin-right: 10px;
+        }
+
+        .google-login-button:hover {
+            background-color: #f5f5f5;
+            box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+        }
+
+        .google-login-button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            margin: 1rem 0;
+            padding: 10px;
+            background-color: #fdeded;
+            border: 1px solid #f5c2c7;
+            border-radius: 4px;
+            color: #842029;
+            display: none;
+        }
+
+        .user-info {
+            text-align: left;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .user-info p {
+            margin: 5px 0;
+        }
+
+        .logout-button {
+            margin-top: 20px;
+            padding: 10px 16px;
+            background-color: #f44336;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .logout-button:hover {
+            background-color: #e53935;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <h2>Đăng nhập với tài khoản của bạn</h2>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <div id="loginSection">
+            <button id="googleLoginBtn" class="google-login-button">
+                Đăng nhập với Google
+            </button>
+        </div>
+
+        <div class="user-info" id="userInfoSection">
+            <h3>Chào mừng trở lại!</h3>
+            <p id="userName">Tên: </p>
+            <p id="userEmail">Email: </p>
+            <button id="logoutBtn" class="logout-button">Đăng xuất</button>
+        </div>
+    </div>
+
+    <script>
+        // Cấu hình API URL
+        const API_BASE_URL = 'http://localhost:5000'; // Thay đổi thành URL API của bạn
+        const LANGUAGE = 'vi'; // Ngôn ngữ mặc định
+
+        // DOM Elements
+        const googleLoginBtn = document.getElementById('googleLoginBtn');
+        const errorMessage = document.getElementById('errorMessage');
+        const loginSection = document.getElementById('loginSection');
+        const userInfoSection = document.getElementById('userInfoSection');
+        const userName = document.getElementById('userName');
+        const userEmail = document.getElementById('userEmail');
+        const logoutBtn = document.getElementById('logoutBtn');
+
+        // Kiểm tra xem người dùng đã đăng nhập chưa
+        function checkLoggedInStatus() {
+            const userData = localStorage.getItem('userData');
+            const authToken = localStorage.getItem('authToken');
+
+            if (userData && authToken) {
+                const user = JSON.parse(userData);
+                displayUserInfo(user);
+                return true;
+            }
+            return false;
+        }
+
+        // Hiển thị thông tin người dùng
+        function displayUserInfo(user) {
+            userName.textContent = 'Tên: ' + user.name;
+            userEmail.textContent = 'Email: ' + user.email;
+
+            loginSection.style.display = 'none';
+            userInfoSection.style.display = 'block';
+        }
+
+        // Hiển thị lỗi
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            setTimeout(() => {
+                errorMessage.style.display = 'none';
+            }, 5000); // Ẩn sau 5 giây
+        }
+
+        // Xử lý đăng nhập Google
+        function loginWithGoogle() {
+            // Tính toán kích thước và vị trí popup
+            const width = 500;
+            const height = 600;
+            const left = window.screenX + (window.outerWidth - width) / 2;
+            const top = window.screenY + (window.outerHeight - height) / 2.5;
+
+            // Reference to the popup window
+            let popupWindow = null;
+
+            // Mở popup
+            popupWindow = window.open(
+                `${API_BASE_URL}/api/auth/google`,
+                'googleLogin',
+                `width=${width},height=${height},left=${left},top=${top},toolbar=0,scrollbars=0,status=0,resizable=0,location=0,menuBar=0`
+            );
+
+            // Kiểm tra nếu popup bị chặn
+            if (!popupWindow || popupWindow.closed) {
+                showError('Popup bị chặn. Vui lòng cho phép popup từ trang web này.');
+                return;
+            }
+
+            const messageHandler = (event) => {
+                if (event.source !== popupWindow) return;
+
+                const data = event.data;
+                if (data.success) {
+                    // Xử lý đăng nhập thành công
+                    localStorage.setItem('authToken', data.token);
+                    displayUserInfo(data.user);
+                } else {
+                    // Xử lý lỗi
+                    showError(data.message);
+                }
+
+                // Dọn dẹp event listener
+                window.removeEventListener('message', messageHandler);
+            };
+
+            window.addEventListener('message', messageHandler);
+        }
+        // Xử lý đăng xuất
+        function logout() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userData');
+
+            loginSection.style.display = 'block';
+            userInfoSection.style.display = 'none';
+        }
+
+        // Event listeners
+        googleLoginBtn.addEventListener('click', loginWithGoogle);
+        logoutBtn.addEventListener('click', logout);
+
+        // Kiểm tra trạng thái đăng nhập khi trang tải
+        document.addEventListener('DOMContentLoaded', () => {
+            checkLoggedInStatus();
+        });
+    </script>
+</body>
+
+</html>

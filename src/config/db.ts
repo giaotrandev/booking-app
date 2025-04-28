@@ -1,16 +1,19 @@
-import mongoose from 'mongoose';
-import dotenv from 'dotenv';
+import { PrismaClient } from '@prisma/client';
+import { seedRolesAndPermissions } from '#src/seeds/rolePermission';
+// import { PrismaClient } from '@prisma/client/edge';
 
-dotenv.config();
+const prisma = new PrismaClient();
 
 const connectDB = async (): Promise<void> => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI as string);
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    await prisma.$connect();
+    console.log('Prisma connected to MongoDB successfully');
   } catch (error) {
-    console.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error(`Database connection error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     process.exit(1);
   }
 };
+// Run the seed script
+// seedRolesAndPermissions();
 
-export default connectDB;
+export { prisma, connectDB };

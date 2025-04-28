@@ -1,0 +1,498 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+model SystemConfig {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  rateLimit       Int @default(5)
+  rateLimitWindow Int @default(3600)
+
+  isMaintaining        Boolean   @default(false)
+  maintenanceStartTime DateTime?
+  maintenanceEndTime   DateTime?
+
+  emailRateLimit       Int @default(5)
+  emailRateLimitWindow Int @default(3600)
+
+  maxLoginAttempts  Int @default(5)
+  loginLockDuration Int @default(900)
+
+  lastUpdatedBy String?  @db.ObjectId
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Province {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  name      String @unique
+  code      String @unique
+  latitude  Float?
+  longitude Float?
+
+  // Relationships
+  cities              City[]
+  routesAsSource      Route[] @relation("RouteSourceProvince")
+  routesAsDestination Route[] @relation("RouteDestinationProvince")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model City {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  provinceId String   @db.ObjectId
+  province   Province @relation(fields: [provinceId], references: [id])
+
+  latitude  Float?
+  longitude Float?
+
+  // Relationships
+  busStops BusStop[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Route {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  code             String   @unique
+  name             String
+  // Origin and Destination
+  sourceProvinceId String   @db.ObjectId
+  sourceProvince   Province @relation("RouteSourceProvince", fields: [sourceProvinceId], references: [id])
+
+  destinationProvinceId String   @db.ObjectId
+  destinationProvince   Province @relation("RouteDestinationProvince", fields: [destinationProvinceId], references: [id])
+
+  // Additional Route Details
+  distance     Float
+  distanceUnit DistanceUnit @default(KM)
+
+  // Estimated Duration
+  estimatedDuration Int // in minutes
+
+  // Intermediate Stops
+  routeStops RouteStop[]
+
+  trips Trip[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Bus Stop Management
+model BusStop {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  name   String
+  cityId String @db.ObjectId
+  city   City   @relation(fields: [cityId], references: [id])
+
+  latitude  Float?
+  longitude Float?
+
+  routeStops RouteStop[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Route Stops (Mapping route to stops with estimated times)
+model RouteStop {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  routeId String @db.ObjectId
+  route   Route  @relation(fields: [routeId], references: [id])
+
+  busStopId String  @db.ObjectId
+  busStop   BusStop @relation(fields: [busStopId], references: [id])
+
+  // Order of stop in the route
+  stopOrder Int
+
+  // Estimated arrival and departure times
+  estimatedArrivalTime   DateTime?
+  estimatedDepartureTime DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model VehicleType {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String  @unique // "Sleeper", "Sitting", etc.
+  description String?
+
+  // Seat Configuration (JSON to store seat layout)
+  seatConfiguration Json
+
+  // Relationships
+  vehicles Vehicle[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Vehicle Management
+model Vehicle {
+  id               String @id @default(auto()) @map("_id") @db.ObjectId
+  plateNumber      String @unique
+  registrationCode String @unique
+
+  // Vehicle Details
+  vehicleTypeId String      @db.ObjectId
+  vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id])
+
+  driverId String? @db.ObjectId
+  driver   User?   @relation(fields: [driverId], references: [id])
+
+  // Vehicle Status and Validity
+  registrationExpiryDate DateTime
+  status                 VehicleStatus @default(ACTIVE)
+
+  // Relationships
+  trips Trip[]
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Trip {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Route Information
+  routeId String @db.ObjectId
+  route   Route  @relation(fields: [routeId], references: [id])
+
+  // Vehicle Information
+  vehicleId String  @db.ObjectId
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+
+  // Timing Information
+  departureTime DateTime
+  arrivalTime   DateTime
+
+  // Pricing
+  basePrice    Float
+  specialPrice Float?
+
+  // Trip Status
+  status TripStatus @default(SCHEDULED)
+
+  // Seat Management
+  seats    Seat[]
+  bookings Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Seat Management
+model Seat {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Trip Association
+  tripId String @db.ObjectId
+  trip   Trip   @relation(fields: [tripId], references: [id])
+
+  // Seat Details
+  seatNumber String
+  seatType   SeatType @default(STANDARD)
+
+  // Booking Status
+  status    SeatStatus @default(AVAILABLE)
+  bookingId String?    @db.ObjectId
+  booking   Booking?   @relation(fields: [bookingId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Role {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String  @unique
+  description String?
+
+  // Store permission IDs directly
+  permissionIds String[] @db.ObjectId
+
+  // Relation fields
+  permissions Permission[] @relation(fields: [permissionIds], references: [id])
+  users       User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Permission {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  code        String  @unique
+  name        String
+  description String?
+
+  // Store role IDs directly
+  roleIds String[] @db.ObjectId
+
+  // Relation fields
+  roles Role[] @relation(fields: [roleIds], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id                      String    @id @default(auto()) @map("_id") @db.ObjectId
+  name                    String
+  email                   String    @unique
+  password                String
+  resetPasswordToken      String?
+  resetPasswordExpire     DateTime?
+  isEmailVerified         Boolean   @default(false)
+  emailVerificationToken  String?
+  emailVerificationExpire DateTime?
+
+  // Ensure roleId is also @db.ObjectId
+  roleName       String
+  role           Role             @relation(fields: [roleName], references: [name])
+  gender         Gender?
+  phoneNumber    String?
+  googleId       String?
+  avatar         String?
+  age            Int
+  address        String?
+  status         UserStatus       @default(PENDING)
+  bookings       Booking[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  loginSessions  LoginSession[]
+  Vehicle        Vehicle[]
+  SupportMessage SupportMessage[]
+  SupportSession SupportSession[]
+  userSessions   SupportSession[] @relation("UserSupportSessions")
+  agentSessions  SupportSession[] @relation("AgentSupportSessions")
+}
+
+model LoginSession {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String        @db.ObjectId
+  user           User          @relation(fields: [userId], references: [id])
+  ip             String
+  userAgent      String
+  loginAt        DateTime      @default(now())
+  lastActivityAt DateTime      @updatedAt
+  logoutAt       DateTime?
+  isActive       Boolean       @default(true)
+  refreshToken   RefreshToken?
+}
+
+model RefreshToken {
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  token     String       @unique
+  sessionId String       @unique @db.ObjectId
+  session   LoginSession @relation(fields: [sessionId], references: [id])
+  createdAt DateTime     @default(now())
+  expiresAt DateTime
+  isRevoked Boolean      @default(false)
+}
+
+// Chat Support Session
+model SupportSession {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  // Users in the session
+  userId String @db.ObjectId
+  user   User   @relation("UserSupportSessions", fields: [userId], references: [id])
+
+  supportAgentId String?              @db.ObjectId
+  supportAgent   User?                @relation("AgentSupportSessions", fields: [supportAgentId], references: [id])
+  // Session Details
+  status         SupportSessionStatus @default(PENDING)
+  requestType    SupportRequestType
+
+  // Message Limits
+  initialMessageQuota   Int @default(3)
+  remainingMessageQuota Int @default(3)
+
+  // Timestamps and Tracking
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  // Messages
+  messages SupportMessage[]
+
+  // Reporting
+  userReportStatus UserReportStatus?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  User      User     @relation(fields: [userId], references: [id])
+}
+
+// Support Messages
+model SupportMessage {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Session Association
+  sessionId String         @db.ObjectId
+  session   SupportSession @relation(fields: [sessionId], references: [id])
+
+  // Message Details
+  senderId String @db.ObjectId
+  sender   User   @relation(fields: [senderId], references: [id])
+
+  content   String
+  timestamp DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Bus {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  busNumber      String    @unique
+  source         String
+  destination    String
+  departureTime  DateTime
+  arrivalTime    DateTime
+  capacity       Int
+  availableSeats Int?
+  price          Float
+  bookings       Booking[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Booking {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  user          User          @relation(fields: [userId], references: [id])
+  userId        String        @db.ObjectId
+  bus           Bus           @relation(fields: [busId], references: [id])
+  busId         String        @db.ObjectId
+  seatNumber    Int[]
+  totalPrice    Float
+  status        BookingStatus @default(PENDING)
+  paymentStatus PaymentStatus @default(PENDING)
+
+  // Payment and QR Details
+  qrCode          String?
+  qrCodeExpiresAt DateTime?
+
+  // Group Booking Option
+  groupBookingId String?
+
+  // Payment Webhook Tracking
+  paymentWebhookReference String?
+
+  // Seats
+  seats Seat[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Trip      Trip?    @relation(fields: [tripId], references: [id])
+  tripId    String?  @db.ObjectId
+}
+
+model SnapshotLog {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  entityId           String   @db.ObjectId
+  entityType         String
+  actionType         String
+  compressedSnapshot Bytes
+  metadata           Json?
+  performedBy        String?  @db.ObjectId
+  createdAt          DateTime @default(now())
+
+  @@index([entityId, entityType])
+  @@index([createdAt])
+}
+
+// enum UserRole {
+//   USER
+//   ADMIN
+// }
+
+enum UserStatus {
+  AVAILABLE
+  DISABLED
+  PENDING
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+}
+
+enum DistanceUnit {
+  KM
+  MILE
+}
+
+enum VehicleStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum TripStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum SeatType {
+  STANDARD
+  PREMIUM
+  DISABLED
+}
+
+enum SeatStatus {
+  AVAILABLE
+  RESERVED
+  BOOKED
+  BLOCKED
+}
+
+enum SupportSessionStatus {
+  PENDING
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum SupportRequestType {
+  BOOKING_SUPPORT
+  GENERAL_INQUIRY
+  TECHNICAL_ISSUE
+  COMPLAINT
+}
+
+enum UserReportStatus {
+  NO_REPORT
+  UNDER_REVIEW
+  WARNED
+  BLOCKED
+}

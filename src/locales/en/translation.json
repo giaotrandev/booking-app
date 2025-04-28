@@ -1,7 +1,7 @@
 {
     "common": {
-        "success": "Operation successful",
         "error": "An error occurred",
+        "success": "Operation successful",
         "notFound": "Resource not found",
         "unauthorized": "Unauthorized access",
         "forbidden": "Access forbidden",
@@ -9,7 +9,30 @@
         "serverError": "Internal server error",
         "created": "Resource created successfully",
         "updated": "Resource updated successfully",
-        "deleted": "Resource deleted successfully"
+        "deleted": "Resource deleted successfully",
+        "tooManyRequests": "Too many requests, please try again later"
+    },
+    "validation": {
+        "invalidData": "Invalid information",
+        "required": "This field is required",
+        "invalid": "This field is invalid",
+        "invalidEmail": "Invalid email format",
+        "tooShort": "Must be at least {{limit}} characters",
+        "tooLong": "Must be less than {{limit}} characters",
+        "tooSmall": "Must be at least {{limit}}",
+        "tooLarge": "Must be less than {{limit}}",
+        "invalidFormat": "Invalid format",
+        "invalidType": "Invalid type, expected: {{type}}",
+        "invalidOption": "Must be one of: {{options}}",
+        "passwordMismatch": "Passwords do not match",
+        "passwordRequirements": "Password must contain uppercase, lowercase, number, and special character",
+        "unknownField": "Unknown field",
+        "invalidSelection": "Invalid selection field",
+        "invalidReference": "Invalid reference",
+        "constraintFailed": "Constraint check failed",
+        "duplicate": "This value is already in use",
+        "invalidString": "Invalid string format",
+        "mustBeNumber": "Must be a number"
     },
     "errors": {
         "name": {
@@ -24,7 +47,10 @@
         },
         "status": {
             "invalid": "Invalid status: {{value}}"
-        }
+        },
+        "validationFailed": "Validation failed",
+        "duplicateField": "The {{field}} already exists",
+        "invalidFieldType": "Invalid type for field {{field}}, expected {{expectedType}}"
     },
     "auth": {
         "loginSuccess": "Login successful",
@@ -38,7 +64,9 @@
         "tokenExpired": "Session expired, please login again",
         "accountLocked": "Account locked due to multiple failed attempts",
         "userNotFound": "User not found",
+        "verifyEmail": "Verify your account",
         "emailSent": "Email sent successfully",
+        "emailNotSent": "Unable to send email, please try again later",
         "passwordAndTokenRequired": "Password and token are required",
         "invalidOrExpiredToken": "Invalid or expired token",
         "emailNotVerified": "Your email is not verified. Please check your inbox for the verification email or request a new one",
@@ -46,7 +74,15 @@
         "verificationEmailResent": "Verification email has been resent. Please check your inbox",
         "emailVerified": "Email verified successfully",
         "alreadyVerified": "Email is already verified",
-        "invalidToken": "Invalid or expired verification token"
+        "invalidToken": "Invalid or expired verification token",
+        "noToken": "Please login to continue",
+        "insufficientPermissions": "You do not have permission to perform this action",
+        "permissionCheckFailed": "Permission check failed",
+        "noActiveSession": "No active session found",
+        "logoutAllDevicesSuccess": "Logged out from all devices successfully",
+        "tokenRefreshed": "Token refreshed successfully",
+        "noRefreshToken": "No refresh token found",
+        "invalidRefreshToken": "Invalid refresh token"
     },
     "user": {
         "profileUpdated": "Profile updated successfully",
