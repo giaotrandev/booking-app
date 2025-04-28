@@ -9,7 +9,6 @@ dotenv.config();
 
 import passport from 'passport';
 import authRoutes from '#routes/authRoutes';
-import bookingRoutes from '#routes/bookingRoutes';
 import { setupI18n, languageDetector } from '#middlewares/i18nMiddleware';
 import { languageMiddleware } from '#middlewares/languageMiddleware';
 import { prismaErrorHandler } from '#middlewares/prismaErrorHandler';
