@@ -377,6 +377,11 @@ export const resendVerification = async (req: Request, res: Response): Promise<v
       return;
     }
 
+    if (!user.emailVerificationToken) {
+      sendBadRequest(res, 'auth.noVerificationTokenFound', null, language);
+      return;
+    }
+
     const { verificationToken, hashedToken, emailVerificationExpire } = TokenHandler.generateEmailVerificationToken();
 
     await prisma.user.update({
@@ -415,37 +420,6 @@ export const resendVerification = async (req: Request, res: Response): Promise<v
   }
 };
 
-// export const getUserProfile = async (req: Request, res: Response): Promise<void> => {
-//   const lang =
-//     req.language || res.locals.language || (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
-//   try {
-//     const user = await prisma.user.findUnique({
-//       where: { id: req.user?.id },
-//       select: {
-//         id: true,
-//         name: true,
-//         email: true,
-//         role: true,
-//         gender: true,
-//         phoneNumber: true,
-//         age: true,
-//         address: true,
-//         createdAt: true,
-//         updatedAt: true,
-//       },
-//     });
-
-//     if (!user) {
-//       sendNotFound(res, 'auth.userNotFound', null, lang);
-//       return;
-//     }
-
-//     res.status(200).json(user);
-//   } catch (error) {
-//     sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, lang);
-//   }
-// };
-
 export const forgotPassword = async (req: Request, res: Response) => {
   const lang = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
   try {
@@ -483,6 +457,36 @@ export const forgotPassword = async (req: Request, res: Response) => {
     }
   } catch (error) {
     sendServerError(res, 'common.serverError', error, lang);
+  }
+};
+
+export const checkVerificationToken = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      sendBadRequest(res, 'auth.tokenRequired', null, language);
+      return;
+    }
+
+    const hashedToken = TokenHandler.hashToken(token);
+
+    const user = await prisma.user.findFirst({
+      where: {
+        emailVerificationToken: hashedToken,
+        emailVerificationExpire: { gt: new Date() },
+      },
+    });
+
+    if (!user) {
+      sendBadRequest(res, 'auth.invalidOrExpiredToken', null, language);
+      return;
+    }
+
+    sendSuccess(res, 'auth.validToken', { isValid: true }, language);
+  } catch (error) {
+    sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
   }
 };
 
@@ -807,6 +811,88 @@ export const googleAuthRoutes = {
       }
     })(req, res, next);
   },
+};
+
+export const changePassword = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+
+  try {
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    if (!req.user || !(req.user as { userId: string }).userId) {
+      sendUnauthorized(res, 'auth.userNotAuthenticated', null, language);
+      return;
+    }
+
+    const userId = (req.user as { userId: string }).userId;
+
+    // Find the user record
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      sendNotFound(res, 'auth.userNotFound', null, language);
+      return;
+    }
+
+    // Validate password confirmation
+    if (newPassword !== confirmPassword) {
+      sendBadRequest(res, 'auth.passwordsDoNotMatch', null, language);
+      return;
+    }
+
+    // Verify current password
+    const isPasswordValid = await TokenHandler.comparePassword(currentPassword, user.password);
+    if (!isPasswordValid) {
+      sendBadRequest(res, 'auth.currentPasswordIncorrect', null, language);
+      return;
+    }
+
+    // Hash the new password
+    const hashedPassword = await TokenHandler.hashPassword(newPassword);
+
+    // Update the user's password
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+
+    // Revoke other sessions (optional)
+    if ((req.user as { sessionId: string }).sessionId) {
+      // Keep current session active, deactivate others
+      await prisma.loginSession.updateMany({
+        where: {
+          userId,
+          isActive: true,
+          id: { not: (req.user as { sessionId: string }).sessionId },
+        },
+        data: {
+          isActive: false,
+          logoutAt: new Date(),
+        },
+      });
+
+      // Revoke other refresh tokens
+      await prisma.refreshToken.updateMany({
+        where: {
+          session: {
+            userId,
+            id: { not: (req.user as { sessionId: string }).sessionId },
+          },
+          isRevoked: false,
+        },
+        data: {
+          isRevoked: true,
+        },
+      });
+    }
+
+    sendSuccess(res, 'auth.passwordChanged', null, language);
+  } catch (error) {
+    console.error('Change Password Error:', error);
+    sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
+  }
 };
 
 export const logoutUser = async (req: Request, res: Response): Promise<void> => {

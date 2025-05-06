@@ -29,6 +29,8 @@ model SystemConfig {
   maxLoginAttempts  Int @default(5)
   loginLockDuration Int @default(900)
 
+  status SystemConfigStatus @default(ACTIVE)
+
   lastUpdatedBy String?  @db.ObjectId
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -41,72 +43,115 @@ model Province {
   latitude  Float?
   longitude Float?
 
-  // Relationships
-  cities              City[]
-  routesAsSource      Route[] @relation("RouteSourceProvince")
-  routesAsDestination Route[] @relation("RouteDestinationProvince")
+  status    CommonStatus @default(ACTIVE)
+  isDeleted Boolean      @default(false)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  districts           District[]
+  routesAsSource      Route[]    @relation("RouteSourceProvince")
+  routesAsDestination Route[]    @relation("RouteDestinationProvince")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 }
 
-model City {
+model District {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   name       String
   provinceId String   @db.ObjectId
   province   Province @relation(fields: [provinceId], references: [id])
 
+  wards Ward[]
+
   latitude  Float?
   longitude Float?
 
-  // Relationships
+  status    CommonStatus @default(ACTIVE)
+  isDeleted Boolean      @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+}
+
+model Ward {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  districtId String   @db.ObjectId
+  district   District @relation(fields: [districtId], references: [id])
+
   busStops BusStop[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  latitude  Float?
+  longitude Float?
+
+  status    CommonStatus @default(ACTIVE)
+  isDeleted Boolean      @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 }
 
 model Route {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  code             String   @unique
-  name             String
-  // Origin and Destination
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  code      String  @unique
+  name      String
+  direction String?
+
   sourceProvinceId String   @db.ObjectId
   sourceProvince   Province @relation("RouteSourceProvince", fields: [sourceProvinceId], references: [id])
 
   destinationProvinceId String   @db.ObjectId
   destinationProvince   Province @relation("RouteDestinationProvince", fields: [destinationProvinceId], references: [id])
 
-  // Additional Route Details
-  distance     Float
-  distanceUnit DistanceUnit @default(KM)
+  distance          Float
+  distanceUnit      DistanceUnit @default(KM)
+  estimatedDuration Int
 
-  // Estimated Duration
-  estimatedDuration Int // in minutes
+  status    CommonStatus @default(ACTIVE)
+  isDeleted Boolean      @default(false)
 
-  // Intermediate Stops
   routeStops RouteStop[]
+  trips      Trip[]
 
-  trips Trip[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Lịch sử thay đổi quan trọng
+  histories RouteHistory[]
+}
+
+model RouteHistory {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  routeId String @db.ObjectId
+  route   Route  @relation(fields: [routeId], references: [id])
+
+  changedFields Json
+  changedBy     String   @db.ObjectId
+  changeReason  String?
+  createdAt     DateTime @default(now())
 }
 
 // Bus Stop Management
 model BusStop {
   id     String @id @default(auto()) @map("_id") @db.ObjectId
   name   String
-  cityId String @db.ObjectId
-  city   City   @relation(fields: [cityId], references: [id])
+  wardId String @db.ObjectId
+  ward   Ward   @relation(fields: [wardId], references: [id])
 
   latitude  Float?
   longitude Float?
 
+  status    CommonStatus @default(ACTIVE)
+  isDeleted Boolean      @default(false)
+
   routeStops RouteStop[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 }
 
 // Route Stops (Mapping route to stops with estimated times)
@@ -118,30 +163,47 @@ model RouteStop {
   busStopId String  @db.ObjectId
   busStop   BusStop @relation(fields: [busStopId], references: [id])
 
-  // Order of stop in the route
   stopOrder Int
 
-  // Estimated arrival and departure times
   estimatedArrivalTime   DateTime?
   estimatedDepartureTime DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status    CommonStatus @default(ACTIVE)
+  isDeleted Boolean      @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 }
 
 model VehicleType {
-  id          String  @id @default(auto()) @map("_id") @db.ObjectId
-  name        String  @unique // "Sleeper", "Sitting", etc.
-  description String?
-
-  // Seat Configuration (JSON to store seat layout)
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  name              String  @unique
+  description       String?
   seatConfiguration Json
 
-  // Relationships
+  status    CommonStatus @default(ACTIVE)
+  isDeleted Boolean      @default(false)
+
   vehicles Vehicle[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Lịch sử thay đổi quan trọng
+  histories VehicleTypeHistory[]
+}
+
+model VehicleTypeHistory {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  vehicleTypeId String      @db.ObjectId
+  vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id])
+
+  changedFields Json
+  changedBy     String   @db.ObjectId
+  changeReason  String?
+  createdAt     DateTime @default(now())
 }
 
 // Vehicle Management
@@ -150,23 +212,34 @@ model Vehicle {
   plateNumber      String @unique
   registrationCode String @unique
 
-  // Vehicle Details
   vehicleTypeId String      @db.ObjectId
   vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id])
 
   driverId String? @db.ObjectId
   driver   User?   @relation(fields: [driverId], references: [id])
 
-  // Vehicle Status and Validity
   registrationExpiryDate DateTime
   status                 VehicleStatus @default(ACTIVE)
+  isDeleted              Boolean       @default(false)
 
-  // Relationships
   trips Trip[]
 
-  // Metadata
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  histories VehicleHistory[]
+}
+
+model VehicleHistory {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  vehicleId String  @db.ObjectId
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+
+  changedFields Json
+  changedBy     String   @db.ObjectId
+  changeReason  String?
+  createdAt     DateTime @default(now())
 }
 
 model Trip {
@@ -192,32 +265,113 @@ model Trip {
   status TripStatus @default(SCHEDULED)
 
   // Seat Management
-  seats    Seat[]
-  bookings Booking[]
+  seats        Seat[]
+  bookingTrips BookingTrip[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Lịch sử thay đổi quan trọng
+  histories TripHistory[]
+}
+
+model TripHistory {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  tripId String @db.ObjectId
+  trip   Trip   @relation(fields: [tripId], references: [id])
+
+  changedFields Json
+  changedBy     String   @db.ObjectId
+  changeReason  String?
+  createdAt     DateTime @default(now())
 }
 
 // Seat Management
 model Seat {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  // Trip Association
   tripId String @db.ObjectId
   trip   Trip   @relation(fields: [tripId], references: [id])
 
-  // Seat Details
   seatNumber String
   seatType   SeatType @default(STANDARD)
 
-  // Booking Status
   status    SeatStatus @default(AVAILABLE)
-  bookingId String?    @db.ObjectId
-  booking   Booking?   @relation(fields: [bookingId], references: [id])
+  isDeleted Boolean    @default(false)
+
+  bookingTripId String?      @db.ObjectId
+  bookingTrip   BookingTrip? @relation(fields: [bookingTripId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+}
+
+model Voucher {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  code        String  @unique
+  name        String
+  description String?
+
+  discountType         VoucherDiscountType
+  applicableConditions Json?
+
+  discountValue Float
+
+  minOrderValue     Float?
+  maxDiscountAmount Float?
+
+  usageLimit   Int?
+  usedCount    Int  @default(0)
+  perUserLimit Int?
+
+  applicableRoutes       String[] @db.ObjectId
+  applicableVehicleTypes String[] @db.ObjectId
+
+  startDate DateTime
+  endDate   DateTime
+
+  status    CommonStatus @default(ACTIVE)
+  isDeleted Boolean      @default(false)
+
+  usages VoucherUsage[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Lịch sử thay đổi quan trọng
+  histories VoucherHistory[]
+}
+
+model VoucherHistory {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  voucherId String  @db.ObjectId
+  voucher   Voucher @relation(fields: [voucherId], references: [id])
+
+  changedFields Json
+  changedBy     String   @db.ObjectId
+  changeReason  String?
+  createdAt     DateTime @default(now())
+}
+
+// Lịch Sử Sử Dụng Voucher
+model VoucherUsage {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  voucherId String  @db.ObjectId
+  voucher   Voucher @relation(fields: [voucherId], references: [id])
+
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  bookingId String  @unique @db.ObjectId
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  discountAmount Float
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 model Role {
@@ -282,6 +436,7 @@ model User {
   SupportSession SupportSession[]
   userSessions   SupportSession[] @relation("UserSupportSessions")
   agentSessions  SupportSession[] @relation("AgentSupportSessions")
+  voucherUsages  VoucherUsage[]
 }
 
 model LoginSession {
@@ -312,7 +467,9 @@ model SupportSession {
   id     String @id @default(auto()) @map("_id") @db.ObjectId
   // Users in the session
   userId String @db.ObjectId
-  user   User   @relation("UserSupportSessions", fields: [userId], references: [id])
+  User   User   @relation(fields: [userId], references: [id])
+
+  user User @relation("UserSupportSessions", fields: [userId], references: [id])
 
   supportAgentId String?              @db.ObjectId
   supportAgent   User?                @relation("AgentSupportSessions", fields: [supportAgentId], references: [id])
@@ -336,7 +493,6 @@ model SupportSession {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  User      User     @relation(fields: [userId], references: [id])
 }
 
 // Support Messages
@@ -358,50 +514,78 @@ model SupportMessage {
   updatedAt DateTime @updatedAt
 }
 
-model Bus {
-  id             String    @id @default(auto()) @map("_id") @db.ObjectId
-  name           String
-  busNumber      String    @unique
-  source         String
-  destination    String
-  departureTime  DateTime
-  arrivalTime    DateTime
-  capacity       Int
-  availableSeats Int?
-  price          Float
-  bookings       Booking[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-}
+// model Bus {
+//   id             String    @id @default(auto()) @map("_id") @db.ObjectId
+//   name           String
+//   busNumber      String    @unique
+//   source         String
+//   destination    String
+//   departureTime  DateTime
+//   arrivalTime    DateTime
+//   capacity       Int
+//   availableSeats Int?
+//   price          Float
+//   bookings       Booking[]
+//   createdAt      DateTime  @default(now())
+//   updatedAt      DateTime  @updatedAt
+// }
 
 model Booking {
   id            String        @id @default(auto()) @map("_id") @db.ObjectId
-  user          User          @relation(fields: [userId], references: [id])
   userId        String        @db.ObjectId
-  bus           Bus           @relation(fields: [busId], references: [id])
-  busId         String        @db.ObjectId
-  seatNumber    Int[]
-  totalPrice    Float
+  user          User          @relation(fields: [userId], references: [id])
   status        BookingStatus @default(PENDING)
   paymentStatus PaymentStatus @default(PENDING)
+  isDeleted     Boolean       @default(false)
 
-  // Payment and QR Details
+  totalPrice     Float
+  discountAmount Float?
+  finalPrice     Float
+
   qrCode          String?
   qrCodeExpiresAt DateTime?
 
-  // Group Booking Option
   groupBookingId String?
 
-  // Payment Webhook Tracking
   paymentWebhookReference String?
 
-  // Seats
+  // Link to BookingTrip instead of Trip
+  bookingTrips BookingTrip[]
+
+  voucherUsage VoucherUsage?
+
+  customerNotes String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  histories BookingHistory[]
+}
+
+model BookingHistory {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId String  @db.ObjectId
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  changedFields Json
+  changedBy     String   @db.ObjectId
+  changeReason  String?
+  createdAt     DateTime @default(now())
+}
+
+model BookingTrip {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId String  @db.ObjectId
+  booking   Booking @relation(fields: [bookingId], references: [id])
+  tripId    String  @db.ObjectId
+  trip      Trip    @relation(fields: [tripId], references: [id])
+
+  // Seats selected for this trip
   seats Seat[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  Trip      Trip?    @relation(fields: [tripId], references: [id])
-  tripId    String?  @db.ObjectId
 }
 
 model SnapshotLog {
@@ -418,10 +602,16 @@ model SnapshotLog {
   @@index([createdAt])
 }
 
-// enum UserRole {
-//   USER
-//   ADMIN
-// }
+enum CommonStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+enum SystemConfigStatus {
+  ACTIVE
+  MAINTENANCE
+}
 
 enum UserStatus {
   AVAILABLE
@@ -453,6 +643,7 @@ enum DistanceUnit {
 enum VehicleStatus {
   ACTIVE
   INACTIVE
+  IDLE
   MAINTENANCE
 }
 
@@ -495,4 +686,9 @@ enum UserReportStatus {
   UNDER_REVIEW
   WARNED
   BLOCKED
+}
+
+enum VoucherDiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
 }

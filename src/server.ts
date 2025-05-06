@@ -5,6 +5,11 @@ import { connectDB, prisma } from '#config/db';
 import { initSocket } from '#services/socketService';
 import { setupScheduledTasks } from '#services/scheduledTasks';
 import { initRedis } from '#config/redis';
+import { seedProvinceCityWard } from './seeds/provinceCityWard';
+import seedUsers from './seeds/users';
+import seedBusStops from './seeds/busStop';
+import { seedVehicleTypes } from './seeds/vehicles';
+import seedRoutesAndRouteStops from './seeds/routes';
 
 // Connect to MongoDB
 connectDB();
@@ -25,11 +30,16 @@ server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-initRedis();
+// initRedis();
 
 // Seed data
 // seedSystemConfig();
 // seedRolesAndPermissions();
+// seedUsers();
+// seedProvinceCityWard();
+// seedBusStops();
+// seedVehicleTypes();
+// seedRoutesAndRouteStops();
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err: Error) => {

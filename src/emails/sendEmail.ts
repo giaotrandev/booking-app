@@ -12,7 +12,7 @@ export const sendEmail = async <T>(to: string, subject: string, template: (param
   try {
     const msg = {
       to,
-      from: 'tranngocgiao147@gmail.com',
+      from: 'no-reply@bookingapp.com',
       subject,
       html: template(params),
     };

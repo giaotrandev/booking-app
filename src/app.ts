@@ -8,7 +8,6 @@ import crypto from 'crypto';
 dotenv.config();
 
 import passport from 'passport';
-import authRoutes from '#routes/authRoutes';
 import { setupI18n, languageDetector } from '#middlewares/i18nMiddleware';
 import { languageMiddleware } from '#middlewares/languageMiddleware';
 import { prismaErrorHandler } from '#middlewares/prismaErrorHandler';
@@ -17,7 +16,12 @@ import { authenticateToken } from '#middlewares/authMiddleware';
 import { validatePermissions } from '#middlewares/permissionMiddleware';
 
 import { apiSpecification } from '#docs/openapi';
-import setupSecurityMiddleware from '#middlewares/setupSecurityMiddleware';
+
+import authRoutes from '#routes/authRoutes';
+import geoRoutes from '#routes/geoRoutes';
+import userRoutes from '#routes/userRoutes';
+import roleRoutes from './routes/roleRoutes';
+import permissionRoutes from './routes/permissionRoutes';
 
 const app: Express = express();
 const nonce = crypto.randomBytes(16).toString('base64');
@@ -96,11 +100,48 @@ app.get('/openapi.json', (req: Request, res: Response) => {
 });
 
 app.use('/api/auth', authRoutes);
-// app.use('/api/bookings', bookingRoutes);
+app.use('/api/geo', geoRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/roles', roleRoutes);
+app.use('/api/permissions', permissionRoutes);
 
 // Health check route
 app.get('/api/health', authenticateToken, validatePermissions(['BOOKING_READ_SELF']), (_, res) => {
   res.status(200).json({ status: 'OK' });
+});
+
+function getRoutes(app: express.Express) {
+  const routes: { method: string; path: string }[] = [];
+
+  app._router.stack.forEach((middleware: any) => {
+    if (middleware.route) {
+      // Route gốc
+      const route = middleware.route;
+      const methods = Object.keys(route.methods);
+      methods.forEach((method) => {
+        routes.push({ method: method.toUpperCase(), path: route.path });
+      });
+    } else if (middleware.name === 'router' && middleware.handle.stack) {
+      // Router con (sử dụng express.Router)
+      middleware.handle.stack.forEach((handler: any) => {
+        const route = handler.route;
+        if (route) {
+          const methods = Object.keys(route.methods);
+          methods.forEach((method) => {
+            routes.push({ method: method.toUpperCase(), path: route.path });
+          });
+        }
+      });
+    }
+  });
+
+  return routes;
+}
+
+// Endpoint hiển thị route
+app.get('/routes', (req: Request, res: Response) => {
+  const routes = getRoutes(app);
+  res.json(routes);
 });
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
