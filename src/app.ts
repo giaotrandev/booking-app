@@ -26,6 +26,8 @@ import permissionRoutes from './routes/permissionRoutes';
 const app: Express = express();
 const nonce = crypto.randomBytes(16).toString('base64');
 
+const port = process.env.PORT || 5000;
+
 // Middleware
 app.use(
   helmet({

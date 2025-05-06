@@ -14,7 +14,7 @@ import seedRoutesAndRouteStops from './seeds/routes';
 // Connect to MongoDB
 connectDB();
 
-const PORT = process.env.PORT || 5000;
+const port = process.env.PORT || 5000;
 
 // Create HTTP server
 const server = http.createServer(app);
@@ -26,8 +26,8 @@ initSocket(server);
 setupScheduledTasks();
 
 // Start server
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
 
 // initRedis();
