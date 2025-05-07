@@ -94,18 +94,18 @@
     "typescript-eslint": "^8.30.1"
   },
   "imports": {
-    "#src/*": "./src/*",
-    "#emails/*": "./src/emails/*",
-    "#config/*": "./src/config/*",
-    "#controllers/*": "./src/controllers/*",
-    "#schemas/*": "./src/schemas/*",
-    "#jobs/*": "./src/jobs/*",
-    "#loaders/*": "./src/loaders/*",
-    "#queues/*": "./src/queues/*",
-    "#middlewares/*": "./src/middlewares/*",
-    "#routes/*": "./src/routes/*",
-    "#utils/*": "./src/utils/*",
-    "#docs/*": "./src/docs/*"
+    "#src": "dist",
+    "#emails": "dist/emails",
+    "#config": "dist/config",
+    "#controllers": "dist/controllers",
+    "#schemas": "dist/schemas",
+    "#jobs": "dist/jobs",
+    "#loaders": "dist/loaders",
+    "#queues": "dist/queues",
+    "#middlewares": "dist/middlewares",
+    "#routes": "dist/routes",
+    "#utils": "dist/utils",
+    "#docs": "dist/docs"
   },
   "_moduleAliases": {
     "#src": "./src",
