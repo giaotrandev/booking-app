@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { getRateLimitMiddlewareConfig } from '#services/systemConfigService';
 import { sendTooManyRequests } from '#utils/apiResponse';
-import { getRedisClient } from '#config/redis';
+import { getRedisCacheClient } from '#config/redis';
 
 /**)
  * Tạo middleware giới hạn request
@@ -43,14 +43,14 @@ interface RateLimitConfig {
  * @param config Cấu hình rate limit
  */
 async function incrementRequestCount(key: string, config: RateLimitConfig) {
-  const redisClient = getRedisClient();
+  const redisCacheClient = getRedisCacheClient();
 
   // Tăng số lần request
-  const currentCount = await redisClient?.incr(key);
+  const currentCount = await redisCacheClient?.incr(key);
 
   // Đặt thời gian hết hạn nếu là request đầu tiên
   if (currentCount === 1) {
-    await redisClient?.expire(key, config?.windowMs);
+    await redisCacheClient?.expire(key, config?.windowMs);
   }
 
   return currentCount;

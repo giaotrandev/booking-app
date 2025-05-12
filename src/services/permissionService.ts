@@ -1,4 +1,4 @@
-import { getRedisClient } from '#config/redis';
+import { getRedisCacheClient } from '#config/redis';
 import { prisma } from '#config/db';
 import ms from 'ms';
 
@@ -22,7 +22,7 @@ export const checkPermission = async ({ userId, permissionCode }: PermissionChec
 };
 
 export const getUserPermissions = async (userId: string): Promise<string[]> => {
-  const client = getRedisClient();
+  const client = getRedisCacheClient();
 
   const cacheKey = `${PERMISSION_PREFIX}${userId}`;
 

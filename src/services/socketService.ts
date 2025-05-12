@@ -1,105 +1,74 @@
-import { Server as SocketServer } from 'socket.io';
-import { Server } from 'http';
-import { Request, Response } from 'express';
-import { Booking } from '@prisma/client';
-import { prisma } from '#src/config/db';
+import { Server } from 'socket.io';
+import { Server as HttpServer } from 'http';
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import { prisma } from '#config/db';
+import { initializeSocketConnection } from '#controllers/bookingControllerSocketInit';
 
-let io: SocketServer;
+// Socket middleware to authenticate users
+const authenticateSocket = async (socket: any, next: (err?: Error) => void) => {
+  const token = socket.handshake.auth.token;
 
-// Initialize socket.io
-export const initSocket = (server: Server): void => {
-  io = new SocketServer(server, {
-    cors: {
-      origin: process.env.FRONTEND_URL || '*', // More secure
-      methods: ['GET', 'POST'],
-      credentials: true,
-    },
-  });
-
-  io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.id}`);
-
-    // Join a room based on user id
-    socket.on('joinRoom', (userId: string) => {
-      socket.join(userId);
-      console.log(`User ${socket.id} joined room: ${userId}`);
-    });
-
-    // Leave a room
-    socket.on('leaveRoom', (userId: string) => {
-      socket.leave(userId);
-      console.log(`User ${socket.id} left room: ${userId}`);
-    });
-
-    socket.on('disconnect', () => {
-      console.log(`User disconnected: ${socket.id}`);
-    });
-  });
-};
-
-// Emit booking update to all clients in the user's room
-export const emitBookingUpdate = (booking: Booking): void => {
-  if (io) {
-    io.to(booking.userId.toString()).emit('bookingUpdate', booking);
-    // Also emit to admin room for monitoring
-    io.to('admin').emit('bookingUpdate', booking);
+  if (!token) {
+    return next(new Error('Authentication error: Token is required'));
   }
-};
 
-// Test emit API route
-export const testSocketEmit = async (req: Request, res: Response) => {
   try {
-    const { userId, message } = req.body;
+    // Verify JWT token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as { userId: string };
 
-    if (!userId || !message) {
-      return res.status(400).json({
-        success: false,
-        message: 'User ID and message are required',
-      });
-    }
+    // Attach user to socket
+    socket.userId = decoded.userId;
 
-    // Validate user exists (optional but recommended)
+    // Check if user exists
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: decoded.userId },
+      select: { id: true, status: true },
     });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
+    if (!user || user.status === 'DISABLED') {
+      return next(new Error('Authentication error: User not found or disabled'));
     }
 
-    // Emit message to specific user's room
-    if (io) {
-      io.to(userId).emit('testMessage', {
-        message,
-        timestamp: new Date(),
-      });
-
-      return res.status(200).json({
-        success: true,
-        message: 'Message emitted successfully',
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: 'Socket.IO not initialized',
-    });
+    return next();
   } catch (error) {
-    console.error('Socket emit error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-    });
+    return next(new Error('Authentication error: Invalid token'));
   }
 };
 
-// Get socket.io instance
-export const getIO = (): SocketServer => {
-  if (!io) {
-    throw new Error('Socket.IO not initialized');
-  }
+/**
+ * Initialize Socket.IO server
+ * This function accepts either an Express app or an HTTP server
+ */
+export const initializeSocketIO = (appOrServer: express.Application | HttpServer): Server => {
+  // Create or use the HTTP server
+  const httpServer = appOrServer instanceof HttpServer ? appOrServer : undefined;
+
+  // Create Socket.IO server
+  const io = httpServer
+    ? new Server(httpServer, {
+        cors: {
+          origin: process.env.CORS_ORIGIN?.split(',') || '*',
+          methods: ['GET', 'POST'],
+          credentials: true,
+        },
+        path: '/socket.io',
+      })
+    : new Server((appOrServer as express.Application).listen(0), {
+        // This server is not used, just needed for initialization
+        cors: {
+          origin: process.env.CORS_ORIGIN?.split(',') || '*',
+          methods: ['GET', 'POST'],
+          credentials: true,
+        },
+        path: '/socket.io',
+      });
+
+  // Apply authentication middleware
+  io.use(authenticateSocket);
+
+  // Initialize socket connection handlers
+  initializeSocketConnection(io);
+
   return io;
 };

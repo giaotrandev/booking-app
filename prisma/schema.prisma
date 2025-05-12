@@ -98,6 +98,7 @@ model Route {
   code      String  @unique
   name      String
   direction String?
+  image     String?
 
   sourceProvinceId String   @db.ObjectId
   sourceProvince   Province @relation("RouteSourceProvince", fields: [sourceProvinceId], references: [id])
@@ -211,6 +212,7 @@ model Vehicle {
   id               String @id @default(auto()) @map("_id") @db.ObjectId
   plateNumber      String @unique
   registrationCode String @unique
+  image     String?
 
   vehicleTypeId String      @db.ObjectId
   vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id])
@@ -244,6 +246,7 @@ model VehicleHistory {
 
 model Trip {
   id String @id @default(auto()) @map("_id") @db.ObjectId
+  image     String?
 
   // Route Information
   routeId String @db.ObjectId
@@ -437,6 +440,8 @@ model User {
   userSessions   SupportSession[] @relation("UserSupportSessions")
   agentSessions  SupportSession[] @relation("AgentSupportSessions")
   voucherUsages  VoucherUsage[]
+
+  posts Post[]
 }
 
 model LoginSession {
@@ -514,22 +519,6 @@ model SupportMessage {
   updatedAt DateTime @updatedAt
 }
 
-// model Bus {
-//   id             String    @id @default(auto()) @map("_id") @db.ObjectId
-//   name           String
-//   busNumber      String    @unique
-//   source         String
-//   destination    String
-//   departureTime  DateTime
-//   arrivalTime    DateTime
-//   capacity       Int
-//   availableSeats Int?
-//   price          Float
-//   bookings       Booking[]
-//   createdAt      DateTime  @default(now())
-//   updatedAt      DateTime  @updatedAt
-// }
-
 model Booking {
   id            String        @id @default(auto()) @map("_id") @db.ObjectId
   userId        String        @db.ObjectId
@@ -600,6 +589,89 @@ model SnapshotLog {
 
   @@index([entityId, entityType])
   @@index([createdAt])
+}
+
+model Post {
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  slug            String  @unique
+  // For SEO-friendly URLs 
+  content         String // Main post content (e.g., HTML or Markdown) 
+  excerpt         String? // Short summary for previews 
+  featuredImage   String? // URL or path to main image 
+  authorId        String  @db.ObjectId
+  author          User    @relation(fields: [authorId], references: [id])
+  metaTitle       String?
+  metaDescription String?
+  metaKeywords    String?
+
+  // Categorization and Tagging 
+  categoryId String?   @db.ObjectId
+  category   Category? @relation(fields: [categoryId], references: [id])
+  postTags   PostTag[]
+
+  // Publication Details 
+  status      PostStatus @default(DRAFT)
+  isDeleted   Boolean    @default(false)
+  publishedAt DateTime?
+  scheduledAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Change History 
+  histories PostHistory[]
+}
+
+model Category {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String  @unique
+  slug        String  @unique
+  description String?
+
+  posts Post[]
+
+  status    CommonStatus @default(ACTIVE)
+  isDeleted Boolean      @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+}
+
+model Tag {
+  id   String @id @default(auto()) @map("_id") @db.ObjectId
+  name String @unique
+  slug String @unique
+
+  postTags PostTag[]
+
+  status CommonStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+}
+
+model PostTag {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  postId String @db.ObjectId
+  post   Post   @relation(fields: [postId], references: [id])
+  tagId  String @db.ObjectId
+  tag    Tag    @relation(fields: [tagId], references: [id])
+
+  @@unique([postId, tagId])
+}
+
+model PostHistory {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  postId        String   @db.ObjectId
+  post          Post     @relation(fields: [postId], references: [id])
+  changedFields Json
+  changedBy     String   @db.ObjectId
+  changeReason  String?
+  createdAt     DateTime @default(now())
 }
 
 enum CommonStatus {
@@ -691,4 +763,12 @@ enum UserReportStatus {
 enum VoucherDiscountType {
   PERCENTAGE
   FIXED_AMOUNT
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+  STARRED
+  ARCHIVED
 }

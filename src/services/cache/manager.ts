@@ -1,11 +1,11 @@
-import { getRedisClient } from '#config/redis';
+import { getRedisCacheClient } from '#config/redis';
 
 export const cacheManager = {
   /**
    * Clear a specific cache key
    */
   async clearKey(prefix: string, identifier: string) {
-    const client = getRedisClient();
+    const client = getRedisCacheClient();
     if (!client) return;
 
     const cacheKey = `${prefix}${identifier}`;
@@ -22,7 +22,7 @@ export const cacheManager = {
    * Clear all cache keys matching a specific prefix
    */
   async clearByPrefix(prefix: string) {
-    const client = getRedisClient();
+    const client = getRedisCacheClient();
     if (!client) return;
 
     try {

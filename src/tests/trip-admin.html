@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bus Booking Admin Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .container {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #333;
+        }
+
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        button.danger {
+            background-color: #f44336;
+        }
+
+        button.warning {
+            background-color: #ff9800;
+        }
+
+        button.info {
+            background-color: #2196F3;
+        }
+
+        input,
+        select,
+        textarea {
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .form-full {
+            grid-column: 1 / span 2;
+        }
+
+        .logs {
+            background-color: #f9f9f9;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            height: 200px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+
+        .success {
+            color: #4CAF50;
+        }
+
+        .error {
+            color: #f44336;
+        }
+
+        .info {
+            color: #2196F3;
+        }
+
+        .warning {
+            color: #ff9800;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+
+        .seat-layout-container {
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+
+        .vehicle-seat {
+            position: relative;
+            width: 40px;
+            height: 40px;
+            line-height: 40px;
+            text-align: center;
+            background-color: #eee;
+            border-radius: 5px;
+            display: inline-block;
+            margin: 5px;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        .vehicle-seat.exists-true {
+            background-color: #a0c4ff;
+            cursor: pointer;
+        }
+
+        .vehicle-seat.exists-false {
+            background-color: transparent;
+            border: 1px dashed #ccc;
+            cursor: not-allowed;
+        }
+
+        .vehicle-seat.premium {
+            background-color: #ffadad;
+            font-weight: bold;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .table th,
+        .table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .table th {
+            background-color: #f2f2f2;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ccc;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #f2f2f2;
+            border: 1px solid #ccc;
+            margin-right: 5px;
+            border-bottom: none;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .tab.active {
+            background-color: white;
+            border-bottom: 2px solid white;
+            font-weight: bold;
+            position: relative;
+            top: 1px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, .3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Bus Booking Admin Test</h1>
+
+    <div class="container">
+        <h2>API Configuration</h2>
+        <div class="form-group">
+            <label for="apiUrl">API Base URL:</label>
+            <input type="text" id="apiUrl" value="http://localhost:5000/api" style="width: 300px;">
+        </div>
+        <div class="form-group">
+            <label for="adminToken">Admin JWT Token:</label>
+            <input type="text" id="adminToken" placeholder="Enter admin JWT token" style="width: 100%;"
+                value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODA4Njk3ZDJlMmYxMGNmYzk4ZjM0YWUiLCJyb2xlIjoiVVNFUiIsInNlc3Npb25JZCI6IjY4MWUyZDMwYmI4YTBjMDZkMDc1ZmRlZiIsImlhdCI6MTc0NjgwODExMiwiZXhwIjoxNzQ2ODExNzEyfQ.Yyvh99Vu8pWdbhXUjeKl5Ow5K7kYXPRMJJtmTy5Mka0">
+        </div>
+        <button id="testConnectionBtn">Test Connection</button>
+        <span id="connectionStatus"></span>
+    </div>
+
+    <div class="tabs">
+        <div class="tab active" data-tab="trips">Trips</div>
+        <div class="tab" data-tab="routes">Routes</div>
+        <div class="tab" data-tab="vehicles">Vehicles</div>
+        <div class="tab" data-tab="bookings">Bookings</div>
+    </div>
+
+    <!-- Trips Tab -->
+    <div id="tripsTab" class="tab-content active">
+        <div class="container">
+            <h2>Create Trip</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="tripRouteId">Route:</label>
+                    <select id="tripRouteId"></select>
+                </div>
+                <div class="form-group">
+                    <label for="tripVehicleId">Vehicle:</label>
+                    <select id="tripVehicleId"></select>
+                </div>
+                <div class="form-group">
+                    <label for="tripDepartureTime">Departure Time:</label>
+                    <input type="datetime-local" id="tripDepartureTime">
+                </div>
+                <div class="form-group">
+                    <label for="tripArrivalTime">Arrival Time:</label>
+                    <input type="datetime-local" id="tripArrivalTime">
+                </div>
+                <div class="form-group">
+                    <label for="tripBasePrice">Base Price:</label>
+                    <input type="number" id="tripBasePrice" placeholder="Enter base price">
+                </div>
+                <div class="form-group">
+                    <label for="tripSpecialPrice">Special Price (optional):</label>
+                    <input type="number" id="tripSpecialPrice" placeholder="Enter special price">
+                </div>
+            </div>
+            <button id="createTripBtn">Create Trip</button>
+        </div>
+
+        <div class="container">
+            <h2>Trip List</h2>
+            <button id="refreshTripsBtn">Refresh Trips</button>
+            <table id="tripsTable" class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Route</th>
+                        <th>Departure Time</th>
+                        <th>Arrival Time</th>
+                        <th>Base Price</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="container" id="tripDetailContainer" style="display: none;">
+            <h2>Trip Details</h2>
+            <div id="tripDetails"></div>
+            <h3>Seats</h3>
+            <div id="seatsContainer"></div>
+        </div>
+    </div>
+
+    <!-- Routes Tab -->
+    <div id="routesTab" class="tab-content">
+        <div class="container">
+            <h2>Route List</h2>
+            <button id="refreshRoutesBtn">Refresh Routes</button>
+            <table id="routesTable" class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Distance</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Vehicles Tab -->
+    <div id="vehiclesTab" class="tab-content">
+        <div class="container">
+            <h2>Vehicle List</h2>
+            <button id="refreshVehiclesBtn">Refresh Vehicles</button>
+            <table id="vehiclesTable" class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Plate Number</th>
+                        <th>Vehicle Type</th>
+                        <th>Driver</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="container" id="vehicleTypeContainer">
+            <h2>Vehicle Types</h2>
+            <button id="refreshVehicleTypesBtn">Refresh Vehicle Types</button>
+            <table id="vehicleTypesTable" class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="container" id="vehicleTypeDetailContainer" style="display: none;">
+            <h2>Vehicle Type Details</h2>
+            <div id="vehicleTypeDetails"></div>
+            <h3>Seat Configuration</h3>
+            <div class="seat-layout-container">
+                <div id="seatLayoutGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bookings Tab -->
+    <div id="bookingsTab" class="tab-content">
+        <div class="container">
+            <h2>Booking List</h2>
+            <button id="refreshBookingsBtn">Refresh Bookings</button>
+            <table id="bookingsTable" class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>User</th>
+                        <th>Trip</th>
+                        <th>Status</th>
+                        <th>Payment Status</th>
+                        <th>Amount</th>
+                        <th>Created At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="container" id="bookingDetailContainer" style="display: none;">
+            <h2>Booking Details</h2>
+            <div id="bookingDetails"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Event Logs</h2>
+        <div class="logs" id="eventLogs"></div>
+        <button id="clearLogsBtn">Clear Logs</button>
+    </div>
+
+    <script>
+        // DOM Elements
+        const testConnectionBtn = document.getElementById('testConnectionBtn');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const createTripBtn = document.getElementById('createTripBtn');
+        const refreshTripsBtn = document.getElementById('refreshTripsBtn');
+        const refreshRoutesBtn = document.getElementById('refreshRoutesBtn');
+        const refreshVehiclesBtn = document.getElementById('refreshVehiclesBtn');
+        const refreshVehicleTypesBtn = document.getElementById('refreshVehicleTypesBtn');
+        const refreshBookingsBtn = document.getElementById('refreshBookingsBtn');
+        const clearLogsBtn = document.getElementById('clearLogsBtn');
+        const tripsTable = document.getElementById('tripsTable').querySelector('tbody');
+        const routesTable = document.getElementById('routesTable').querySelector('tbody');
+        const vehiclesTable = document.getElementById('vehiclesTable').querySelector('tbody');
+        const vehicleTypesTable = document.getElementById('vehicleTypesTable').querySelector('tbody');
+        const bookingsTable = document.getElementById('bookingsTable').querySelector('tbody');
+        const eventLogs = document.getElementById('eventLogs');
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        // Helper Functions
+        function formatDateTime(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString();
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+        }
+
+        // function addLog(message, type = 'info') {
+        //     const logEntry = document.createElement('div');
+        //     logEntry.className = `log-entry ${type}`;
+        //     logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        //     eventLogs.appendChild(logEntry);
+        //     eventLogs.scrollTop = eventLogs.scrollHeight;
+        // }
+
+        async function fetchWithAuth(url, options = {}) {
+            const token = document.getElementById('adminToken').value;
+            const baseUrl = document.getElementById('apiUrl').value;
+
+            if (!token) {
+                // addLog('Please enter an admin JWT token', 'error');
+                throw new Error('Admin token is required');
+            }
+
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                ...options.headers,
+            };
+
+            try {
+                const response = await fetch(`${baseUrl}${url}`, {
+                    ...options,
+                    headers,
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || `HTTP error ${response.status}`);
+                }
+
+                return await response.json();
+            } catch (error) {
+                // addLog(`API error: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        // Tab navigation
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs
+                tabs.forEach(t => t.classList.remove('active'));
+                tabContents.forEach(c => c.classList.remove('active'));
+
+                // Add active class to clicked tab
+                tab.classList.add('active');
+                document.getElementById(`${tab.dataset.tab}Tab`).classList.add('active');
+            });
+        });
+
+        // Test connection
+        testConnectionBtn.addEventListener('click', async () => {
+            try {
+                connectionStatus.innerHTML = '<span class="loading"></span> Testing...';
+                const response = await fetchWithAuth('/health');
+
+                if (response.status === 'OK') {
+                    connectionStatus.innerHTML = '<span class="success">✓ Connected successfully</span>';
+                    // addLog('API connection successful', 'success');
+
+                    // Load initial data
+                    loadRoutes();
+                    loadVehicles();
+                    loadVehicleTypes();
+                    loadTrips();
+                } else {
+                    connectionStatus.innerHTML = '<span class="error">✗ Connection failed</span>';
+                    // addLog('API connection failed', 'error');
+                }
+            } catch (error) {
+                connectionStatus.innerHTML = `<span class="error">✗ Error: ${error.message}</span>`;
+                // addLog(`Connection error: ${error.message}`, 'error');
+            }
+        });
+
+        // Load Routes
+        async function loadRoutes() {
+            try {
+                const response = await fetchWithAuth('/routes');
+                console.log("Dô hong trời 1", )
+
+                if (response.success) {
+                    console.log("Dô hong trời 2", )
+
+                    // addLog(`Loaded ${response.data?.data.length} routes`, 'info');
+
+                    // Clear existing options
+                    const routeSelect = document.getElementById('tripRouteId');
+                    routeSelect.innerHTML = '';
+                    console.log("Dô hong trời 3", response.data?.data)
+
+                    // Add route options
+                    response.data?.data.forEach(route => {
+                        console.log("Dô hong trời 4")
+                        const option = document.createElement('option');
+                        option.value = route.id;
+                        option.textContent = `${route.name} (${route.sourceProvince.name} -> ${route.destinationProvince.name})`;
+                        routeSelect.appendChild(option);
+                    });
+
+                    // Populate routes table
+                    routesTable.innerHTML = '';
+                    response.data?.data.forEach(route => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${route.id}</td>
+                            <td>${route.name}</td>
+                            <td>${route.sourceProvince.name}</td>
+                            <td>${route.destinationProvince.name}</td>
+                            <td>${route.distance} ${route.distanceUnit}</td>
+                            <td>${route.status}</td>
+                        `;
+                        routesTable.appendChild(row);
+                    });
+                } else {
+                    // addLog(`Failed to load routes: ${response.message}`, 'error');
+                }
+            } catch (error) {
+                // addLog(`Error loading routes: ${error.message}`, 'error');
+            }
+        }
+
+        // Load Vehicles
+        async function loadVehicles() {
+            try {
+                const response = await fetchWithAuth('/vehicles');
+
+                if (response.success) {
+                    // addLog(`Loaded ${response.data?.data.length} vehicles`, 'info');
+
+                    // Clear existing options
+                    const vehicleSelect = document.getElementById('tripVehicleId');
+                    vehicleSelect.innerHTML = '';
+
+                    // Add vehicle options
+                    response.data?.data.forEach(vehicle => {
+                        const option = document.createElement('option');
+                        option.value = vehicle.id;
+                        option.textContent = `${vehicle.plateNumber} (${vehicle.vehicleType.name})`;
+                        vehicleSelect.appendChild(option);
+                    });
+
+                    // Populate vehicles table
+                    vehiclesTable.innerHTML = '';
+                    response.data?.data.forEach(vehicle => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${vehicle.id}</td>
+                            <td>${vehicle.plateNumber}</td>
+                            <td>${vehicle.vehicleType.name}</td>
+                            <td>${vehicle.driver ? vehicle.driver.name : 'No driver'}</td>
+                            <td>${vehicle.status}</td>
+                        `;
+                        vehiclesTable.appendChild(row);
+                    });
+                } else {
+                    // addLog(`Failed to load vehicles: ${response.message}`, 'error');
+                }
+            } catch (error) {
+                // addLog(`Error loading vehicles: ${error.message}`, 'error');
+            }
+        }
+
+        // Load Vehicle Types
+        async function loadVehicleTypes() {
+            try {
+                const response = await fetchWithAuth('/vehicle-types');
+
+                if (response.success) {
+                    // addLog(`Loaded ${response.data?.data.length} vehicle types`, 'info');
+
+                    // Populate vehicle types table
+                    vehicleTypesTable.innerHTML = '';
+                    response.data?.data.forEach(type => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${type.id}</td>
+                            <td>${type.name}</td>
+                            <td>${type.description || '-'}</td>
+                            <td>
+                                <button class="info view-vehicle-type" data-id="${type.id}">View</button>
+                            </td>
+                        `;
+                        vehicleTypesTable.appendChild(row);
+                    });
+
+                    // Add event listeners to view buttons
+                    document.querySelectorAll('.view-vehicle-type').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            viewVehicleType(btn.dataset.id);
+                        });
+                    });
+                } else {
+                    // addLog(`Failed to load vehicle types: ${response.message}`, 'error');
+                }
+            } catch (error) {
+                // addLog(`Error loading vehicle types: ${error.message}`, 'error');
+            }
+        }
+
+        // View Vehicle Type Details
+        async function viewVehicleType(id) {
+            try {
+                const response = await fetchWithAuth(`/vehicle-types/${id}`);
+
+                if (response.success) {
+                    const vehicleType = response.data?.data;
+                    // addLog(`Loaded vehicle type: ${vehicleType.name}`, 'info');
+
+                    // Show vehicle type detail container
+                    document.getElementById('vehicleTypeDetailContainer').style.display = 'block';
+
+                    // Populate vehicle type details
+                    document.getElementById('vehicleTypeDetails').innerHTML = `
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Name:</label>
+                                <div>${vehicleType.name}</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Description:</label>
+                                <div>${vehicleType.description || '-'}</div>
+                            </div>
+                        </div>
+                    `;
+
+                    // Render seat layout
+                    renderSeatLayout(vehicleType.seatConfiguration);
+                } else {
+                    // addLog(`Failed to load vehicle type: ${response.message}`, 'error');
+                }
+            } catch (error) {
+                // addLog(`Error loading vehicle type: ${error.message}`, 'error');
+            }
+        }
+
+        // Render Seat Layout
+        function renderSeatLayout(seatConfig) {
+            const layoutGrid = document.getElementById('seatLayoutGrid');
+            layoutGrid.innerHTML = '';
+
+            if (!seatConfig || !seatConfig.rows) {
+                layoutGrid.innerHTML = '<p>No seat configuration available</p>';
+                return;
+            }
+
+            // Calculate grid size
+            const numRows = seatConfig.rows.length;
+            const numCols = Math.max(...seatConfig.rows.map(row => row.seats.length));
+
+            // Create grid layout
+            layoutGrid.style.display = 'grid';
+            layoutGrid.style.gridTemplateRows = `repeat(${numRows}, 40px)`;
+            layoutGrid.style.gridTemplateColumns = `repeat(${numCols}, 40px)`;
+            layoutGrid.style.gap = '5px';
+
+            // Create seats
+            seatConfig.rows.forEach((row, rowIndex) => {
+                row.seats.forEach((seat, colIndex) => {
+                    const seatElement = document.createElement('div');
+                    seatElement.className = `vehicle-seat exists-${seat.exists}`;
+
+                    if (seat.exists) {
+                        seatElement.textContent = seat.number;
+
+                        if (seat.type === 'PREMIUM') {
+                            seatElement.classList.add('premium');
+                        }
+                    }
+
+                    seatElement.style.gridRow = `${rowIndex + 1}`;
+                    seatElement.style.gridColumn = `${colIndex + 1}`;
+
+                    layoutGrid.appendChild(seatElement);
+                });
+            });
+        }
+
+        // Load Trips
+        async function loadTrips() {
+            try {
+                const response = await fetchWithAuth('/trips');
+
+                if (response.success) {
+                    // addLog(`Loaded ${response.data?.data.data.length} trips`, 'info');
+
+                    // Populate trips table
+                    tripsTable.innerHTML = '';
+                    response.data?.data.data.forEach(trip => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${trip.id}</td>
+                            <td>${trip.route.sourceProvince.name} → ${trip.route.destinationProvince.name}</td>
+                            <td>${formatDateTime(trip.departureTime)}</td>
+                            <td>${formatDateTime(trip.arrivalTime)}</td>
+                            <td>${formatCurrency(trip.basePrice)}</td>
+                            <td>${trip.status}</td>
+                            <td>
+                                <button class="info view-trip" data-id="${trip.id}">View</button>
+                            </td>
+                        `;
+                        tripsTable.appendChild(row);
+                    });
+
+                    // Add event listeners to view buttons
+                    document.querySelectorAll('.view-trip').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            viewTrip(btn.dataset.id);
+                        });
+                    });
+                } else {
+                    // addLog(`Failed to load trips: ${response.message}`, 'error');
+                }
+            } catch (error) {
+                // addLog(`Error loading trips: ${error.message}`, 'error');
+            }
+        }
+
+        // View Trip Details
+        async function viewTrip(id) {
+            try {
+                const response = await fetchWithAuth(`/trips/${id}`);
+
+                if (response.success) {
+                    const trip = response.data?.data;
+                    // addLog(`Loaded trip details: ${trip.route.name}`, 'info');
+
+                    // Show trip detail container
+                    document.getElementById('tripDetailContainer').style.display = 'block';
+
+                    // Populate trip details
+                    document.getElementById('tripDetails').innerHTML = `
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Route:</label>
+                                <div>${trip.route.name} (${trip.route.sourceProvince.name} → ${trip.route.destinationProvince.name})</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Vehicle:</label>
+                                <div>${trip.vehicle.plateNumber} (${trip.vehicle.vehicleType.name})</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Departure Time:</label>
+                                <div>${formatDateTime(trip.departureTime)}</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Arrival Time:</label>
+                                <div>${formatDateTime(trip.arrivalTime)}</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Base Price:</label>
+                                <div>${formatCurrency(trip.basePrice)}</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Status:</label>
+                                <div>${trip.status}</div>
+                            </div>
+                        </div>
+                    `;
+
+                    // Render seats
+                    renderSeats(trip.seats);
+                } else {
+                    // addLog(`Failed to load trip details: ${response.message}`, 'error');
+                }
+            } catch (error) {
+                // addLog(`Error loading trip details: ${error.message}`, 'error');
+            }
+        }
+
+        // Render Seats
+        function renderSeats(seats) {
+            const seatsContainer = document.getElementById('seatsContainer');
+            seatsContainer.innerHTML = '';
+
+            if (!seats || seats.length === 0) {
+                seatsContainer.innerHTML = '<p>No seats available</p>';
+                return;
+            }
+
+            // Group seats by seat number prefix (e.g., A1, A2, A3 -> A row)
+            const seatsByRow = {};
+            seats.forEach(seat => {
+                const match = seat.seatNumber.match(/([A-Za-z]+|^[0-9]+)/);
+                const rowPrefix = match ? match[0] : 'Other';
+
+                if (!seatsByRow[rowPrefix]) {
+                    seatsByRow[rowPrefix] = [];
+                }
+
+                seatsByRow[rowPrefix].push(seat);
+            });
+
+            // Sort rows alphabetically
+            const sortedRows = Object.keys(seatsByRow).sort();
+
+            // Create seat display
+            const seatsTable = document.createElement('table');
+            seatsTable.className = 'table';
+
+            // Header
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            headerRow.innerHTML = `
+                <th>Seat Number</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Actions</th>
+            `;
+            thead.appendChild(headerRow);
+            seatsTable.appendChild(thead);
+
+            // Body
+            const tbody = document.createElement('tbody');
+
+            seats.forEach(seat => {
+                const row = document.createElement('tr');
+
+                // Determine status class
+                let statusClass = '';
+                switch (seat.status) {
+                    case 'AVAILABLE':
+                        statusClass = 'success';
+                        break;
+                    case 'RESERVED':
+                        statusClass = 'warning';
+                        break;
+                    case 'BOOKED':
+                        statusClass = 'error';
+                        break;
+                    default:
+                        statusClass = '';
+                }
+
+                row.innerHTML = `
+                    <td>${seat.seatNumber}</td>
+                    <td>${seat.seatType}</td>
+                    <td><span class="${statusClass}">${seat.status}</span></td>
+                    <td>
+                        ${seat.status !== 'AVAILABLE' ?
+                        `<button class="warning reset-seat" data-id="${seat.id}" data-trip-id="${seat.tripId}">Reset to Available</button>` :
+                        ''}
+                    </td>
+                `;
+
+                tbody.appendChild(row);
+            });
+
+            seatsTable.appendChild(tbody);
+            seatsContainer.appendChild(seatsTable);
+
+            // Add event listeners for seat actions
+            document.querySelectorAll('.reset-seat').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    resetSeatStatus(btn.dataset.id, btn.dataset.tripId);
+                });
+            });
+        }
+
+        // Reset Seat Status
+        async function resetSeatStatus(seatId, tripId) {
+            try {
+                const response = await fetchWithAuth(`/trips/${tripId}/seats/${seatId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        status: 'AVAILABLE',
+                        reason: 'Reset by admin'
+                    })
+                });
+
+                if (response.success) {
+                    // addLog(`Seat ${seatId} reset to AVAILABLE`, 'success');
+                    // Refresh trip details to show updated seat status
+                    viewTrip(tripId);
+                } else {
+                    // addLog(`Failed to reset seat: ${response.message}`, 'error');
+                }
+            } catch (error) {
+                // addLog(`Error resetting seat: ${error.message}`, 'error');
+            }
+        }
+
+        // Create Trip
+        createTripBtn.addEventListener('click', async () => {
+            try {
+                const routeId = document.getElementById('tripRouteId').value;
+                const vehicleId = document.getElementById('tripVehicleId').value;
+                const departureTime = document.getElementById('tripDepartureTime').value;
+                const arrivalTime = document.getElementById('tripArrivalTime').value;
+                const basePrice = document.getElementById('tripBasePrice').value;
+                const specialPrice = document.getElementById('tripSpecialPrice').value;
+
+                if (!routeId || !vehicleId || !departureTime || !arrivalTime || !basePrice) {
+                    // addLog('Please fill in all required fields', 'error');
+                    return;
+                }
+
+                const tripData = {
+                    routeId,
+                    vehicleId,
+                    departureTime,
+                    arrivalTime,
+                    basePrice: parseFloat(basePrice),
+                };
+
+                if (specialPrice) {
+                    tripData.specialPrice = parseFloat(specialPrice);
+                }
+
+                createTripBtn.disabled = true;
+                createTripBtn.innerHTML = '<span class="loading"></span> Creating...';
+
+                const response = await fetchWithAuth('/trips', {
+                    method: 'POST',
+                    body: JSON.stringify(tripData)
+                });
+
+                if (response.success) {
+                    // addLog(`Trip created successfully: ${response.data?.data.id}`, 'success');
+
+                    // Clear form fields
+                    document.getElementById('tripDepartureTime').value = '';
+                    document.getElementById('tripArrivalTime').value = '';
+                    document.getElementById('tripBasePrice').value = '';
+                    document.getElementById('tripSpecialPrice').value = '';
+
+                    // Refresh trips list
+                    loadTrips();
+
+                    // Show trip details
+                    viewTrip(response.data?.data.id);
+                } else {
+                    // addLog(`Failed to create trip: ${response.message}`, 'error');
+                }
+            } catch (error) {
+                // addLog(`Error creating trip: ${error.message}`, 'error');
+            } finally {
+                createTripBtn.disabled = false;
+                createTripBtn.textContent = 'Create Trip';
+            }
+        });
+
+        // Load Bookings
+        async function loadBookings() {
+            try {
+                const response = await fetchWithAuth('/bookings');
+
+                if (response.success) {
+                    // addLog(`Loaded ${response.data?.data.data.length} bookings`, 'info');
+
+                    // Populate bookings table
+                    bookingsTable.innerHTML = '';
+                    response.data?.data.data.forEach(booking => {
+                        const row = document.createElement('tr');
+
+                        // Get trip info from the first booking trip
+                        const trip = booking.bookingTrips[0]?.trip;
+                        const tripInfo = trip ?
+                            `${trip.route.sourceProvince.name} → ${trip.route.destinationProvince.name} (${formatDateTime(trip.departureTime)})` :
+                            'N/A';
+
+                        row.innerHTML = `
+                            <td>${booking.id}</td>
+                            <td>${booking.user.name}</td>
+                            <td>${tripInfo}</td>
+                            <td>${booking.status}</td>
+                            <td>${booking.paymentStatus}</td>
+                            <td>${formatCurrency(booking.finalPrice)}</td>
+                            <td>${formatDateTime(booking.createdAt)}</td>
+                            <td>
+                                <button class="info view-booking" data-id="${booking.id}">View</button>
+                                ${booking.status !== 'CONFIRMED' && booking.paymentStatus !== 'COMPLETED' ?
+                                `<button class="success confirm-booking" data-id="${booking.id}">Confirm</button>` :
+                                ''}
+                                ${booking.status !== 'CANCELLED' ?
+                                `<button class="danger cancel-booking" data-id="${booking.id}">Cancel</button>` :
+                                ''}
+                            </td>
+                        `;
+                        bookingsTable.appendChild(row);
+                    });
+
+                    // Add event listeners to buttons
+                    document.querySelectorAll('.view-booking').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            viewBooking(btn.dataset.id);
+                        });
+                    });
+
+                    document.querySelectorAll('.confirm-booking').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            confirmBooking(btn.dataset.id);
+                        });
+                    });
+
+                    document.querySelectorAll('.cancel-booking').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            cancelBooking(btn.dataset.id);
+                        });
+                    });
+                } else {
+                    // addLog(`Failed to load bookings: ${response.message}`, 'error');
+                }
+            } catch (error) {
+                // addLog(`Error loading bookings: ${error.message}`, 'error');
+            }
+        }
+
+        // View Booking Details
+        async function viewBooking(id) {
+            try {
+                const response = await fetchWithAuth(`/bookings/${id}`);
+
+                if (response.success) {
+                    const booking = response.data?.data;
+                    // addLog(`Loaded booking details: ${booking.id}`, 'info');
+
+                    // Show booking detail container
+                    document.getElementById('bookingDetailContainer').style.display = 'block';
+
+                    // Get trip and seat details
+                    const bookingTrip = booking.bookingTrips[0];
+                    const trip = bookingTrip?.trip;
+                    const seats = bookingTrip?.seats || [];
+
+                    // Populate booking details
+                    document.getElementById('bookingDetails').innerHTML = `
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Booking ID:</label>
+                                <div>${booking.id}</div>
+                            </div>
+                            <div class="form-group">
+                                <label>User:</label>
+                                <div>${booking.user.name} (${booking.user.email})</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Trip:</label>
+                                <div>${trip ? `${trip.route.sourceProvince.name} → ${trip.route.destinationProvince.name}` : 'N/A'}</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Departure Time:</label>
+                                <div>${trip ? formatDateTime(trip.departureTime) : 'N/A'}</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Status:</label>
+                                <div>${booking.status}</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Payment Status:</label>
+                                <div>${booking.paymentStatus}</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Total Price:</label>
+                                <div>${formatCurrency(booking.totalPrice)}</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Discount:</label>
+                                <div>${booking.discountAmount ? formatCurrency(booking.discountAmount) : '0'}</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Final Price:</label>
+                                <div>${formatCurrency(booking.finalPrice)}</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Created At:</label>
+                                <div>${formatDateTime(booking.createdAt)}</div>
+                            </div>
+                            <div class="form-group form-full">
+                                <label>Seats:</label>
+                                <div>${seats.map(seat => `${seat.seatNumber} (${seat.status})`).join(', ') || 'No seats'}</div>
+                            </div>
+                            ${booking.customerNotes ? `
+                                <div class="form-group form-full">
+                                    <label>Customer Notes:</label>
+                                    <div>${booking.customerNotes}</div>
+                                </div>
+                            ` : ''}
+                        </div>
+                        
+                        <div style="margin-top: 20px">
+                            ${booking.status !== 'CONFIRMED' && booking.paymentStatus !== 'COMPLETED' ?
+                            `<button class="success confirm-booking-detail" data-id="${booking.id}">Confirm Booking</button>` :
+                            ''}
+                            ${booking.status !== 'CANCELLED' ?
+                            `<button class="danger cancel-booking-detail" data-id="${booking.id}">Cancel Booking</button>` :
+                            ''}
+                        </div>
+                    `;
+
+                    // Add event listeners to buttons
+                    const confirmBtn = document.querySelector('.confirm-booking-detail');
+                    if (confirmBtn) {
+                        confirmBtn.addEventListener('click', () => {
+                            confirmBooking(confirmBtn.dataset.id);
+                        });
+                    }
+
+                    const cancelBtn = document.querySelector('.cancel-booking-detail');
+                    if (cancelBtn) {
+                        cancelBtn.addEventListener('click', () => {
+                            cancelBooking(cancelBtn.dataset.id);
+                        });
+                    }
+                } else {
+                    // addLog(`Failed to load booking details: ${response.message}`, 'error');
+                }
+            } catch (error) {
+                // addLog(`Error loading booking details: ${error.message}`, 'error');
+            }
+        }
+
+        // Confirm Booking
+        async function confirmBooking(id) {
+            try {
+                if (!confirm('Are you sure you want to confirm this booking?')) {
+                    return;
+                }
+
+                const response = await fetchWithAuth(`/bookings/${id}/confirm`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        notes: 'Manually confirmed by admin'
+                    })
+                });
+
+                if (response.success) {
+                    // addLog(`Booking ${id} confirmed successfully`, 'success');
+
+                    // Refresh bookings list
+                    loadBookings();
+
+                    // Refresh booking details if viewing
+                    if (document.getElementById('bookingDetailContainer').style.display !== 'none') {
+                        viewBooking(id);
+                    }
+                } else {
+                    // addLog(`Failed to confirm booking: ${response.message}`, 'error');
+                }
+            } catch (error) {
+                // addLog(`Error confirming booking: ${error.message}`, 'error');
+            }
+        }
+
+        // Cancel Booking
+        async function cancelBooking(id) {
+            try {
+                if (!confirm('Are you sure you want to cancel this booking?')) {
+                    return;
+                }
+
+                const response = await fetchWithAuth(`/bookings/${id}/cancel`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        reason: 'Manually cancelled by admin'
+                    })
+                });
+
+                if (response.success) {
+                    // addLog(`Booking ${id} cancelled successfully`, 'success');
+
+                    // Refresh bookings list
+                    loadBookings();
+
+                    // Refresh booking details if viewing
+                    if (document.getElementById('bookingDetailContainer').style.display !== 'none') {
+                        viewBooking(id);
+                    }
+                } else {
+                    // addLog(`Failed to cancel booking: ${response.message}`, 'error');
+                }
+            } catch (error) {
+                // addLog(`Error cancelling booking: ${error.message}`, 'error');
+            }
+        }
+
+        // Event listeners for refresh buttons
+        refreshTripsBtn.addEventListener('click', loadTrips);
+        refreshRoutesBtn.addEventListener('click', loadRoutes);
+        refreshVehiclesBtn.addEventListener('click', loadVehicles);
+        refreshVehicleTypesBtn.addEventListener('click', loadVehicleTypes);
+        refreshBookingsBtn.addEventListener('click', loadBookings);
+
+        // Clear logs
+        clearLogsBtn.addEventListener('click', () => {
+            eventLogs.innerHTML = '';
+        });
+
+        // Set default values for date-time fields
+        function setDefaultDateTime() {
+            const now = new Date();
+            const departureTime = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
+            const arrivalTime = new Date(now.getTime() + 3 * 60 * 60 * 1000); // 3 hours from now
+
+            document.getElementById('tripDepartureTime').value = departureTime.toISOString().slice(0, 16);
+            document.getElementById('tripArrivalTime').value = arrivalTime.toISOString().slice(0, 16);
+        }
+
+        // Initialize
+        setDefaultDateTime();
+        // addLog('Admin test page loaded', 'info');
+    </script>
+</body>
+
+</html>

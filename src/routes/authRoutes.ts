@@ -9,8 +9,8 @@ import {
   resendVerificationSchema,
 } from '#schemas/userSchemas';
 import { validateSchema } from '#middlewares/validationMiddleware';
-import { authenticateToken } from '#src/middlewares/authMiddleware';
-import { createRateLimiter } from '#src/middlewares/rateLimitMiddleware';
+import { authenticateToken } from '#middlewares/authMiddleware';
+import { createRateLimiter } from '#middlewares/rateLimitMiddleware';
 
 const router = express.Router();
 

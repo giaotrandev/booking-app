@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import compression from 'compression';
 
 dotenv.config();
 
@@ -20,13 +21,21 @@ import { apiSpecification } from '#docs/openapi';
 import authRoutes from '#routes/authRoutes';
 import geoRoutes from '#routes/geoRoutes';
 import userRoutes from '#routes/userRoutes';
-import roleRoutes from './routes/roleRoutes';
-import permissionRoutes from './routes/permissionRoutes';
+import roleRoutes from '#routes/roleRoutes';
+import permissionRoutes from '#routes/permissionRoutes';
+import postRoutes from '#routes/postRoutes';
+import categoryRoutes from '#routes/categoryRoutes';
+import tagRoutes from '#routes/tagRoutes';
+import tripRoutes from '#routes/tripRoutes';
+import bookingRoutes from '#routes/bookingRoutes';
+import routeRoutes from './routes/routeRoutes';
+import vehicleRoutes from './routes/vehicleRoutes';
+import busStopRoutes from './routes/busStopRoutes';
+import routeStopRoutes from './routes/routeStopRoutes';
+import vehicleTypeRoutes from './routes/vehicleTypeRoutes';
 
 const app: Express = express();
 const nonce = crypto.randomBytes(16).toString('base64');
-
-const port = process.env.PORT || 5000;
 
 // Middleware
 app.use(
@@ -41,6 +50,7 @@ app.use(
           "'self'",
           'http://localhost:3000',
           'http://localhost:5000',
+          'http://localhost:5500',
           'http://127.0.0.1:3000',
           'http://127.0.0.1:5000',
           '*',
@@ -51,15 +61,23 @@ app.use(
 );
 app.use(
   cors({
-    origin: ['http://localhost:3000', 'http://localhost:5000', 'http://127.0.0.1:3000', 'http://127.0.0.1:5000', '*'],
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:5000',
+      'http://localhost:5500',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:5000',
+      '*',
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(compression());
 app.use(express.static('public'));
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: process.env.PAYLOAD_LIMIT || '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: process.env.PAYLOAD_LIMIT || '10mb' }));
 app.use(passport.initialize());
 app.use(languageMiddleware);
 app.use(languageDetector);
@@ -106,9 +124,19 @@ app.use('/api/geo', geoRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/permissions', permissionRoutes);
+app.use('/api/posts', postRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/tags', tagRoutes);
+app.use('/api/trips', tripRoutes);
+app.use('/api/bookings', bookingRoutes);
+app.use('/api/routes', routeRoutes);
+app.use('/api/vehicles', vehicleRoutes);
+app.use('/api/bus-stops', busStopRoutes);
+app.use('/api/route-stops', routeStopRoutes);
+app.use('/api/vehicle-types', vehicleTypeRoutes);
 
 // Health check route
-app.get('/api/health', authenticateToken, validatePermissions(['BOOKING_READ_SELF']), (_, res) => {
+app.get('/api/health', authenticateToken, (_, res) => {
   res.status(200).json({ status: 'OK' });
 });
 

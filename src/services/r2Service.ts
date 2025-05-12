@@ -10,6 +10,9 @@ export const StorageFolders = {
   AVATARS: 'avatars',
   DOCUMENTS: 'documents',
   TEMP: 'temp',
+  TRIPS: 'trips',
+  ROUTES: 'trips',
+  VEHICLES: 'vehicles',
 };
 
 /**

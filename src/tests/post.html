@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Post Management Test</title>
+    <!-- TinyMCE CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.7.0/tinymce.min.js" referrerpolicy="origin"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .card {
+            flex: 1;
+            min-width: 300px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #444;
+            margin-top: 0;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        input, textarea, select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .response pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #f1f1f1;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background-color: white;
+            border-bottom: 1px solid white;
+            margin-bottom: -1px;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .form-grid-full {
+            grid-column: 1 / span 2;
+        }
+        .post-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .post-card {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            transition: transform 0.2s;
+        }
+        .post-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        .post-title {
+            font-size: 18px;
+            margin-top: 0;
+            color: #333;
+        }
+        .post-excerpt {
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .post-meta {
+            color: #888;
+            font-size: 14px;
+        }
+        .post-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+        .post-actions button {
+            padding: 5px 10px;
+            font-size: 14px;
+            margin-top: 0;
+        }
+        .post-actions button.edit {
+            background-color: #2196F3;
+        }
+        .post-actions button.delete {
+            background-color: #f44336;
+        }
+        .post-detail {
+            margin-top: 20px;
+        }
+        .hidden {
+            display: none;
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100px;
+        }
+        .editor-toolbar {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        .image-btn {
+            background-color: #4285f4;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .image-btn:hover {
+            background-color: #3367d6;
+        }
+        .loading:after {
+            content: " ";
+            display: block;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 6px solid #2196F3;
+            border-color: #2196F3 transparent #2196F3 transparent;
+            animation: loading 1.2s linear infinite;
+        }
+        @keyframes loading {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Post Management Test</h1>
+    
+    <div class="tabs">
+        <div class="tab active" data-tab="list-posts">List Posts</div>
+        <div class="tab" data-tab="create-post">Create Post</div>
+        <div class="tab" data-tab="view-post">View Post</div>
+        <div class="tab" data-tab="edit-post">Edit Post</div>
+    </div>
+    
+    <div class="tab-content active" id="list-posts">
+        <h2>List Posts</h2>
+        <div class="form-group">
+            <label for="search">Search:</label>
+            <input type="text" id="search" placeholder="Search posts...">
+        </div>
+        <div class="form-group">
+            <label for="category-filter">Category:</label>
+            <select id="category-filter">
+                <option value="">All Categories</option>
+                <!-- Categories will be populated by JavaScript -->
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="status-filter">Status:</label>
+            <select id="status-filter">
+                <option value="">All Statuses</option>
+                <option value="PUBLISHED">Published</option>
+                <option value="DRAFT">Draft</option>
+                <option value="SCHEDULED">Scheduled</option>
+            </select>
+        </div>
+        <button id="load-posts">Load Posts</button>
+        
+        <div id="posts-container" class="post-list"></div>
+        <div id="pagination" class="pagination"></div>
+    </div>
+    
+    <div class="tab-content" id="create-post">
+        <h2>Create New Post</h2>
+        <div class="editor-toolbar">
+            <button type="button" id="upload-image-btn" class="image-btn">Upload Image</button>
+            <input type="file" id="image-upload" accept="image/*" style="display: none;">
+        </div>
+        <form id="create-post-form" class="form-grid">
+            <div class="form-group">
+                <label for="title">Title:</label>
+                <input type="text" id="title">
+            </div>
+            <div class="form-group">
+                <label for="category">Category:</label>
+                <select id="category">
+                    <option value="">Select Category</option>
+                    <!-- Categories will be populated by JavaScript -->
+                </select>
+            </div>
+            <div class="form-group form-grid-full">
+                <label for="content">Content:</label>
+                <textarea id="content" class="tinymce-editor" rows="10"></textarea>
+            </div>
+            <div class="form-group form-grid-full">
+                <label for="excerpt">Excerpt:</label>
+                <textarea id="excerpt" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="featuredImage">Featured Image URL:</label>
+                <input type="text" id="featuredImage">
+            </div>
+            <div class="form-group">
+                <label for="tags">Tags (comma separated IDs):</label>
+                <input type="text" id="tags" placeholder="tag1,tag2,tag3">
+            </div>
+            <div class="form-group">
+                <label for="metaTitle">Meta Title:</label>
+                <input type="text" id="metaTitle">
+            </div>
+            <div class="form-group">
+                <label for="metaDescription">Meta Description:</label>
+                <input type="text" id="metaDescription">
+            </div>
+            <div class="form-group">
+                <label for="metaKeywords">Meta Keywords:</label>
+                <input type="text" id="metaKeywords">
+            </div>
+            <div class="form-group">
+                <label for="status">Status:</label>
+                <select id="status">
+                    <option value="DRAFT">Draft</option>
+                    <option value="PUBLISHED">Published</option>
+                    <option value="SCHEDULED">Scheduled</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="scheduledAt">Scheduled At:</label>
+                <input type="datetime-local" id="scheduledAt">
+            </div>
+            <div class="form-group form-grid-full">
+                <button type="submit">Create Post</button>
+            </div>
+        </form>
+        <div id="create-response" class="response"></div>
+    </div>
+    
+    <div class="tab-content" id="view-post">
+        <h2>View Post</h2>
+        <div class="form-group">
+            <label for="post-id">Post ID or Slug:</label>
+            <input type="text" id="post-id" placeholder="Enter post ID or slug">
+        </div>
+        <button id="load-post">Load Post</button>
+        
+        <div id="post-detail" class="post-detail hidden">
+            <h3 id="detail-title"></h3>
+            <div class="post-meta">
+                <span id="detail-author"></span> | 
+                <span id="detail-date"></span> | 
+                <span id="detail-category"></span> | 
+                <span id="detail-status"></span>
+            </div>
+            <div id="detail-tags"></div>
+            <div id="detail-content"></div>
+            <div id="detail-meta"></div>
+        </div>
+        <div id="view-response" class="response"></div>
+    </div>
+    
+    <div class="tab-content" id="edit-post">
+        <h2>Edit Post</h2>
+        <div class="editor-toolbar">
+            <button type="button" id="upload-image-edit-btn" class="image-btn">Upload Image</button>
+            <input type="file" id="image-upload-edit" accept="image/*" style="display: none;">
+        </div>
+        <div class="form-group">
+            <label for="edit-post-id">Post ID:</label>
+            <input type="text" id="edit-post-id" placeholder="Enter post ID">
+            <button id="load-for-edit">Load Post</button>
+        </div>
+        
+        <form id="edit-post-form" class="form-grid hidden">
+            <div class="form-group">
+                <label for="edit-title">Title:</label>
+                <input type="text" id="edit-title">
+            </div>
+            <div class="form-group">
+                <label for="edit-category">Category:</label>
+                <select id="edit-category">
+                    <option value="">Select Category</option>
+                    <!-- Categories will be populated by JavaScript -->
+                </select>
+            </div>
+            <div class="form-group form-grid-full">
+                <label for="edit-content">Content:</label>
+                <textarea id="edit-content" class="tinymce-editor" rows="10"></textarea>
+            </div>
+            <div class="form-group form-grid-full">
+                <label for="edit-excerpt">Excerpt:</label>
+                <textarea id="edit-excerpt" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="edit-featuredImage">Featured Image URL:</label>
+                <input type="text" id="edit-featuredImage">
+            </div>
+            <div class="form-group">
+                <label for="edit-tags">Tags (comma separated IDs):</label>
+                <input type="text" id="edit-tags" placeholder="tag1,tag2,tag3">
+            </div>
+            <div class="form-group">
+                <label for="edit-metaTitle">Meta Title:</label>
+                <input type="text" id="edit-metaTitle">
+            </div>
+            <div class="form-group">
+                <label for="edit-metaDescription">Meta Description:</label>
+                <input type="text" id="edit-metaDescription">
+            </div>
+            <div class="form-group">
+                <label for="edit-metaKeywords">Meta Keywords:</label>
+                <input type="text" id="edit-metaKeywords">
+            </div>
+            <div class="form-group">
+                <label for="edit-status">Status:</label>
+                <select id="edit-status">
+                    <option value="DRAFT">Draft</option>
+                    <option value="PUBLISHED">Published</option>
+                    <option value="SCHEDULED">Scheduled</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="edit-scheduledAt">Scheduled At:</label>
+                <input type="datetime-local" id="edit-scheduledAt">
+            </div>
+            <div class="form-group">
+                <label for="edit-changeReason">Change Reason:</label>
+                <input type="text" id="edit-changeReason" placeholder="Reason for update">
+            </div>
+            <div class="form-group form-grid-full">
+                <button type="submit">Update Post</button>
+            </div>
+        </form>
+        <div id="edit-response" class="response"></div>
+    </div>
+
+    <script>
+        // Global variables
+        const API_BASE_URL = 'http://localhost:5000/api'; // Change this to your actual API endpoint
+        const DEFAULT_LANGUAGE = 'en';
+        let authToken = localStorage.getItem('authToken');
+        let categories = [];
+        let tags = [];
+        let currentPage = 1;
+        let currentPost = null;
+
+        // Get page elements
+        const tabButtons = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        // Initialize TinyMCE
+        function initTinyMCE() {
+            tinymce.init({
+                selector: '.tinymce-editor',
+                height: 400,
+                plugins: [
+                    'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+                    'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+                    'insertdatetime', 'media', 'table', 'help', 'wordcount'
+                ],
+                toolbar: 'undo redo | formatselect | ' +
+                    'bold italic backcolor | alignleft aligncenter ' +
+                    'alignright alignjustify | bullist numlist outdent indent | ' +
+                    'removeformat | image | code | help',
+                content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
+                image_advtab: true,
+                images_upload_handler: function (blobInfo, progress) {
+                    return new Promise((resolve, reject) => {
+                        // This is a simple base64 implementation for demo
+                        // In production, you would upload the image to your server
+                        const reader = new FileReader();
+                        reader.onload = function() {
+                            resolve(reader.result);
+                        };
+                        reader.onerror = function() {
+                            reject('Image upload failed');
+                        };
+                        reader.readAsDataURL(blobInfo.blob());
+                    });
+                }
+            });
+        }
+        
+        // Initialize event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize TinyMCE
+            initTinyMCE();
+            
+            // Tab switching
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    
+                    // Update active tab
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Show active content
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    document.getElementById(tabId).classList.add('active');
+                    
+                    // Re-init TinyMCE if switching to a tab with editors
+                    if (tabId === 'create-post' || tabId === 'edit-post') {
+                        // Give a small delay to ensure the DOM is ready
+                        setTimeout(() => {
+                            initTinyMCE();
+                        }, 100);
+                    }
+                });
+            });
+            
+            // Load initial data
+            loadCategories();
+            loadTags();
+            
+            // Set up form submissions
+            document.getElementById('create-post-form').addEventListener('submit', createPost);
+            document.getElementById('edit-post-form').addEventListener('submit', updatePost);
+            
+            // Set up other event listeners
+            document.getElementById('load-posts').addEventListener('click', loadPosts);
+            document.getElementById('load-post').addEventListener('click', loadPostDetails);
+            document.getElementById('load-for-edit').addEventListener('click', loadPostForEdit);
+            
+            // Set up image upload buttons
+            document.getElementById('upload-image-btn').addEventListener('click', function() {
+                document.getElementById('image-upload').click();
+            });
+            document.getElementById('image-upload').addEventListener('change', handleImageUpload);
+            
+            document.getElementById('upload-image-edit-btn').addEventListener('click', function() {
+                document.getElementById('image-upload-edit').click();
+            });
+            document.getElementById('image-upload-edit').addEventListener('change', handleImageUploadEdit);
+            
+            // Initial load of posts
+            loadPosts();
+        });
+        
+        // Authentication functions
+        function login() {
+            // Simplified login for test purposes
+            authToken = prompt("Enter your authentication token:");
+            if (authToken) {
+                localStorage.setItem('authToken', authToken);
+                alert("Authentication token set!");
+            }
+        }
+        
+        function logout() {
+            localStorage.removeItem('authToken');
+            authToken = null;
+            alert("Logged out!");
+        }
+        
+        // API helper functions
+        async function apiRequest(endpoint, method = 'GET', data = null) {
+            const headers = {
+                'Content-Type': 'application/json',
+                'Accept-Language': DEFAULT_LANGUAGE
+            };
+            
+            if (authToken) {
+                headers['Authorization'] = `Bearer ${authToken}`;
+            }
+            
+            const options = {
+                method,
+                headers
+            };
+            
+            if (data && (method === 'POST' || method === 'PUT')) {
+                options.body = JSON.stringify(data);
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+                const responseData = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(responseData.message || 'API request failed');
+                }
+                
+                return responseData;
+            } catch (error) {
+                console.error('API Request Error:', error);
+                throw error;
+            }
+        }
+        
+        // Data loading functions
+        async function loadCategories() {
+            try {
+                const response = await apiRequest('/categories');
+                categories = response.data.categories;
+                
+                // Populate category dropdowns
+                const categorySelects = document.querySelectorAll('#category, #edit-category, #category-filter');
+                categorySelects.forEach(select => {
+                    // Keep the first option and remove others
+                    while (select.options.length > 1) {
+                        select.remove(1);
+                    }
+                    
+                    // Add categories
+                    categories.forEach(category => {
+                        const option = document.createElement('option');
+                        option.value = category.id;
+                        option.textContent = category.name;
+                        select.appendChild(option);
+                    });
+                });
+            } catch (error) {
+                console.error('Error loading categories:', error);
+                alert('Failed to load categories. You may need to create them first.');
+            }
+        }
+        
+        async function loadTags() {
+            try {
+                const response = await apiRequest('/tags');
+                tags = response.data.tags;
+            } catch (error) {
+                console.error('Error loading tags:', error);
+                alert('Failed to load tags. You may need to create them first.');
+            }
+        }
+        
+        async function loadPosts() {
+            const postsContainer = document.getElementById('posts-container');
+            const paginationContainer = document.getElementById('pagination');
+            
+            // Show loading
+            postsContainer.innerHTML = '<div class="loading"></div>';
+            paginationContainer.innerHTML = '';
+            
+            try {
+                // Get filter values
+                const search = document.getElementById('search').value;
+                const categoryId = document.getElementById('category-filter').value;
+                const status = document.getElementById('status-filter').value;
+                
+                // Build query parameters
+                const queryParams = new URLSearchParams();
+                queryParams.append('page', currentPage);
+                queryParams.append('limit', 10);
+                
+                if (search) queryParams.append('search', search);
+                if (categoryId) queryParams.append('categoryId', categoryId);
+                if (status) queryParams.append('status', status);
+                
+                // Make API request
+                const response = await apiRequest(`/posts?${queryParams.toString()}`);
+                const { posts, pagination } = response.data;
+                
+                // Render posts
+                if (posts.length === 0) {
+                    postsContainer.innerHTML = '<p>No posts found.</p>';
+                } else {
+                    postsContainer.innerHTML = '';
+                    posts.forEach(post => {
+                        postsContainer.appendChild(createPostCard(post));
+                    });
+                    
+                    // Render pagination
+                    renderPagination(pagination, paginationContainer);
+                }
+            } catch (error) {
+                console.error('Error loading posts:', error);
+                postsContainer.innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+        
+        function createPostCard(post) {
+            const card = document.createElement('div');
+            card.className = 'post-card';
+            
+            const title = document.createElement('h3');
+            title.className = 'post-title';
+            title.textContent = post.title;
+            
+            const excerpt = document.createElement('div');
+            excerpt.className = 'post-excerpt';
+            excerpt.textContent = post.excerpt || 'No excerpt available';
+            
+            const meta = document.createElement('div');
+            meta.className = 'post-meta';
+            
+            const category = post.category ? post.category.name : 'Uncategorized';
+            const date = new Date(post.createdAt).toLocaleDateString();
+            const status = post.status;
+            
+            meta.textContent = `${category} | ${date} | ${status}`;
+            
+            const actions = document.createElement('div');
+            actions.className = 'post-actions';
+            
+            const viewBtn = document.createElement('button');
+            viewBtn.textContent = 'View';
+            viewBtn.addEventListener('click', () => {
+                document.getElementById('post-id').value = post.id;
+                
+                // Switch to view tab
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                document.querySelector('[data-tab="view-post"]').classList.add('active');
+                
+                tabContents.forEach(content => content.classList.remove('active'));
+                document.getElementById('view-post').classList.add('active');
+                
+                loadPostDetails();
+            });
+            
+            const editBtn = document.createElement('button');
+            editBtn.className = 'edit';
+            editBtn.textContent = 'Edit';
+            editBtn.addEventListener('click', () => {
+                document.getElementById('edit-post-id').value = post.id;
+                
+                // Switch to edit tab
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                document.querySelector('[data-tab="edit-post"]').classList.add('active');
+                
+                tabContents.forEach(content => content.classList.remove('active'));
+                document.getElementById('edit-post').classList.add('active');
+                
+                loadPostForEdit();
+            });
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete';
+            deleteBtn.textContent = 'Delete';
+            deleteBtn.addEventListener('click', () => {
+                if (confirm(`Are you sure you want to delete "${post.title}"?`)) {
+                    deletePost(post.id);
+                }
+            });
+            
+            actions.appendChild(viewBtn);
+            actions.appendChild(editBtn);
+            actions.appendChild(deleteBtn);
+            
+            card.appendChild(title);
+            card.appendChild(excerpt);
+            card.appendChild(meta);
+            card.appendChild(actions);
+            
+            return card;
+        }
+        
+        function renderPagination(pagination, container) {
+            container.innerHTML = '';
+            
+            const { currentPage, totalPages } = pagination;
+            
+            if (totalPages <= 1) {
+                return;
+            }
+            
+            const paginationNav = document.createElement('div');
+            paginationNav.className = 'pagination-nav';
+            
+            // Previous button
+            if (currentPage > 1) {
+                const prevBtn = document.createElement('button');
+                prevBtn.textContent = 'Previous';
+                prevBtn.addEventListener('click', () => {
+                    currentPage--;
+                    loadPosts();
+                });
+                paginationNav.appendChild(prevBtn);
+            }
+            
+            // Page numbers
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, currentPage + 2);
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.textContent = i;
+                pageBtn.className = i === currentPage ? 'active' : '';
+                pageBtn.addEventListener('click', () => {
+                    currentPage = i;
+                    loadPosts();
+                });
+                paginationNav.appendChild(pageBtn);
+            }
+            
+            // Next button
+            if (currentPage < totalPages) {
+                const nextBtn = document.createElement('button');
+                nextBtn.textContent = 'Next';
+                nextBtn.addEventListener('click', () => {
+                    currentPage++;
+                    loadPosts();
+                });
+                paginationNav.appendChild(nextBtn);
+            }
+            
+            container.appendChild(paginationNav);
+        }
+        
+        async function loadPostDetails() {
+            const postId = document.getElementById('post-id').value.trim();
+            const postDetailContainer = document.getElementById('post-detail');
+            const responseContainer = document.getElementById('view-response');
+            
+            if (!postId) {
+                alert('Please enter a post ID or slug.');
+                return;
+            }
+            
+            // Show loading
+            postDetailContainer.classList.add('hidden');
+            responseContainer.innerHTML = '<div class="loading"></div>';
+            
+            try {
+                const response = await apiRequest(`/posts/${postId}`);
+                const post = response.data.post;
+                
+                // Update response container
+                responseContainer.innerHTML = `<pre>${JSON.stringify(post, null, 2)}</pre>`;
+                
+                // Update post detail view
+                document.getElementById('detail-title').textContent = post.title;
+                document.getElementById('detail-author').textContent = post.author ? post.author.name : 'Unknown';
+                document.getElementById('detail-date').textContent = new Date(post.createdAt).toLocaleDateString();
+                document.getElementById('detail-category').textContent = post.category ? post.category.name : 'Uncategorized';
+                document.getElementById('detail-status').textContent = post.status;
+                
+                // Tags
+                const tagsContainer = document.getElementById('detail-tags');
+                tagsContainer.innerHTML = '';
+                if (post.postTags && post.postTags.length > 0) {
+                    post.postTags.forEach(postTag => {
+                        const tag = document.createElement('span');
+                        tag.className = 'tag';
+                        tag.textContent = postTag.tag.name;
+                        tagsContainer.appendChild(tag);
+                    });
+                } else {
+                    tagsContainer.textContent = 'No tags';
+                }
+                
+                // Content
+                document.getElementById('detail-content').innerHTML = post.content;
+                
+                // Meta
+                const metaContainer = document.getElementById('detail-meta');
+                metaContainer.innerHTML = `
+                    <h4>Meta Information</h4>
+                    <p><strong>Meta Title:</strong> ${post.metaTitle || post.title}</p>
+                    <p><strong>Meta Description:</strong> ${post.metaDescription || post.excerpt || 'None'}</p>
+                    <p><strong>Meta Keywords:</strong> ${post.metaKeywords || 'None'}</p>
+                `;
+                
+                // Show post detail
+                postDetailContainer.classList.remove('hidden');
+            } catch (error) {
+                console.error('Error loading post details:', error);
+                responseContainer.innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function loadPostForEdit() {
+            const postId = document.getElementById('edit-post-id').value.trim();
+            const editForm = document.getElementById('edit-post-form');
+            const responseContainer = document.getElementById('edit-response');
+            
+            if (!postId) {
+                alert('Please enter a post ID.');
+                return;
+            }
+            
+            // Show loading
+            editForm.classList.add('hidden');
+            responseContainer.innerHTML = '<div class="loading"></div>';
+            
+            try {
+                const response = await apiRequest(`/posts/${postId}`);
+                const post = response.data.post;
+                currentPost = post;
+                
+                // Update response container
+                responseContainer.innerHTML = `<pre>${JSON.stringify(post, null, 2)}</pre>`;
+                
+                // Fill form fields
+                document.getElementById('edit-title').value = post.title;
+                // Set content in TinyMCE
+                setTimeout(() => {
+                    if (tinymce.get('edit-content')) {
+                        tinymce.get('edit-content').setContent(post.content);
+                    } else {
+                        document.getElementById('edit-content').value = post.content;
+                    }
+                }, 100);
+                document.getElementById('edit-excerpt').value = post.excerpt || '';
+                document.getElementById('edit-featuredImage').value = post.featuredImage || '';
+                document.getElementById('edit-metaTitle').value = post.metaTitle || '';
+                document.getElementById('edit-metaDescription').value = post.metaDescription || '';
+                document.getElementById('edit-metaKeywords').value = post.metaKeywords || '';
+                document.getElementById('edit-status').value = post.status;
+                
+                // Set category
+                if (post.categoryId) {
+                    document.getElementById('edit-category').value = post.categoryId;
+                }
+                
+                // Set tags
+                if (post.postTags && post.postTags.length > 0) {
+                    const tags = post.postTags.map(postTag => postTag.tag.id);
+                    document.getElementById('edit-tags').value = tags.join(',');
+                }
+                
+                // Set scheduled date if any
+                if (post.scheduledAt) {
+                    // Format date for datetime-local input
+                    const scheduledDate = new Date(post.scheduledAt);
+                    const formattedDate = scheduledDate.toISOString().slice(0, 16);
+                    document.getElementById('edit-scheduledAt').value = formattedDate;
+                } else {
+                    document.getElementById('edit-scheduledAt').value = '';
+                }
+                
+                // Show edit form
+                editForm.classList.remove('hidden');
+            } catch (error) {
+                console.error('Error loading post for edit:', error);
+                responseContainer.innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+        
+        // CRUD operations
+        async function createPost(event) {
+            event.preventDefault();
+            
+            const responseContainer = document.getElementById('create-response');
+            responseContainer.innerHTML = '<div class="loading"></div>';
+            
+            try {
+                // Check if logged in
+                // if (!authToken) {
+                //     alert('Please log in to create a post.');
+                //     login();
+                //     return;
+                // }
+
+                console.log("Dô")
+                
+                // Get form data
+                const title = document.getElementById('title').value;
+                const content = tinymce.get('content').getContent();
+                const excerpt = document.getElementById('excerpt').value;
+                const featuredImage = document.getElementById('featuredImage').value;
+                const categoryId = document.getElementById('category').value;
+                const metaTitle = document.getElementById('metaTitle').value;
+                const metaDescription = document.getElementById('metaDescription').value;
+                const metaKeywords = document.getElementById('metaKeywords').value;
+                const status = document.getElementById('status').value;
+                const scheduledAt = document.getElementById('scheduledAt').value;
+                
+                // Process tags
+                const tagsString = document.getElementById('tags').value;
+                const tags = tagsString ? tagsString.split(',').map(id => id.trim()) : [];
+                
+                // Create post data
+                const postData = {
+                    title,
+                    content,
+                    excerpt,
+                    categoryId,
+                    metaTitle,
+                    metaDescription,
+                    metaKeywords,
+                    status,
+                    tags
+                };
+                
+                // Add featured image if provided
+                if (featuredImage) {
+                    postData.featuredImage = featuredImage;
+                }
+                
+                // Add scheduled date if provided
+                if (scheduledAt) {
+                    postData.scheduledAt = new Date(scheduledAt).toISOString();
+                }
+                
+                // Send API request
+                const response = await apiRequest('/posts', 'POST', postData);
+                
+                // Show success message
+                responseContainer.innerHTML = `
+                    <div class="success-message">Post created successfully!</div>
+                    <pre>${JSON.stringify(response.data, null, 2)}</pre>
+                `;
+                
+                // Reset form
+                document.getElementById('create-post-form').reset();
+                
+                // Update post list
+                loadPosts();
+            } catch (error) {
+                console.error('Error creating post:', error);
+                responseContainer.innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function updatePost(event) {
+            event.preventDefault();
+            
+            const responseContainer = document.getElementById('edit-response');
+            responseContainer.innerHTML = '<div class="loading"></div>';
+            
+            try {
+                // Check if logged in
+                if (!authToken) {
+                    alert('Please log in to update a post.');
+                    login();
+                    return;
+                }
+                
+                if (!currentPost) {
+                    alert('No post loaded for editing.');
+                    return;
+                }
+                
+                const postId = currentPost.id;
+                
+                // Get form data
+                const title = document.getElementById('edit-title').value;
+                const content = tinymce.get('edit-content').getContent();
+                const excerpt = document.getElementById('edit-excerpt').value;
+                const featuredImage = document.getElementById('edit-featuredImage').value;
+                const categoryId = document.getElementById('edit-category').value;
+                const metaTitle = document.getElementById('edit-metaTitle').value;
+                const metaDescription = document.getElementById('edit-metaDescription').value;
+                const metaKeywords = document.getElementById('edit-metaKeywords').value;
+                const status = document.getElementById('edit-status').value;
+                const scheduledAt = document.getElementById('edit-scheduledAt').value;
+                const changeReason = document.getElementById('edit-changeReason').value;
+                
+                // Process tags
+                const tagsString = document.getElementById('edit-tags').value;
+                const tags = tagsString ? tagsString.split(',').map(id => id.trim()) : [];
+                
+                // Create update data
+                const updateData = {
+                    title,
+                    content,
+                    excerpt,
+                    categoryId,
+                    metaTitle,
+                    metaDescription,
+                    metaKeywords,
+                    status,
+                    tags,
+                    changeReason: changeReason || 'Update from test page'
+                };
+                
+                // Add featured image if provided
+                if (featuredImage) {
+                    updateData.featuredImage = featuredImage;
+                }
+                
+                // Add scheduled date if provided
+                if (scheduledAt) {
+                    updateData.scheduledAt = new Date(scheduledAt).toISOString();
+                }
+                
+                // Send API request
+                const response = await apiRequest(`/posts/${postId}`, 'PUT', updateData);
+                
+                // Show success message
+                responseContainer.innerHTML = `
+                    <div class="success-message">Post updated successfully!</div>
+                    <pre>${JSON.stringify(response.data, null, 2)}</pre>
+                `;
+                
+                // Update post list
+                loadPosts();
+            } catch (error) {
+                console.error('Error updating post:', error);
+                responseContainer.innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function deletePost(postId) {
+            try {
+                // Check if logged in
+                if (!authToken) {
+                    alert('Please log in to delete a post.');
+                    login();
+                    return;
+                }
+                
+                // Send API request
+                const response = await apiRequest(`/posts/${postId}`, 'DELETE');
+                
+                alert('Post deleted successfully!');
+                
+                // Update post list
+                loadPosts();
+            } catch (error) {
+                console.error('Error deleting post:', error);
+                alert(`Error: ${error.message}`);
+            }
+        }
+        
+        // Auth UI controls
+        function addAuthControls() {
+            const authContainer = document.createElement('div');
+            authContainer.className = 'auth-container';
+            authContainer.style.position = 'fixed';
+            authContainer.style.top = '10px';
+            authContainer.style.right = '10px';
+            
+            const loginBtn = document.createElement('button');
+            loginBtn.textContent = 'Login';
+            loginBtn.addEventListener('click', login);
+            
+            const logoutBtn = document.createElement('button');
+            logoutBtn.textContent = 'Logout';
+            logoutBtn.addEventListener('click', logout);
+            
+            authContainer.appendChild(loginBtn);
+            authContainer.appendChild(logoutBtn);
+            
+            document.body.appendChild(authContainer);
+        }
+        
+        // Add auth controls
+        addAuthControls();
+        
+        // Handle image uploads for the editor
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function() {
+                const editor = tinymce.get('content');
+                if (editor) {
+                    editor.execCommand('mceInsertContent', false, `<img src="${reader.result}" alt="Uploaded Image" />`);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function handleImageUploadEdit(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function() {
+                const editor = tinymce.get('edit-content');
+                if (editor) {
+                    editor.execCommand('mceInsertContent', false, `<img src="${reader.result}" alt="Uploaded Image" />`);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    </script>
+</body>
+</html>

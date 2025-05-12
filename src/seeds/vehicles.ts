@@ -297,7 +297,7 @@ export const seedVehicles = async () => {
 export default async function seedVehiclesData() {
   try {
     // Seed in sequence to ensure dependencies are met
-    await seedVehicleTypes();
+    // await seedVehicleTypes();
     await seedVehicles();
 
     console.log('✅ All vehicle data seeded successfully');

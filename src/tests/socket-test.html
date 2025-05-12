@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.IO Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .seat {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            margin: 5px;
+            line-height: 40px;
+            text-align: center;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .seat.available {
+            background-color: #ddd;
+        }
+        .seat.selected {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .seat.reserved {
+            background-color: #ff9800;
+            color: white;
+        }
+        .seat.booked {
+            background-color: #f44336;
+            color: white;
+            cursor: not-allowed;
+        }
+        input, select {
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .logs {
+            background-color: #f9f9f9;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            height: 200px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .info { color: #2196F3; }
+    </style>
+</head>
+<body>
+    <h1>Socket.IO Test Page</h1>
+    
+    <div class="container">
+        <h2>Connection</h2>
+        <div class="form-group">
+            <label for="serverUrl">Server URL:</label>
+            <input type="text" id="serverUrl" value="http://localhost:5000" style="width: 250px;">
+        </div>
+        <div class="form-group">
+            <label for="token">JWT Token:</label>
+            <input type="text" id="token" placeholder="Enter your JWT token" style="width: 450px;">
+        </div>
+        <button id="connectBtn">Connect</button>
+        <button id="disconnectBtn" disabled>Disconnect</button>
+        <div id="connectionStatus">Status: Disconnected</div>
+    </div>
+
+    <div class="container">
+        <h2>Join Trip Room</h2>
+        <div class="form-group">
+            <label for="tripId">Trip ID:</label>
+            <input type="text" id="tripId" placeholder="Enter Trip ID">
+        </div>
+        <div class="form-group">
+            <label for="userId">User ID:</label>
+            <input type="text" id="userId" placeholder="Enter your User ID">
+        </div>
+        <button id="joinRoomBtn" disabled>Join Trip Room</button>
+        <button id="leaveRoomBtn" disabled>Leave Trip Room</button>
+    </div>
+
+    <div class="container">
+        <h2>Seat Selection</h2>
+        <div id="seatsContainer" style="margin-bottom: 15px;">
+            <!-- Seats will be generated here -->
+        </div>
+        <div>
+            <button id="selectSeatBtn" disabled>Select Seat</button>
+            <button id="releaseSeatBtn" disabled>Release Seat</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Event Logs</h2>
+        <div class="logs" id="eventLogs"></div>
+        <button id="clearLogsBtn">Clear Logs</button>
+    </div>
+
+    <!-- Include Socket.IO client from CDN -->
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script>
+        // DOM Elements
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const joinRoomBtn = document.getElementById('joinRoomBtn');
+        const leaveRoomBtn = document.getElementById('leaveRoomBtn');
+        const selectSeatBtn = document.getElementById('selectSeatBtn');
+        const releaseSeatBtn = document.getElementById('releaseSeatBtn');
+        const clearLogsBtn = document.getElementById('clearLogsBtn');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const eventLogs = document.getElementById('eventLogs');
+        const seatsContainer = document.getElementById('seatsContainer');
+
+        // State
+        let socket = null;
+        let selectedSeat = null;
+        let sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+        // Generate some fake seats for testing
+        function generateSeats() {
+            seatsContainer.innerHTML = '';
+            for (let i = 1; i <= 20; i++) {
+                const seat = document.createElement('div');
+                seat.className = 'seat available';
+                seat.textContent = i;
+                seat.dataset.seatId = `seat_${i}`;
+                seat.dataset.status = 'AVAILABLE';
+                seat.onclick = () => selectSeat(seat);
+                seatsContainer.appendChild(seat);
+            }
+        }
+
+        // Select a seat
+        function selectSeat(seatElement) {
+            if (seatElement.dataset.status === 'BOOKED') {
+                addLog('Cannot select booked seat', 'error');
+                return;
+            }
+
+            // Clear previous selection
+            if (selectedSeat) {
+                if (selectedSeat.dataset.status === 'SELECTED') {
+                    selectedSeat.classList.remove('selected');
+                    selectedSeat.classList.add('available');
+                    selectedSeat.dataset.status = 'AVAILABLE';
+                }
+            }
+
+            // Set new selection
+            selectedSeat = seatElement;
+            if (selectedSeat.dataset.status === 'AVAILABLE') {
+                selectedSeat.classList.remove('available');
+                selectedSeat.classList.add('selected');
+                selectedSeat.dataset.status = 'SELECTED';
+                selectSeatBtn.disabled = false;
+                releaseSeatBtn.disabled = true;
+            } else if (selectedSeat.dataset.status === 'RESERVED') {
+                releaseSeatBtn.disabled = false;
+                selectSeatBtn.disabled = true;
+            }
+        }
+
+        // Add log entry
+        function addLog(message, type = 'info') {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            eventLogs.appendChild(logEntry);
+            eventLogs.scrollTop = eventLogs.scrollHeight;
+        }
+
+        // Connect to socket server
+        connectBtn.addEventListener('click', () => {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const token = document.getElementById('token').value;
+
+            if (!token) {
+                addLog('Please enter a JWT token', 'error');
+                return;
+            }
+
+            try {
+                // Disconnect existing socket if any
+                if (socket) {
+                    socket.disconnect();
+                }
+
+                // Connect to server
+                socket = io(serverUrl, {
+                    auth: { token },
+                    path: '/socket.io'
+                });
+
+                // Connection events
+                socket.on('connect', () => {
+                    connectionStatus.textContent = 'Status: Connected';
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    joinRoomBtn.disabled = false;
+                    addLog('Connected to server', 'success');
+                });
+
+                socket.on('connect_error', (error) => {
+                    connectionStatus.textContent = `Status: Connection Error - ${error.message}`;
+                    addLog(`Connection error: ${error.message}`, 'error');
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    joinRoomBtn.disabled = true;
+                    leaveRoomBtn.disabled = true;
+                });
+
+                socket.on('disconnect', () => {
+                    connectionStatus.textContent = 'Status: Disconnected';
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    joinRoomBtn.disabled = true;
+                    leaveRoomBtn.disabled = true;
+                    selectSeatBtn.disabled = true;
+                    releaseSeatBtn.disabled = true;
+                    addLog('Disconnected from server', 'info');
+                });
+
+                // Seat related events
+                socket.on('seatStatusChanged', (data) => {
+                    addLog(`Seat status changed: ${JSON.stringify(data)}`, 'info');
+                    
+                    // Update seat in UI
+                    const seats = document.querySelectorAll('.seat');
+                    for (const seat of seats) {
+                        if (seat.dataset.seatId === data.seatId) {
+                            seat.classList.remove('available', 'reserved', 'booked', 'selected');
+                            seat.dataset.status = data.status;
+                            
+                            switch (data.status) {
+                                case 'AVAILABLE':
+                                    seat.classList.add('available');
+                                    break;
+                                case 'RESERVED':
+                                    seat.classList.add('reserved');
+                                    break;
+                                case 'BOOKED':
+                                    seat.classList.add('booked');
+                                    break;
+                            }
+                        }
+                    }
+                });
+
+                socket.on('seatSelectionConfirmed', (data) => {
+                    addLog(`Seat selection confirmed: ${JSON.stringify(data)}`, 'success');
+                    if (selectedSeat && selectedSeat.dataset.seatId === data.seatId) {
+                        selectedSeat.dataset.status = 'RESERVED';
+                        selectedSeat.classList.remove('selected');
+                        selectedSeat.classList.add('reserved');
+                        selectSeatBtn.disabled = true;
+                        releaseSeatBtn.disabled = false;
+                    }
+                });
+
+                socket.on('seatSelectionError', (data) => {
+                    addLog(`Seat selection error: ${JSON.stringify(data)}`, 'error');
+                    if (selectedSeat) {
+                        selectedSeat.dataset.status = 'AVAILABLE';
+                        selectedSeat.classList.remove('selected');
+                        selectedSeat.classList.add('available');
+                        selectSeatBtn.disabled = true;
+                    }
+                });
+
+                socket.on('seatReleased', (data) => {
+                    addLog(`Seat released: ${JSON.stringify(data)}`, 'success');
+                    if (selectedSeat && selectedSeat.dataset.seatId === data.seatId) {
+                        selectedSeat.dataset.status = 'AVAILABLE';
+                        selectedSeat.classList.remove('reserved');
+                        selectedSeat.classList.add('available');
+                        releaseSeatBtn.disabled = true;
+                    }
+                });
+
+                socket.on('seatReleaseError', (data) => {
+                    addLog(`Seat release error: ${JSON.stringify(data)}`, 'error');
+                });
+
+            } catch (err) {
+                addLog(`Error initializing socket: ${err.message}`, 'error');
+                connectionStatus.textContent = `Status: Error - ${err.message}`;
+            }
+        });
+
+        // Disconnect from server
+        disconnectBtn.addEventListener('click', () => {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
+        });
+
+        // Join trip room
+        joinRoomBtn.addEventListener('click', () => {
+            const tripId = document.getElementById('tripId').value;
+            
+            if (!tripId) {
+                addLog('Please enter a Trip ID', 'error');
+                return;
+            }
+
+            if (socket) {
+                socket.emit('joinTripRoom', tripId);
+                addLog(`Joined trip room: ${tripId}`, 'info');
+                joinRoomBtn.disabled = true;
+                leaveRoomBtn.disabled = false;
+                selectSeatBtn.disabled = true;
+                
+                // Generate seats for testing
+                generateSeats();
+            }
+        });
+
+        // Leave trip room
+        leaveRoomBtn.addEventListener('click', () => {
+            const tripId = document.getElementById('tripId').value;
+            
+            if (socket) {
+                socket.emit('leaveTripRoom', tripId);
+                addLog(`Left trip room: ${tripId}`, 'info');
+                joinRoomBtn.disabled = false;
+                leaveRoomBtn.disabled = true;
+                selectSeatBtn.disabled = true;
+                releaseSeatBtn.disabled = true;
+                selectedSeat = null;
+                seatsContainer.innerHTML = '';
+            }
+        });
+
+        // Select seat via socket
+        selectSeatBtn.addEventListener('click', () => {
+            if (!socket || !selectedSeat) return;
+
+            const tripId = document.getElementById('tripId').value;
+            const userId = document.getElementById('userId').value;
+            const seatId = selectedSeat.dataset.seatId;
+
+            if (!tripId || !userId) {
+                addLog('Trip ID and User ID are required', 'error');
+                return;
+            }
+
+            addLog(`Selecting seat: ${seatId}`, 'info');
+            socket.emit('selectSeat', {
+                tripId,
+                seatId,
+                userId,
+                sessionId
+            });
+        });
+
+        // Release seat via socket
+        releaseSeatBtn.addEventListener('click', () => {
+            if (!socket || !selectedSeat) return;
+
+            const tripId = document.getElementById('tripId').value;
+            const userId = document.getElementById('userId').value;
+            const seatId = selectedSeat.dataset.seatId;
+
+            addLog(`Releasing seat: ${seatId}`, 'info');
+            socket.emit('releaseSeat', {
+                tripId,
+                seatId,
+                userId
+            });
+        });
+
+        // Clear logs
+        clearLogsBtn.addEventListener('click', () => {
+            eventLogs.innerHTML = '';
+        });
+
+        // Initialize
+        generateSeats();
+    </script>
+</body>
+</html>
