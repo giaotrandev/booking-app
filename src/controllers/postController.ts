@@ -373,7 +373,8 @@ export const updatePost = async (req: Request, res: Response): Promise<void> => 
           author: {
             select: {
               id: true,
-              name: true,
+              firstName: true,
+              lastName: true,
               avatar: true,
             },
           },
@@ -413,7 +414,8 @@ export const getPostDetails = async (req: Request, res: Response): Promise<void>
         author: {
           select: {
             id: true,
-            name: true,
+            firstName: true,
+            lastName: true,
             avatar: true,
           },
         },
@@ -493,7 +495,8 @@ export const getPosts = async (req: Request, res: Response): Promise<void> => {
           author: {
             select: {
               id: true,
-              name: true,
+              firstName: true,
+              lastName: true,
             },
           },
           category: true,

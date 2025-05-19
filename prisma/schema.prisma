@@ -424,7 +424,8 @@ model Permission {
 
 model User {
   id                      String    @id @default(auto()) @map("_id") @db.ObjectId
-  name                    String
+  firstName               String
+  lastName                String
   email                   String    @unique
   password                String
   resetPasswordToken      String?
@@ -440,7 +441,7 @@ model User {
   phoneNumber    String?
   googleId       String?
   avatar         String?
-  age            Int
+  birthday       DateTime
   address        String?
   status         UserStatus       @default(PENDING)
   bookings       Booking[]

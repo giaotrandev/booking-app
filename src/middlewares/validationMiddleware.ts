@@ -118,13 +118,15 @@ const formatZodErrors = (issues: ZodIssue[], language: string): ValidationError 
  */
 export const CommonValidations = {
   // Thông tin cá nhân
+  firstName: z.string().min(2).max(50),
+  lastName: z.string().min(2).max(50),
   name: z.string().min(2).max(100),
   email: z.string().email().max(255),
   password: z
     .string()
-    .min(8)
+    .min(6)
     .max(100)
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/, {
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/, {
       message: 'validation.passwordRequirements',
     }),
   phoneNumber: z
@@ -133,6 +135,16 @@ export const CommonValidations = {
     .max(15)
     .optional()
     .nullable(),
+  birthday: z.coerce.date().refine(
+    (date) => {
+      const now = new Date();
+      const age = now.getFullYear() - date.getFullYear();
+      return age >= 13 && age <= 120;
+    },
+    {
+      message: 'validation.invalidAge',
+    }
+  ),
 
   // Giá trị số
   positiveNumber: z.number().positive(),

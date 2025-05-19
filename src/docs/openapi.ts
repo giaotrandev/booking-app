@@ -102,19 +102,48 @@ export const apiSpecification: OpenAPIV3.Document = {
               schema: {
                 type: 'object',
                 properties: {
-                  name: { type: 'string', example: 'John Doe' },
-                  email: { type: 'string', format: 'email', example: 'john@example.com' },
-                  password: { type: 'string', format: 'password', example: 'Password123!' },
+                  firstName: {
+                    type: 'string',
+                    example: 'John',
+                    description: 'Tên',
+                  },
+                  lastName: {
+                    type: 'string',
+                    example: 'Doe',
+                    description: 'Họ',
+                  },
+                  email: {
+                    type: 'string',
+                    format: 'email',
+                    example: 'john@example.com',
+                  },
+                  password: {
+                    type: 'string',
+                    format: 'password',
+                    example: 'Password123!',
+                    minLength: 8,
+                  },
                   gender: {
                     type: 'string',
                     enum: ['MALE', 'FEMALE'],
                     example: 'MALE',
                   },
-                  phoneNumber: { type: 'string', example: '+84123456789' },
-                  age: { type: 'number', example: 25 },
-                  address: { type: 'string', example: 'Ho Chi Minh City' },
+                  phoneNumber: {
+                    type: 'string',
+                    example: '+84123456789',
+                  },
+                  birthday: {
+                    type: 'string',
+                    format: 'date',
+                    example: '1998-05-15',
+                    description: 'Ngày sinh (YYYY-MM-DD)',
+                  },
+                  address: {
+                    type: 'string',
+                    example: 'Ho Chi Minh City',
+                  },
                 },
-                required: ['name', 'email', 'password', 'gender', 'phoneNumber', 'age', 'address'],
+                required: ['firstName', 'lastName', 'email', 'password', 'gender', 'birthday'],
               },
             },
           },
@@ -122,9 +151,40 @@ export const apiSpecification: OpenAPIV3.Document = {
         responses: {
           '201': {
             description: 'Đăng ký thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'Verification email sent' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', example: '507f1f77bcf86cd799439011' },
+                        firstName: { type: 'string', example: 'John' },
+                        lastName: { type: 'string', example: 'Doe' },
+                        email: { type: 'string', example: 'john@example.com' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
           '400': {
             description: 'Dữ liệu không hợp lệ',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'Email already exists' },
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -497,10 +557,16 @@ export const apiSpecification: OpenAPIV3.Document = {
                         type: 'object',
                         properties: {
                           id: { type: 'string' },
-                          name: { type: 'string' },
+                          firstName: { type: 'string' },
+                          lastName: { type: 'string' },
                           email: { type: 'string' },
                           phoneNumber: { type: 'string' },
-                          age: { type: 'number' },
+                          birthday: {
+                            type: 'string',
+                            format: 'date',
+                            example: '1998-05-15',
+                            description: 'Ngày sinh (YYYY-MM-DD)',
+                          },
                           gender: { type: 'string', enum: ['MALE', 'FEMALE'] },
                           status: { type: 'string', enum: ['AVAILABLE', 'DISABLED'] },
                           avatar: { type: 'string', nullable: true },
@@ -581,10 +647,15 @@ export const apiSpecification: OpenAPIV3.Document = {
                       type: 'object',
                       properties: {
                         id: { type: 'string' },
-                        name: { type: 'string' },
+                        firstName: { type: 'string' },
+                        lastName: { type: 'string' },
                         email: { type: 'string' },
                         phoneNumber: { type: 'string', nullable: true },
-                        age: { type: 'number', nullable: true },
+                        birthday: {
+                          type: 'string',
+                          format: 'date',
+                          nullable: true,
+                        },
                         gender: { type: 'string', enum: ['MALE', 'FEMALE'], nullable: true },
                         status: { type: 'string', enum: ['AVAILABLE', 'DISABLED'] },
                         avatar: { type: 'string', nullable: true },
@@ -653,11 +724,17 @@ export const apiSpecification: OpenAPIV3.Document = {
               schema: {
                 type: 'object',
                 properties: {
-                  name: { type: 'string', description: 'Tên người dùng' },
+                  firstName: { type: 'string', description: 'Tên người dùng' },
+                  lastName: { type: 'string', description: 'Họ người dùng' },
                   email: { type: 'string', format: 'email', description: 'Email (yêu cầu xác thực nếu thay đổi)' },
                   phoneNumber: { type: 'string', description: 'Số điện thoại' },
                   gender: { type: 'string', enum: ['MALE', 'FEMALE'], description: 'Giới tính' },
-                  age: { type: 'number', description: 'Tuổi' },
+                  birthday: {
+                    type: 'string',
+                    format: 'date',
+                    example: '1998-05-15',
+                    description: 'Ngày sinh (YYYY-MM-DD)',
+                  },
                   address: { type: 'string', description: 'Địa chỉ' },
                   status: { type: 'string', enum: ['AVAILABLE', 'DISABLED'], description: 'Trạng thái (admin only)' },
                   avatar: { type: 'string', format: 'binary', description: 'File ảnh đại diện' },
@@ -678,10 +755,15 @@ export const apiSpecification: OpenAPIV3.Document = {
                       type: 'object',
                       properties: {
                         id: { type: 'string' },
-                        name: { type: 'string' },
+                        firstName: { type: 'string' },
+                        lastName: { type: 'string' },
                         email: { type: 'string' },
                         phoneNumber: { type: 'string', nullable: true },
-                        age: { type: 'number', nullable: true },
+                        birthday: {
+                          type: 'string',
+                          format: 'date',
+                          nullable: true,
+                        },
                         gender: { type: 'string', enum: ['MALE', 'FEMALE'], nullable: true },
                         status: { type: 'string', enum: ['AVAILABLE', 'DISABLED'] },
                         avatar: { type: 'string', nullable: true },
@@ -1154,10 +1236,15 @@ export const apiSpecification: OpenAPIV3.Document = {
                       type: 'object',
                       properties: {
                         id: { type: 'string' },
-                        name: { type: 'string' },
+                        firstName: { type: 'string' },
+                        lastName: { type: 'string' },
                         email: { type: 'string' },
                         phoneNumber: { type: 'string', nullable: true },
-                        age: { type: 'number', nullable: true },
+                        birthday: {
+                          type: 'string',
+                          format: 'date',
+                          nullable: true,
+                        },
                         gender: { type: 'string', enum: ['MALE', 'FEMALE'], nullable: true },
                         status: { type: 'string', enum: ['AVAILABLE', 'DISABLED'] },
                         avatar: { type: 'string', nullable: true },
@@ -1216,10 +1303,16 @@ export const apiSpecification: OpenAPIV3.Document = {
               schema: {
                 type: 'object',
                 properties: {
-                  name: { type: 'string', description: 'Tên người dùng' },
+                  firstName: { type: 'string', description: 'Tên người dùng' },
+                  lastName: { type: 'string', description: 'Họ người dùng' },
                   phoneNumber: { type: 'string', description: 'Số điện thoại' },
                   gender: { type: 'string', enum: ['MALE', 'FEMALE'], description: 'Giới tính' },
-                  age: { type: 'number', description: 'Tuổi' },
+                  birthday: {
+                    type: 'string',
+                    format: 'date',
+                    example: '1998-05-15',
+                    description: 'Ngày sinh (YYYY-MM-DD)',
+                  },
                   address: { type: 'string', description: 'Địa chỉ' },
                   avatar: { type: 'string', format: 'binary', description: 'File ảnh đại diện' },
                 },
@@ -1239,10 +1332,15 @@ export const apiSpecification: OpenAPIV3.Document = {
                       type: 'object',
                       properties: {
                         id: { type: 'string' },
-                        name: { type: 'string' },
+                        firstName: { type: 'string' },
+                        lastName: { type: 'string' },
                         email: { type: 'string' },
                         phoneNumber: { type: 'string', nullable: true },
-                        age: { type: 'number', nullable: true },
+                        birthday: {
+                          type: 'string',
+                          format: 'date',
+                          nullable: true,
+                        },
                         gender: { type: 'string', enum: ['MALE', 'FEMALE'], nullable: true },
                         status: { type: 'string', enum: ['AVAILABLE', 'DISABLED'] },
                         avatar: { type: 'string', nullable: true },

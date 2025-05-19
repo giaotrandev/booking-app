@@ -514,7 +514,8 @@ export const getVehiclesByType = async (req: Request, res: Response): Promise<vo
         driver: {
           select: {
             id: true,
-            name: true,
+            firstName: true,
+            lastName: true,
             phoneNumber: true,
             email: true,
           },

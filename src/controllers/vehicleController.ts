@@ -115,7 +115,8 @@ export const getVehicleDetails = async (req: Request, res: Response): Promise<vo
         driver: {
           select: {
             id: true,
-            name: true,
+            firstName: true,
+            lastName: true,
             email: true,
             phoneNumber: true,
             avatar: true,
@@ -271,7 +272,8 @@ export const createVehicle = async (req: RequestWithFile, res: Response): Promis
         driver: {
           select: {
             id: true,
-            name: true,
+            firstName: true,
+            lastName: true,
             phoneNumber: true,
           },
         },
@@ -430,7 +432,8 @@ export const updateVehicle = async (req: RequestWithFile, res: Response): Promis
         driver: {
           select: {
             id: true,
-            name: true,
+            firstName: true,
+            lastName: true,
             phoneNumber: true,
           },
         },
@@ -880,7 +883,8 @@ export const assignDriver = async (req: Request, res: Response): Promise<void> =
         driver: {
           select: {
             id: true,
-            name: true,
+            firstName: true,
+            lastName: true,
             phoneNumber: true,
             email: true,
           },

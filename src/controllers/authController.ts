@@ -32,7 +32,7 @@ const EMAIL_VERIFICATION_EXPIRATION = process.env.EMAIL_VERIFICATION_EXPIRATION 
 export const registerUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
-    const { name, email, password, gender, phoneNumber, age, address } = req.body;
+    const { firstName, lastName, email, password, gender, phoneNumber, birthday, address } = req.body;
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -53,23 +53,25 @@ export const registerUser = async (req: Request, res: Response, next: NextFuncti
     const newUser = await prisma.user.upsert({
       where: { email },
       update: {
-        name,
+        firstName,
+        lastName,
         password: hashedPassword, // Hash password here
         gender: gender as 'MALE' | 'FEMALE',
         phoneNumber,
-        age,
+        birthday,
         address,
         emailVerificationToken: hashedToken,
         emailVerificationExpire,
         isEmailVerified: false,
       },
       create: {
-        name,
+        firstName,
+        lastName,
         email,
         password: hashedPassword, // Hash password here
         gender: gender as 'MALE' | 'FEMALE',
         phoneNumber,
-        age,
+        birthday,
         address,
         emailVerificationToken: hashedToken,
         emailVerificationExpire,
@@ -86,7 +88,7 @@ export const registerUser = async (req: Request, res: Response, next: NextFuncti
 
     // Send verification email
     await sendEmail(email, translate('auth.verifyEmail', language), verificationEmailTemplate, {
-      username: name,
+      username: firstName + ' ' + lastName,
       verificationLink,
       language,
     });
@@ -110,7 +112,8 @@ export const registerUser = async (req: Request, res: Response, next: NextFuncti
       'auth.verificationEmailSent',
       {
         id: newUser.id,
-        name: newUser.name,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
         email: newUser.email,
       },
       language
@@ -249,13 +252,14 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       'auth.loginSuccess',
       {
         id: user.id,
-        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
         role: user.role.name,
         permissions: user.role.permissions.map((p) => p.code),
         gender: user.gender,
         phoneNumber: user.phoneNumber,
-        age: user.age,
+        birthday: user.birthday,
         address: user.address,
         accessToken,
         // refreshToken,
@@ -395,7 +399,7 @@ export const resendVerification = async (req: Request, res: Response): Promise<v
     const verificationLink = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
 
     await sendEmail(email, translate('auth.verifyEmail', language), verificationEmailTemplate, {
-      username: user.name,
+      username: user.firstName + ' ' + user.lastName,
       verificationLink,
       language,
     });
@@ -448,7 +452,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
     try {
       await sendEmail(email, 'Reset Your Password', resetPasswordEmailTemplate, {
-        username: user.name || '',
+        username: user.firstName + ' ' + user.lastName || '',
         resetLink: resetUrl,
       });
       sendSuccess(res, 'auth.emailSent', null, lang);
@@ -589,7 +593,7 @@ passport.use(
                 googleId,
                 // Only update these if they're not already set
                 ...(existingUser.avatar ? {} : { avatar }),
-                ...(existingUser.name === 'User' ? { name } : {}),
+                ...(existingUser.lastName === 'User' ? { name } : {}),
                 isEmailVerified: true,
                 status: 'AVAILABLE',
               },
@@ -609,7 +613,8 @@ passport.use(
           user = await prisma.user.create({
             data: {
               email,
-              name,
+              firstName: name.split(' ')[0],
+              lastName: name.split(' ').slice(1).join(' '),
               googleId,
               isEmailVerified: true,
               // Only set a random password if no existing password
@@ -618,7 +623,7 @@ passport.use(
                 connect: { name: 'USER' },
               },
               status: 'AVAILABLE',
-              age: 0, // Default value for required field
+              birthday: new Date(), // Default value for required field
               gender: 'MALE', // Default value for required field
               phoneNumber: '', // Default value for required field
               address: '', // Default value for required field

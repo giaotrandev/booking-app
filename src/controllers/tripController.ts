@@ -397,7 +397,7 @@ export const getTripDetails = async (req: Request, res: Response): Promise<void>
           include: {
             vehicleType: true,
             driver: {
-              select: { id: true, name: true, phoneNumber: true, avatar: true },
+              select: { id: true, firstName: true, lastName: true, phoneNumber: true, avatar: true },
             },
           },
         },
@@ -714,7 +714,7 @@ export const updateTrip = async (req: RequestWithFile, res: Response): Promise<v
             include: {
               vehicleType: true,
               driver: {
-                select: { id: true, name: true, phoneNumber: true, avatar: true },
+                select: { id: true, firstName: true, lastName: true, phoneNumber: true, avatar: true },
               },
             },
           },
@@ -1363,7 +1363,8 @@ export const getTripHistory = async (req: Request, res: Response): Promise<void>
           where: { id: entry.changedBy },
           select: {
             id: true,
-            name: true,
+            firstName: true,
+            lastName: true,
             email: true,
             avatar: true,
           },
@@ -1593,7 +1594,8 @@ export const exportTripsData = async (req: Request, res: Response): Promise<void
             vehicleType: true,
             driver: {
               select: {
-                name: true,
+                firstName: true,
+                lastName: true,
                 phoneNumber: true,
               },
             },
@@ -1635,7 +1637,7 @@ export const exportTripsData = async (req: Request, res: Response): Promise<void
         arrivalTime: trip.arrivalTime,
         status: trip.status,
         vehicle: `${trip.vehicle.plateNumber} (${trip.vehicle.vehicleType.name})`,
-        driver: trip.vehicle.driver?.name || 'No driver assigned',
+        driver: trip.vehicle.driver?.firstName + ' ' + trip.vehicle.driver?.lastName || 'No driver assigned',
         basePrice: trip.basePrice,
         specialPrice: trip.specialPrice,
         totalBookings: trip.bookingTrips.length,

@@ -122,10 +122,11 @@ export const getUserDetails = async (req: Request, res: Response): Promise<void>
       where: { id },
       select: {
         id: true,
-        name: true,
+        firstName: true,
+        lastName: true,
         email: true,
         phoneNumber: true,
-        age: true,
+        birthday: true,
         gender: true,
         status: true,
         avatar: true,
@@ -175,7 +176,8 @@ export const getUserAvatar = async (req: Request, res: Response): Promise<void> 
       where: { id },
       select: {
         id: true,
-        name: true,
+        firstName: true,
+        lastName: true,
         avatar: true,
       },
     });
@@ -197,7 +199,8 @@ export const getUserAvatar = async (req: Request, res: Response): Promise<void> 
       {
         user: {
           id: user.id,
-          name: user.name,
+          firstName: user.firstName,
+          lastName: user.lastName,
         },
         avatarUrl,
       },
@@ -291,7 +294,8 @@ export const uploadAvatar = async (req: RequestWithFile, res: Response): Promise
       },
       select: {
         id: true,
-        name: true,
+        firstName: true,
+        lastName: true,
         avatar: true,
       },
     });
@@ -439,10 +443,11 @@ export const updateUser = async (req: RequestWithFile, res: Response): Promise<v
       data: updateData,
       select: {
         id: true,
-        name: true,
+        firstName: true,
+        lastName: true,
         email: true,
         phoneNumber: true,
-        age: true,
+        birthday: true,
         status: true,
         gender: true,
         address: true,
@@ -642,10 +647,11 @@ export const getCurrentUserProfile = async (req: Request, res: Response): Promis
       where: { id: currentUserId },
       select: {
         id: true,
-        name: true,
+        firstName: true,
+        lastName: true,
         email: true,
         phoneNumber: true,
-        age: true,
+        birthday: true,
         gender: true,
         status: true,
         avatar: true,
@@ -720,7 +726,8 @@ export const assignUserRole = async (req: Request, res: Response): Promise<void>
       },
       select: {
         id: true,
-        name: true,
+        firstName: true,
+        lastName: true,
         email: true,
         roleName: true,
         role: {
@@ -770,7 +777,8 @@ export const getUsersByRole = async (req: Request, res: Response): Promise<void>
       },
       select: {
         id: true,
-        name: true,
+        firstName: true,
+        lastName: true,
         email: true,
         phoneNumber: true,
         status: true,

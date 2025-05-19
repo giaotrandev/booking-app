@@ -5,12 +5,13 @@ import { CommonValidations } from '#middlewares/validationMiddleware';
  * Schema validation cho đăng ký người dùng
  */
 export const userRegisterSchema = z.object({
-  name: CommonValidations.name,
+  firstName: CommonValidations.firstName,
+  lastName: CommonValidations.lastName,
   email: CommonValidations.email,
   password: CommonValidations.password,
   gender: CommonValidations.gender,
   phoneNumber: CommonValidations.phoneNumber.optional(),
-  age: CommonValidations.age,
+  birthday: CommonValidations.birthday,
   address: z.string().max(255).optional().nullable(),
 });
 

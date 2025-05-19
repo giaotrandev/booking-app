@@ -332,7 +332,7 @@ async function generateVietQRCode(
     // Get user info for the payment description
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { name: true, email: true },
+      select: { firstName: true, lastName: true, email: true },
     });
 
     // Create unique payment reference that can be matched in webhook
@@ -781,7 +781,8 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
         user: {
           select: {
             id: true,
-            name: true,
+            firstName: true,
+            lastName: true,
             email: true,
             phoneNumber: true,
           },
@@ -802,7 +803,8 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
                     driver: {
                       select: {
                         id: true,
-                        name: true,
+                        firstName: true,
+                        lastName: true,
                         phoneNumber: true,
                         avatar: true,
                       },
@@ -1034,7 +1036,8 @@ export const getBookingHistory = async (req: Request, res: Response): Promise<vo
           where: { id: entry.changedBy },
           select: {
             id: true,
-            name: true,
+            firstName: true,
+            lastName: true,
             email: true,
             avatar: true,
           },
@@ -1135,7 +1138,8 @@ export const getAllBookings = async (req: Request, res: Response): Promise<void>
           user: {
             select: {
               id: true,
-              name: true,
+              firstName: true,
+              lastName: true,
               email: true,
               phoneNumber: true,
             },
@@ -1842,7 +1846,8 @@ export const exportBookingData = async (req: Request, res: Response): Promise<vo
         user: {
           select: {
             id: true,
-            name: true,
+            firstName: true,
+            lastName: true,
             email: true,
             phoneNumber: true,
           },
@@ -1884,7 +1889,7 @@ export const exportBookingData = async (req: Request, res: Response): Promise<vo
       return {
         bookingId: booking.id,
         bookingDate: booking.createdAt.toISOString(),
-        customer: booking.user.name,
+        customer: booking.user.firstName + ' ' + booking.user.lastName,
         email: booking.user.email,
         phone: booking.user.phoneNumber,
         route: route ? `${route.sourceProvince.name} → ${route.destinationProvince.name}` : 'N/A',
