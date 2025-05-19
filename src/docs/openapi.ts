@@ -84,6 +84,10 @@ export const apiSpecification: OpenAPIV3.Document = {
       name: 'Vehicle',
       description: 'Vehicle management endpoints',
     },
+    {
+      name: 'Trip',
+      description: 'Trip management endpoints',
+    },
   ],
   paths: {
     // Authentication
@@ -1272,7 +1276,7 @@ export const apiSpecification: OpenAPIV3.Document = {
     // Geo
     '/geo/provinces': {
       get: {
-        tags: ['Geo'],
+        tags: ['Geography'],
         summary: 'Lấy danh sách tất cả tỉnh/thành phố',
         description: 'Lấy danh sách tất cả tỉnh/thành phố (yêu cầu xác thực)',
         security: [{ bearerAuth: [] }],
@@ -1322,7 +1326,7 @@ export const apiSpecification: OpenAPIV3.Document = {
     },
     '/geo/provinces/{idOrCode}': {
       get: {
-        tags: ['Geo'],
+        tags: ['Geography'],
         summary: 'Lấy chi tiết tỉnh/thành phố',
         description: 'Lấy chi tiết một tỉnh/thành phố theo ID hoặc mã (yêu cầu xác thực)',
         security: [{ bearerAuth: [] }],
@@ -1392,7 +1396,7 @@ export const apiSpecification: OpenAPIV3.Document = {
     },
     '/geo/provinces/{provinceIdOrCode}/districts': {
       get: {
-        tags: ['Geo'],
+        tags: ['Geography'],
         summary: 'Lấy danh sách quận/huyện của tỉnh/thành phố',
         description: 'Lấy danh sách quận/huyện thuộc một tỉnh/thành phố (yêu cầu xác thực)',
         security: [{ bearerAuth: [] }],
@@ -1465,7 +1469,7 @@ export const apiSpecification: OpenAPIV3.Document = {
     },
     '/geo/districts/{districtIdOrCode}': {
       get: {
-        tags: ['Geo'],
+        tags: ['Geography'],
         summary: 'Lấy chi tiết quận/huyện',
         description: 'Lấy chi tiết một quận/huyện theo ID (yêu cầu xác thực)',
         security: [{ bearerAuth: [] }],
@@ -1534,7 +1538,7 @@ export const apiSpecification: OpenAPIV3.Document = {
     },
     '/geo/districts/{districtIdOrCode}/wards': {
       get: {
-        tags: ['Geo'],
+        tags: ['Geography'],
         summary: 'Lấy danh sách phường/xã của quận/huyện',
         description: 'Lấy danh sách phường/xã thuộc một quận/huyện (yêu cầu xác thực)',
         security: [{ bearerAuth: [] }],
@@ -1600,7 +1604,7 @@ export const apiSpecification: OpenAPIV3.Document = {
     },
     '/geo/search': {
       get: {
-        tags: ['Geo'],
+        tags: ['Geography'],
         summary: 'Tìm kiếm địa điểm',
         description: 'Tìm kiếm tỉnh/thành phố, quận/huyện, phường/xã theo từ khóa (yêu cầu xác thực)',
         security: [{ bearerAuth: [] }],
@@ -2483,7 +2487,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
-    // Post Management
+    // Post
     '/posts': {
       get: {
         tags: ['Post'],
@@ -3096,7 +3100,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
-    // Category Management
+    // Category
     '/categories': {
       get: {
         tags: ['Category'],
@@ -3434,7 +3438,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
-    // Tag Management
+    // Tag
     '/tags': {
       get: {
         tags: ['Tag'],
@@ -4057,8 +4061,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
-
-    // New BusStop endpoints
+    // Bus stop
     '/bus-stops': {
       get: {
         tags: ['Bus Stop'],
@@ -4325,8 +4328,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
-
-    // New RouteStop endpoints
+    // Route stop
     '/route-stops': {
       get: {
         tags: ['Route Stop'],
@@ -4615,8 +4617,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
-
-    // New VehicleType endpoints
+    // Vehicle type
     '/vehicle-types': {
       get: {
         tags: ['Vehicle Type'],
@@ -4881,8 +4882,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
-
-    // New Vehicle endpoints
+    // Vehicle
     '/vehicles': {
       get: {
         tags: ['Vehicle'],
@@ -5216,6 +5216,1099 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
+    // Trip
+    '/trips': {
+      get: {
+        tags: ['Trip'],
+        summary: 'Get list of trips with filtering',
+        description:
+          'Retrieve a paginated list of trips with optional filters such as route, vehicle, date range, and status.',
+        parameters: [
+          {
+            name: 'routeId',
+            in: 'query',
+            description: 'Filter by route ID',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'vehicleId',
+            in: 'query',
+            description: 'Filter by vehicle ID',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'startDate',
+            in: 'query',
+            description: 'Filter by start date (ISO format)',
+            schema: { type: 'string', format: 'date-time' },
+          },
+          {
+            name: 'endDate',
+            in: 'query',
+            description: 'Filter by end date (ISO format)',
+            schema: { type: 'string', format: 'date-time' },
+          },
+          {
+            name: 'status',
+            in: 'query',
+            description: 'Filter by trip status',
+            schema: {
+              type: 'string',
+              enum: ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
+            },
+          },
+          {
+            name: 'page',
+            in: 'query',
+            description: 'Page number for pagination',
+            schema: { type: 'integer', default: 1 },
+          },
+          {
+            name: 'pageSize',
+            in: 'query',
+            description: 'Number of items per page',
+            schema: { type: 'integer', default: 10 },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'List of trips retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string' },
+                    data: {
+                      type: 'array',
+                      items: {
+                        $ref: '#/components/schemas/TripWithDetails',
+                      },
+                    },
+                    pagination: {
+                      type: 'object',
+                      properties: {
+                        page: { type: 'integer' },
+                        pageSize: { type: 'integer' },
+                        totalCount: { type: 'integer' },
+                        totalPages: { type: 'integer' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: ['Trip'],
+        summary: 'Create a new trip',
+        description: 'Create a new trip with associated seats and optional image. Requires admin authentication.',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                properties: {
+                  routeId: { type: 'string', description: 'ID of the route' },
+                  vehicleId: { type: 'string', description: 'ID of the vehicle' },
+                  departureTime: {
+                    type: 'string',
+                    format: 'date-time',
+                    description: 'Departure time in ISO format',
+                  },
+                  arrivalTime: {
+                    type: 'string',
+                    format: 'date-time',
+                    description: 'Arrival time in ISO format',
+                  },
+                  basePrice: { type: 'number', description: 'Base price of the trip' },
+                  specialPrice: {
+                    type: 'number',
+                    description: 'Special price (optional)',
+                    nullable: true,
+                  },
+                  image: {
+                    type: 'string',
+                    format: 'binary',
+                    description: 'Optional trip image',
+                  },
+                },
+                required: ['routeId', 'vehicleId', 'departureTime', 'arrivalTime', 'basePrice'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Trip created successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string' },
+                    data: { $ref: '#/components/schemas/TripWithDetails' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid input data',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '404': {
+            description: 'Route or vehicle not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/trips/search': {
+      get: {
+        tags: ['Trip'],
+        summary: 'Search trips by source and destination',
+        description:
+          'Search for trips based on source province, destination province, departure date, and optional return date or price range.',
+        parameters: [
+          {
+            name: 'sourceProvinceId',
+            in: 'query',
+            description: 'ID of the source province',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'destinationProvinceId',
+            in: 'query',
+            description: 'ID of the destination province',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'departureDate',
+            in: 'query',
+            description: 'Departure date (ISO format)',
+            schema: { type: 'string', format: 'date-time' },
+          },
+          {
+            name: 'returnDate',
+            in: 'query',
+            description: 'Return date for round-trip search (optional, ISO format)',
+            schema: { type: 'string', format: 'date-time' },
+          },
+          {
+            name: 'minPrice',
+            in: 'query',
+            description: 'Minimum price filter',
+            schema: { type: 'number' },
+          },
+          {
+            name: 'maxPrice',
+            in: 'query',
+            description: 'Maximum price filter',
+            schema: { type: 'number' },
+          },
+          {
+            name: 'page',
+            in: 'query',
+            description: 'Page number for pagination',
+            schema: { type: 'integer', default: 1 },
+          },
+          {
+            name: 'pageSize',
+            in: 'query',
+            description: 'Number of items per page',
+            schema: { type: 'integer', default: 10 },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Search results retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string' },
+                    outboundTrips: {
+                      type: 'object',
+                      properties: {
+                        data: {
+                          type: 'array',
+                          items: { $ref: '#/components/schemas/TripWithDetails' },
+                        },
+                        pagination: {
+                          type: 'object',
+                          properties: {
+                            page: { type: 'integer' },
+                            pageSize: { type: 'integer' },
+                            totalCount: { type: 'integer' },
+                            totalPages: { type: 'integer' },
+                          },
+                        },
+                      },
+                    },
+                    returnTrips: {
+                      type: 'object',
+                      nullable: true,
+                      properties: {
+                        data: {
+                          type: 'array',
+                          items: { $ref: '#/components/schemas/TripWithDetails' },
+                        },
+                        pagination: {
+                          type: 'object',
+                          properties: {
+                            page: { type: 'integer' },
+                            pageSize: { type: 'integer' },
+                            totalCount: { type: 'integer' },
+                            totalPages: { type: 'integer' },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/trips/{id}': {
+      get: {
+        tags: ['Trip'],
+        summary: 'Get trip details',
+        description:
+          'Retrieve detailed information about a specific trip, including route, vehicle, seats, and driver info.',
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'ID of the trip',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Trip details retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string' },
+                    data: { $ref: '#/components/schemas/TripWithDetails' },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'Trip not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+      put: {
+        tags: ['Trip'],
+        summary: 'Update a trip',
+        description:
+          'Update trip details such as route, vehicle, times, prices, or status. Requires admin authentication.',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'ID of the trip',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        requestBody: {
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                properties: {
+                  routeId: { type: 'string', description: 'ID of the route' },
+                  vehicleId: { type: 'string', description: 'ID of the vehicle' },
+                  departureTime: {
+                    type: 'string',
+                    format: 'date-time',
+                    description: 'Departure time in ISO format',
+                  },
+                  arrivalTime: {
+                    type: 'string',
+                    format: 'date-time',
+                    description: 'Arrival time in ISO format',
+                  },
+                  basePrice: { type: 'number', description: 'Base price of the trip' },
+                  specialPrice: {
+                    type: 'number',
+                    description: 'Special price (optional)',
+                    nullable: true,
+                  },
+                  status: {
+                    type: 'string',
+                    enum: ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
+                    description: 'Trip status',
+                  },
+                  changeReason: { type: 'string', description: 'Reason for the update' },
+                  image: {
+                    type: 'string',
+                    format: 'binary',
+                    description: 'Optional trip image',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Trip updated successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string' },
+                    data: { $ref: '#/components/schemas/TripWithDetails' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid input data or status transition',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '404': {
+            description: 'Trip, route, or vehicle not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+      delete: {
+        tags: ['Trip'],
+        summary: 'Soft delete a trip',
+        description: 'Soft delete a trip by marking it as deleted and cancelling it. Requires admin authentication.',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'ID of the trip',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  reason: { type: 'string', description: 'Reason for deletion' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Trip deleted successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Trip has active bookings',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '404': {
+            description: 'Trip not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/trips/{id}/restore': {
+      post: {
+        tags: ['Trip'],
+        summary: 'Restore a deleted trip',
+        description: 'Restore a soft-deleted trip and set its status to SCHEDULED. Requires admin authentication.',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'ID of the trip',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Trip restored successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Trip is not deleted',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '404': {
+            description: 'Trip not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/trips/{id}/seats': {
+      get: {
+        tags: ['Trip'],
+        summary: 'Get available seats for a trip',
+        description: 'Retrieve the seat configuration and availability for a specific trip. Requires authentication.',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'ID of the trip',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Seats retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        trip: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'string' },
+                            departureTime: { type: 'string', format: 'date-time' },
+                            arrivalTime: { type: 'string', format: 'date-time' },
+                            basePrice: { type: 'number' },
+                            specialPrice: { type: 'number', nullable: true },
+                            status: {
+                              type: 'string',
+                              enum: ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
+                            },
+                          },
+                        },
+                        seatConfiguration: { type: 'object' },
+                        seats: {
+                          type: 'array',
+                          items: { $ref: '#/components/schemas/Seat' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'Trip not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/trips/{id}/seats/availability': {
+      get: {
+        tags: ['Trip'],
+        summary: 'Check seat availability for a trip',
+        description: 'Check the availability of seats for a specific trip, including seat configuration and status.',
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'ID of the trip',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Seat availability retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        tripId: { type: 'string' },
+                        departureTime: { type: 'string', format: 'date-time' },
+                        arrivalTime: { type: 'string', format: 'date-time' },
+                        seatConfiguration: { type: 'object' },
+                        seats: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              id: { type: 'string' },
+                              seatNumber: { type: 'string' },
+                              seatType: { type: 'string', enum: ['STANDARD', 'PREMIUM', 'VIP'] },
+                              status: {
+                                type: 'string',
+                                enum: ['AVAILABLE', 'BOOKED', 'RESERVED'],
+                              },
+                              isAvailable: { type: 'boolean' },
+                            },
+                          },
+                        },
+                        totalSeats: { type: 'integer' },
+                        availableSeats: { type: 'integer' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'Trip not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/trips/{id}/seats/{seatId}': {
+      put: {
+        tags: ['Trip'],
+        summary: 'Update seat status',
+        description: 'Update the status of a specific seat for a trip. Requires admin authentication.',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'ID of the trip',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'seatId',
+            in: 'path',
+            required: true,
+            description: 'ID of the seat',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  status: {
+                    type: 'string',
+                    enum: ['AVAILABLE', 'BOOKED', 'RESERVED'],
+                    description: 'New seat status',
+                  },
+                  reason: { type: 'string', description: 'Reason for status change' },
+                },
+                required: ['status'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Seat status updated successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string' },
+                    data: { $ref: '#/components/schemas/Seat' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid status or seat is booked/reserved',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '404': {
+            description: 'Trip or seat not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/trips/calendar-view': {
+      get: {
+        tags: ['Trip'],
+        summary: 'Get trips by date range for calendar view',
+        description:
+          'Retrieve trips within a specified date range formatted as calendar events. Requires authentication.',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'startDate',
+            in: 'query',
+            required: true,
+            description: 'Start date of the range (ISO format)',
+            schema: { type: 'string', format: 'date-time' },
+          },
+          {
+            name: 'endDate',
+            in: 'query',
+            required: true,
+            description: 'End date of the range (ISO format)',
+            schema: { type: 'string', format: 'date-time' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Calendar events retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string' },
+                    data: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string' },
+                          title: { type: 'string' },
+                          start: { type: 'string', format: 'date-time' },
+                          end: { type: 'string', format: 'date-time' },
+                          bookings: { type: 'integer' },
+                          availableSeats: { type: 'integer' },
+                          status: {
+                            type: 'string',
+                            enum: ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
+                          },
+                          routeName: { type: 'string' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Missing or invalid date range',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/trips/export/data': {
+      get: {
+        tags: ['Trip'],
+        summary: 'Export trip data',
+        description: 'Export trip data in JSON or CSV format with optional filters. Requires admin authentication.',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'startDate',
+            in: 'query',
+            description: 'Start date for filtering trips (ISO format)',
+            schema: { type: 'string', format: 'date-time' },
+          },
+          {
+            name: 'endDate',
+            in: 'query',
+            description: 'End date for filtering trips (ISO format)',
+            schema: { type: 'string', format: 'date-time' },
+          },
+          {
+            name: 'routeId',
+            in: 'query',
+            description: 'Filter by route ID',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'format',
+            in: 'query',
+            description: 'Export format',
+            schema: { type: 'string', enum: ['json', 'csv'], default: 'json' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Trip data exported successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string' },
+                    data: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string' },
+                          route: { type: 'string' },
+                          departureTime: { type: 'string', format: 'date-time' },
+                          arrivalTime: { type: 'string', format: 'date-time' },
+                          status: {
+                            type: 'string',
+                            enum: ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
+                          },
+                          vehicle: { type: 'string' },
+                          driver: { type: 'string' },
+                          basePrice: { type: 'number' },
+                          specialPrice: { type: 'number', nullable: true },
+                          totalBookings: { type: 'integer' },
+                          availableSeats: { type: 'integer' },
+                          confirmedBookings: { type: 'integer' },
+                          pendingBookings: { type: 'integer' },
+                          totalRevenue: { type: 'number' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              'text/csv': {
+                schema: {
+                  type: 'string',
+                  description: 'CSV formatted data',
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/trips/{id}/history': {
+      get: {
+        tags: ['Trip'],
+        summary: 'Get trip history',
+        description: 'Retrieve the change history for a specific trip. Requires authentication.',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'ID of the trip',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Trip history retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string' },
+                    data: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string' },
+                          tripId: { type: 'string' },
+                          changedFields: { type: 'object' },
+                          changedBy: {
+                            type: 'object',
+                            properties: {
+                              id: { type: 'string' },
+                              name: { type: 'string' },
+                              email: { type: 'string', nullable: true },
+                              avatarUrl: { type: 'string', nullable: true },
+                            },
+                          },
+                          changeReason: { type: 'string' },
+                          createdAt: { type: 'string', format: 'date-time' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'Trip not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
   },
   components: {
     securitySchemes: {
@@ -5351,6 +6444,109 @@ export const apiSpecification: OpenAPIV3.Document = {
           status: { type: 'string' },
         },
         required: ['id', 'name', 'status'],
+      },
+      Trip: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          routeId: { type: 'string' },
+          vehicleId: { type: 'string' },
+          departureTime: { type: 'string', format: 'date-time' },
+          arrivalTime: { type: 'string', format: 'date-time' },
+          basePrice: { type: 'number' },
+          specialPrice: { type: 'number', nullable: true },
+          status: {
+            type: 'string',
+            enum: ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
+          },
+          image: { type: 'string', nullable: true },
+          imageUrl: { type: 'string', nullable: true },
+          deletedAt: { type: 'string', format: 'date-time', nullable: true },
+        },
+      },
+      TripWithDetails: {
+        allOf: [
+          { $ref: '#/components/schemas/Trip' },
+          {
+            type: 'object',
+            properties: {
+              route: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string' },
+                  sourceProvince: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      name: { type: 'string' },
+                    },
+                  },
+                  destinationProvince: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      name: { type: 'string' },
+                    },
+                  },
+                },
+              },
+              vehicle: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  plateNumber: { type: 'string' },
+                  vehicleType: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      name: { type: 'string' },
+                      seatConfiguration: { type: 'object' },
+                    },
+                  },
+                  driver: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                      id: { type: 'string' },
+                      name: { type: 'string' },
+                      phoneNumber: { type: 'string' },
+                      avatarUrl: { type: 'string', nullable: true },
+                    },
+                  },
+                },
+              },
+              seats: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/Seat' },
+              },
+              availableSeats: { type: 'integer' },
+            },
+          },
+        ],
+      },
+      Seat: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          tripId: { type: 'string' },
+          seatNumber: { type: 'string' },
+          seatType: { type: 'string', enum: ['STANDARD', 'PREMIUM', 'VIP'] },
+          status: { type: 'string', enum: ['AVAILABLE', 'BOOKED', 'RESERVED'] },
+        },
+      },
+      Error: {
+        type: 'object',
+        properties: {
+          message: { type: 'string' },
+          error: {
+            type: 'object',
+            nullable: true,
+            properties: {
+              message: { type: 'string' },
+            },
+          },
+        },
       },
     },
   },

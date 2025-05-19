@@ -1,6 +1,204 @@
 import { prisma } from '#src/config/db';
 import { CommonStatus, VehicleStatus } from '@prisma/client';
 
+interface SeatConfigParams {
+  totalSeats: number;
+  layout: '2+2' | '2+1' | '1+1' | '1+1+1';
+  decks?: number;
+  seatType: 'STANDARD' | 'BED' | 'PREMIUM' | 'ACCESSIBLE' | 'DRIVER';
+  includeDriver?: boolean;
+  premiumSeats?: number;
+  accessibleSeats?: number;
+}
+
+/**
+ * Generates a seat configuration for a vehicle type based on the specified layout and seat count.
+ * @param params Configuration parameters for the seat layout
+ * @returns Seat configuration object with decks, rows, and seats
+ */
+function generateSeatConfig(params: SeatConfigParams): any {
+  const {
+    totalSeats,
+    layout,
+    decks = 1,
+    seatType,
+    includeDriver = true,
+    premiumSeats = 0,
+    accessibleSeats = 0,
+  } = params;
+
+  const seatsPerDeck = Math.ceil(totalSeats / decks);
+  let seatsPerRow: number;
+  let aisleCount: number;
+  let colsPerRow: number;
+
+  switch (layout) {
+    case '2+2':
+      seatsPerRow = 4;
+      aisleCount = 1;
+      colsPerRow = 5; // 2 seats + aisle + 2 seats
+      break;
+    case '2+1':
+      seatsPerRow = 3;
+      aisleCount = 1;
+      colsPerRow = 4; // 2 seats + aisle + 1 seat
+      break;
+    case '1+1':
+      seatsPerRow = 2;
+      aisleCount = 1;
+      colsPerRow = 3; // 1 seat + aisle + 1 seat
+      break;
+    case '1+1+1':
+      seatsPerRow = 3;
+      aisleCount = 2;
+      colsPerRow = 5; // 1 seat + aisle + 1 seat + aisle + 1 seat
+      break;
+    default:
+      throw new Error(`Unsupported layout: ${layout}`);
+  }
+
+  const rowsPerDeck = Math.ceil(seatsPerDeck / seatsPerRow);
+  let premiumCount = 0;
+  let accessibleCount = 0;
+
+  const seatConfig = {
+    decks: Array(decks)
+      .fill(null)
+      .map((_, deckIndex) => ({
+        deckId: deckIndex === 0 ? 'lower' : 'upper',
+        name: deckIndex === 0 ? 'Lower Deck' : 'Upper Deck',
+        rows: Array(rowsPerDeck)
+          .fill(null)
+          .map((_, rowIndex) => {
+            const rowId = String.fromCharCode(65 + rowIndex); // A, B, C, ...
+            const seats = [];
+
+            if (layout === '1+1+1') {
+              // 1+1+1: Left seat, aisle, middle seat, aisle, right seat
+              let seatTypeForPosition = seatType;
+              if (premiumCount < premiumSeats && rowIndex < 2 && deckIndex === 0) {
+                seatTypeForPosition = 'PREMIUM';
+                premiumCount++;
+              } else if (accessibleCount < accessibleSeats && rowIndex === rowsPerDeck - 1) {
+                seatTypeForPosition = 'ACCESSIBLE';
+                accessibleCount++;
+              }
+
+              seats.push({
+                number: `${deckIndex === 1 ? 'U' : ''}${rowId}1`,
+                exists: true,
+                type: seatTypeForPosition,
+                position: 'window',
+                x: 0,
+                y: rowIndex,
+              });
+              seats.push({
+                number: null,
+                exists: false,
+                type: null,
+                position: 'aisle',
+                x: 1,
+                y: rowIndex,
+              });
+              seats.push({
+                number: `${deckIndex === 1 ? 'U' : ''}${rowId}2`,
+                exists: true,
+                type: seatTypeForPosition,
+                position: 'middle',
+                x: 2,
+                y: rowIndex,
+              });
+              seats.push({
+                number: null,
+                exists: false,
+                type: null,
+                position: 'aisle',
+                x: 3,
+                y: rowIndex,
+              });
+              seats.push({
+                number: `${deckIndex === 1 ? 'U' : ''}${rowId}3`,
+                exists: true,
+                type: seatTypeForPosition,
+                position: 'window',
+                x: 4,
+                y: rowIndex,
+              });
+            } else {
+              // Other layouts (2+2, 2+1, 1+1)
+              const seatsPerSide = layout === '2+2' ? 2 : layout === '2+1' ? 2 : 1;
+              const rightSeats = layout === '2+1' ? 1 : seatsPerSide;
+
+              // Left side seats
+              for (let col = 1; col <= seatsPerSide; col++) {
+                let seatTypeForPosition = seatType;
+                if (premiumCount < premiumSeats && rowIndex < 2 && deckIndex === 0) {
+                  seatTypeForPosition = 'PREMIUM';
+                  premiumCount++;
+                } else if (accessibleCount < accessibleSeats && rowIndex === rowsPerDeck - 1) {
+                  seatTypeForPosition = 'ACCESSIBLE';
+                  accessibleCount++;
+                }
+                seats.push({
+                  number: `${deckIndex === 1 ? 'U' : ''}${rowId}${col}`,
+                  exists: true,
+                  type: seatTypeForPosition,
+                  position: col === 1 ? 'window' : 'aisle',
+                  x: col - 1,
+                  y: rowIndex,
+                });
+              }
+
+              // Aisle
+              seats.push({
+                number: null,
+                exists: false,
+                type: null,
+                position: 'aisle',
+                x: seatsPerSide,
+                y: rowIndex,
+              });
+
+              // Right side seats
+              for (let col = 1; col <= rightSeats; col++) {
+                let seatTypeForPosition = seatType;
+                if (premiumCount < premiumSeats && rowIndex < 2 && deckIndex === 0) {
+                  seatTypeForPosition = 'PREMIUM';
+                  premiumCount++;
+                } else if (accessibleCount < accessibleSeats && rowIndex === rowsPerDeck - 1) {
+                  seatTypeForPosition = 'ACCESSIBLE';
+                  accessibleCount++;
+                }
+                seats.push({
+                  number: `${deckIndex === 1 ? 'U' : ''}${rowId}${col + seatsPerSide}`,
+                  exists: true,
+                  type: seatTypeForPosition,
+                  position: col === 1 ? 'aisle' : 'window',
+                  x: col + seatsPerSide,
+                  y: rowIndex,
+                });
+              }
+            }
+
+            return { rowId, seats };
+          }),
+      })),
+  };
+
+  // Add driver seat to first deck, first row
+  if (includeDriver) {
+    seatConfig.decks[0].rows[0].seats[0] = {
+      number: 'A1',
+      exists: true,
+      type: 'DRIVER',
+      position: 'window',
+      x: 0,
+      y: 0,
+    };
+  }
+
+  return seatConfig;
+}
 export const seedVehicleTypes = async () => {
   console.log('🌱 Seeding vehicle types...');
 
@@ -8,149 +206,141 @@ export const seedVehicleTypes = async () => {
     {
       name: 'Xe 16 chỗ ngồi',
       description: 'Xe khách cỡ nhỏ, ghế ngồi tiêu chuẩn, phù hợp cho đoàn nhỏ hoặc gia đình',
-      seatConfiguration: {
-        rows: 4,
-        columns: 4,
-        seatType: 'NGỒi',
-        seats: [
-          { id: 'A1', name: 'A1', type: 'DRIVER', seatType: 'NGỒi' },
-          { id: 'A2', name: 'A2', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'A3', name: 'A3', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'A4', name: 'A4', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'B1', name: 'B1', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'B2', name: 'B2', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'B3', name: 'B3', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'B4', name: 'B4', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'C1', name: 'C1', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'C2', name: 'C2', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'C3', name: 'C3', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'C4', name: 'C4', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'D1', name: 'D1', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'D2', name: 'D2', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'D3', name: 'D3', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'D4', name: 'D4', type: 'PASSENGER', seatType: 'NGỒi' },
-        ],
-      },
+      seatConfiguration: generateSeatConfig({
+        totalSeats: 16,
+        layout: '2+2',
+        seatType: 'STANDARD',
+        includeDriver: true,
+      }),
       status: CommonStatus.ACTIVE,
     },
     {
       name: 'Xe 29 chỗ ngồi',
       description: 'Xe khách cỡ trung, ghế ngồi tiêu chuẩn, phù hợp cho đoàn trung bình',
-      seatConfiguration: {
-        rows: 8,
-        columns: 4,
-        seatType: 'NGỒi',
-        seats: Array(29)
-          .fill(null)
-          .map((_, index) => {
-            if (index === 0) {
-              return { id: 'A1', name: 'A1', type: 'DRIVER', seatType: 'NGỒi' };
-            }
-            const row = Math.floor((index - 1) / 4) + 1;
-            const col = ((index - 1) % 4) + 1;
-            const rowChar = String.fromCharCode(64 + row); // A, B, C, ...
-            const id = `${rowChar}${col}`;
-            return { id, name: id, type: 'PASSENGER', seatType: 'NGỒi' };
-          }),
-      },
+      seatConfiguration: generateSeatConfig({
+        totalSeats: 29,
+        layout: '2+2',
+        seatType: 'STANDARD',
+        includeDriver: true,
+        premiumSeats: 4,
+      }),
       status: CommonStatus.ACTIVE,
     },
     {
       name: 'Xe 45 chỗ ngồi',
       description: 'Xe khách cỡ lớn, ghế ngồi tiêu chuẩn, phù hợp cho đoàn lớn hoặc tour du lịch',
-      seatConfiguration: {
-        rows: 12,
-        columns: 4,
-        seatType: 'NGỒi',
-        seats: Array(45)
-          .fill(null)
-          .map((_, index) => {
-            if (index === 0) {
-              return { id: 'A1', name: 'A1', type: 'DRIVER', seatType: 'NGỒi' };
-            }
-            const row = Math.floor((index - 1) / 4) + 1;
-            const col = ((index - 1) % 4) + 1;
-            const rowChar = String.fromCharCode(64 + row); // A, B, C, ...
-            const id = `${rowChar}${col}`;
-            return { id, name: id, type: 'PASSENGER', seatType: 'NGỒi' };
-          }),
-      },
+      seatConfiguration: generateSeatConfig({
+        totalSeats: 45,
+        layout: '2+2',
+        seatType: 'STANDARD',
+        includeDriver: true,
+        premiumSeats: 8,
+      }),
       status: CommonStatus.ACTIVE,
     },
     {
       name: 'Limousine 9 chỗ ngồi VIP',
       description: 'Xe sang trọng, ghế ngồi cao cấp, phù hợp cho dịch vụ VIP hoặc chuyến đi sang trọng',
-      seatConfiguration: {
-        rows: 3,
-        columns: 3,
-        seatType: 'NGỒi',
-        seats: [
-          { id: 'A1', name: 'A1', type: 'DRIVER', seatType: 'NGỒi' },
-          { id: 'A2', name: 'A2', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'A3', name: 'A3', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'B1', name: 'B1', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'B2', name: 'B2', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'B3', name: 'B3', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'C1', name: 'C1', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'C2', name: 'C2', type: 'PASSENGER', seatType: 'NGỒi' },
-          { id: 'C3', name: 'C3', type: 'PASSENGER', seatType: 'NGỒi' },
-        ],
-      },
+      seatConfiguration: generateSeatConfig({
+        totalSeats: 9,
+        layout: '2+1',
+        seatType: 'PREMIUM',
+        includeDriver: true,
+      }),
       status: CommonStatus.ACTIVE,
     },
     {
       name: 'Xe giường nằm 22 chỗ',
       description: 'Xe khách giường nằm thoải mái, phù hợp cho chuyến đi dài',
-      seatConfiguration: {
-        rows: 11,
-        columns: 2,
-        seatType: 'NẰM',
-        seats: [
-          { id: 'A1', name: 'A1', type: 'DRIVER', seatType: 'NGỒi' },
-          { id: 'A2', name: 'A2', type: 'PASSENGER', seatType: 'NGỒi' },
-          ...Array(20)
-            .fill(null)
-            .map((_, index) => {
-              const row = Math.floor(index / 2) + 2; // Start from B row
-              const col = (index % 2) + 1;
-              const rowChar = String.fromCharCode(64 + row); // B, C, ...
-              const id = `${rowChar}${col}`;
-              return { id, name: id, type: 'PASSENGER', seatType: 'NẰM' };
-            }),
-        ],
-      },
+      seatConfiguration: generateSeatConfig({
+        totalSeats: 22,
+        layout: '1+1',
+        seatType: 'BED',
+        includeDriver: true,
+      }),
       status: CommonStatus.ACTIVE,
     },
     {
       name: 'Xe giường nằm đôi 40 chỗ',
       description: 'Xe khách giường nằm 2 tầng, phù hợp cho chuyến đi xuyên tỉnh dài ngày',
-      seatConfiguration: {
-        rows: 10,
-        columns: 4,
-        seatType: 'NẰM',
-        tiers: 2,
-        seats: [
-          { id: 'A1', name: 'A1', type: 'DRIVER', seatType: 'NGỒi', tier: 1 },
-          { id: 'A2', name: 'A2', type: 'PASSENGER', seatType: 'NGỒi', tier: 1 },
-          ...Array(38)
-            .fill(null)
-            .map((_, index) => {
-              const tier = index < 19 ? 1 : 2;
-              const tierIndex = index < 19 ? index : index - 19;
-              const row = Math.floor(tierIndex / 4) + (tier === 1 ? 2 : 1); // Lower tier starts from B, upper from A
-              const col = (tierIndex % 4) + 1;
-              const rowChar = String.fromCharCode(64 + row);
-              const id = `${tier === 2 ? 'U' : ''}${rowChar}${col}`; // Prefix U for upper tier
-              return {
-                id,
-                name: id,
-                type: 'PASSENGER',
-                seatType: 'NẰM',
-                tier: tier,
-              };
-            }),
-        ],
-      },
+      seatConfiguration: generateSeatConfig({
+        totalSeats: 40,
+        layout: '2+2',
+        decks: 2,
+        seatType: 'BED',
+        includeDriver: true,
+        premiumSeats: 4,
+      }),
+      status: CommonStatus.ACTIVE,
+    },
+    {
+      name: 'Xe 34 chỗ ngồi',
+      description: 'Xe khách cỡ trung, ghế ngồi tiêu chuẩn, phù hợp cho các chuyến đi trung và dài',
+      seatConfiguration: generateSeatConfig({
+        totalSeats: 34,
+        layout: '2+2',
+        seatType: 'STANDARD',
+        includeDriver: true,
+      }),
+      status: CommonStatus.ACTIVE,
+    },
+    {
+      name: 'Xe limousine 22 chỗ ngồi',
+      description: 'Xe limousine cao cấp với ghế rộng, phù hợp cho dịch vụ VIP hoặc đoàn nhỏ',
+      seatConfiguration: generateSeatConfig({
+        totalSeats: 22,
+        layout: '2+1',
+        seatType: 'PREMIUM',
+        includeDriver: true,
+      }),
+      status: CommonStatus.ACTIVE,
+    },
+    {
+      name: 'Xe giường nằm 34 chỗ',
+      description: 'Xe khách giường nằm với bố trí 1+1+1, phù hợp cho các chuyến đi dài thoải mái',
+      seatConfiguration: generateSeatConfig({
+        totalSeats: 34,
+        layout: '1+1+1',
+        seatType: 'BED',
+        includeDriver: true,
+        premiumSeats: 2,
+      }),
+      status: CommonStatus.ACTIVE,
+    },
+    {
+      name: 'Xe giường nằm đôi 48 chỗ',
+      description: 'Xe khách giường nằm 2 tầng cỡ lớn, lý tưởng cho các chuyến đi dài ngày',
+      seatConfiguration: generateSeatConfig({
+        totalSeats: 48,
+        layout: '2+2',
+        decks: 2,
+        seatType: 'BED',
+        includeDriver: true,
+        premiumSeats: 6,
+      }),
+      status: CommonStatus.ACTIVE,
+    },
+    {
+      name: 'Xe 29 chỗ ngồi (Wheelchair-Accessible)',
+      description: 'Xe khách cỡ trung với không gian dành cho xe lăn, phù hợp cho hành khách khuyết tật',
+      seatConfiguration: generateSeatConfig({
+        totalSeats: 29,
+        layout: '2+2',
+        seatType: 'STANDARD',
+        includeDriver: true,
+      }),
+      status: CommonStatus.ACTIVE,
+    },
+    {
+      name: 'Xe 50 chỗ ngồi',
+      description: 'Xe khách cỡ lớn cho tour du lịch, ghế ngồi tiêu chuẩn với hàng ghế cao cấp phía trước',
+      seatConfiguration: generateSeatConfig({
+        totalSeats: 50,
+        layout: '2+2',
+        seatType: 'STANDARD',
+        includeDriver: true,
+        premiumSeats: 8,
+      }),
       status: CommonStatus.ACTIVE,
     },
   ];

@@ -6,6 +6,8 @@ import * as crypto from 'crypto';
 import { getSignedUrlForFile } from '#services/r2Service';
 import axios from 'axios';
 import { Socket, Server } from 'socket.io';
+import { addJob, QueueType } from '#queues/index';
+import { getSocketIOInstance } from './bookingControllerSocketInterface';
 
 // Keep track of temporary seat reservations
 interface SeatReservation {
@@ -14,7 +16,6 @@ interface SeatReservation {
   seatId: string;
   expireAt: Date;
 }
-
 // In-memory store for temporary seat reservations (in production, use Redis)
 const reservations: SeatReservation[] = [];
 
@@ -22,7 +23,9 @@ const reservations: SeatReservation[] = [];
 const MAX_SEATS_PER_BOOKING = process.env.MAX_SEATS_PER_BOOKING ? parseInt(process.env.MAX_SEATS_PER_BOOKING) : 5;
 
 // Default payment timeout in minutes (can be overridden from system config)
-const DEFAULT_PAYMENT_TIMEOUT = 15;
+const DEFAULT_PAYMENT_TIMEOUT = process.env.PAYMENT_TIMEOUT_MINUTES
+  ? parseInt(process.env.PAYMENT_TIMEOUT_MINUTES)
+  : 15;
 
 /**
  * Get current system config for booking settings
@@ -40,163 +43,19 @@ async function getBookingConfig() {
 }
 
 /**
- * Initialize Socket.IO connection
+ * Broadcast seat status change to all clients in trip room
  */
-export const initializeSocketConnection = (io: Server) => {
-  io.on('connection', (socket: Socket) => {
-    console.log('New client connected:', socket.id);
-
-    // Join trip room to receive real-time updates
-    socket.on('joinTripRoom', (tripId: string) => {
-      socket.join(`trip:${tripId}`);
-      console.log(`Client ${socket.id} joined trip room: ${tripId}`);
+function broadcastSeatStatusChange(tripId: string, seatId: string, status: SeatStatus, data?: any) {
+  const io = getSocketIOInstance();
+  if (io) {
+    io.to(`trip:${tripId}`).emit('seatStatusChanged', {
+      seatId,
+      status,
+      ...data,
     });
-
-    // Leave trip room
-    socket.on('leaveTripRoom', (tripId: string) => {
-      socket.leave(`trip:${tripId}`);
-      console.log(`Client ${socket.id} left trip room: ${tripId}`);
-    });
-
-    // Handle seat selection
-    socket.on('selectSeat', async (data: { tripId: string; seatId: string; userId: string; sessionId: string }) => {
-      try {
-        const { tripId, seatId, userId, sessionId } = data;
-
-        // Get config
-        const config = await getBookingConfig();
-
-        // Check if seat is available
-        const seat = await prisma.seat.findUnique({
-          where: { id: seatId },
-        });
-
-        if (!seat || seat.status !== SeatStatus.AVAILABLE) {
-          socket.emit('seatSelectionError', {
-            seatId,
-            error: 'Seat is not available',
-          });
-          return;
-        }
-
-        // Check if user has reached maximum seats
-        const userReservations = reservations.filter((r) => r.userId === userId && r.tripId === tripId);
-
-        if (userReservations.length >= config.maxSeatsPerBooking) {
-          socket.emit('seatSelectionError', {
-            seatId,
-            error: `Maximum of ${config.maxSeatsPerBooking} seats per booking`,
-          });
-          return;
-        }
-
-        // Calculate expiration (default 15 minutes from now)
-        const expireAt = new Date();
-        expireAt.setMinutes(expireAt.getMinutes() + 15);
-
-        // Add to reservations
-        reservations.push({
-          userId,
-          tripId,
-          seatId,
-          expireAt,
-        });
-
-        // Update seat status to reserved
-        await prisma.seat.update({
-          where: { id: seatId },
-          data: { status: SeatStatus.RESERVED },
-        });
-
-        // Notify all clients in the trip room
-        io.to(`trip:${tripId}`).emit('seatStatusChanged', {
-          seatId,
-          status: SeatStatus.RESERVED,
-          reservedBy: userId,
-          sessionId,
-        });
-
-        // Respond to the requester
-        socket.emit('seatSelectionConfirmed', { seatId });
-      } catch (error) {
-        console.error('Error in seat selection:', error);
-        socket.emit('seatSelectionError', {
-          error: 'Failed to select seat, please try again',
-        });
-      }
-    });
-
-    // Release seat if user cancels selection
-    socket.on('releaseSeat', async (data: { tripId: string; seatId: string; userId: string }) => {
-      try {
-        const { tripId, seatId, userId } = data;
-
-        // Find reservation
-        const reservationIndex = reservations.findIndex((r) => r.seatId === seatId && r.userId === userId);
-
-        if (reservationIndex !== -1) {
-          // Remove from reservations
-          reservations.splice(reservationIndex, 1);
-
-          // Update seat status back to available
-          await prisma.seat.update({
-            where: { id: seatId },
-            data: { status: SeatStatus.AVAILABLE },
-          });
-
-          // Notify all clients in the trip room
-          io.to(`trip:${tripId}`).emit('seatStatusChanged', {
-            seatId,
-            status: SeatStatus.AVAILABLE,
-          });
-
-          socket.emit('seatReleased', { seatId });
-        }
-      } catch (error) {
-        console.error('Error releasing seat:', error);
-        socket.emit('seatReleaseError', {
-          error: 'Failed to release seat',
-        });
-      }
-    });
-
-    // Disconnect event
-    socket.on('disconnect', () => {
-      console.log('Client disconnected:', socket.id);
-    });
-  });
-
-  // Setup periodic cleanup of expired reservations
-  setInterval(async () => {
-    try {
-      const now = new Date();
-      const expiredReservations = reservations.filter((r) => r.expireAt < now);
-
-      for (const reservation of expiredReservations) {
-        // Update seat status back to available
-        await prisma.seat.update({
-          where: { id: reservation.seatId },
-          data: { status: SeatStatus.AVAILABLE },
-        });
-
-        // Notify all clients in the trip room
-        io.to(`trip:${reservation.tripId}`).emit('seatStatusChanged', {
-          seatId: reservation.seatId,
-          status: SeatStatus.AVAILABLE,
-        });
-
-        // Remove from reservations array
-        const index = reservations.findIndex((r) => r.seatId === reservation.seatId && r.userId === reservation.userId);
-
-        if (index !== -1) {
-          reservations.splice(index, 1);
-        }
-      }
-    } catch (error) {
-      console.error('Error cleaning up expired reservations:', error);
-    }
-  }, 60000); // Run every minute
-};
+    console.log(`Broadcasted seat status change: ${seatId} -> ${status} to trip:${tripId}`);
+  }
+}
 
 /**
  * Create a new booking
@@ -238,7 +97,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Check if selected seats exist and are available
+    // Check if selected seats exist and are available or reserved by this user
     const seats = await prisma.seat.findMany({
       where: {
         id: { in: seatIds },
@@ -251,6 +110,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // Check seat availability - allow AVAILABLE and RESERVED (which will be from socket selection)
     const unavailableSeats = seats.filter(
       (seat) => seat.status !== SeatStatus.AVAILABLE && seat.status !== SeatStatus.RESERVED
     );
@@ -337,114 +197,121 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
     const finalPrice = totalPrice - discountAmount;
 
     // Create booking in transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Create booking
-      const booking = await tx.booking.create({
-        data: {
-          userId,
-          status: BookingStatus.PENDING,
-          paymentStatus: PaymentStatus.PENDING,
-          totalPrice,
-          discountAmount: discountAmount > 0 ? discountAmount : null,
-          finalPrice,
-          customerNotes: customerNotes || null,
-        },
-      });
-
-      // Create booking trip
-      const bookingTrip = await tx.bookingTrip.create({
-        data: {
-          bookingId: booking.id,
-          tripId,
-        },
-      });
-
-      // Update seat status and link to booking trip
-      for (const seatId of seatIds) {
-        await tx.seat.update({
-          where: { id: seatId },
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // Create booking
+        const booking = await tx.booking.create({
           data: {
-            status: SeatStatus.RESERVED,
-            bookingTripId: bookingTrip.id,
-          },
-        });
-
-        // Remove from temporary reservations if exists
-        const reservationIndex = reservations.findIndex((r) => r.seatId === seatId && r.userId === userId);
-
-        if (reservationIndex !== -1) {
-          reservations.splice(reservationIndex, 1);
-        }
-      }
-
-      // Create voucher usage if voucher applied
-      if (voucher) {
-        await tx.voucherUsage.create({
-          data: {
-            voucherId: voucher.id,
             userId,
-            bookingId: booking.id,
-            discountAmount,
+            status: BookingStatus.PENDING,
+            paymentStatus: PaymentStatus.PENDING,
+            totalPrice,
+            discountAmount: discountAmount > 0 ? discountAmount : null,
+            finalPrice,
+            customerNotes: customerNotes || null,
           },
         });
 
-        // Increment voucher usage count
-        await tx.voucher.update({
-          where: { id: voucher.id },
+        // Create booking trip
+        const bookingTrip = await tx.bookingTrip.create({
           data: {
-            usedCount: {
-              increment: 1,
+            bookingId: booking.id,
+            tripId,
+          },
+        });
+
+        // Update seat status and link to booking trip
+        for (const seatId of seatIds) {
+          await tx.seat.update({
+            where: { id: seatId },
+            data: {
+              status: SeatStatus.RESERVED,
+              bookingTripId: bookingTrip.id,
+            },
+          });
+        }
+
+        // Create voucher usage if voucher applied
+        if (voucher) {
+          await tx.voucherUsage.create({
+            data: {
+              voucherId: voucher.id,
+              userId,
+              bookingId: booking.id,
+              discountAmount,
+            },
+          });
+
+          // Increment voucher usage count
+          await tx.voucher.update({
+            where: { id: voucher.id },
+            data: {
+              usedCount: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        // Create booking history
+        await tx.bookingHistory.create({
+          data: {
+            bookingId: booking.id,
+            changedFields: {},
+            changedBy: userId,
+            changeReason: 'Booking created',
+          },
+        });
+
+        // Calculate payment expiration time
+        const paymentExpiration = new Date();
+        paymentExpiration.setMinutes(paymentExpiration.getMinutes() + config.paymentTimeoutMinutes);
+
+        // Generate VietQR payment code
+        const qrCodeData = await generateVietQRCode(booking.id, finalPrice, userId);
+
+        // Update booking with QR code and payment reference
+        return await tx.booking.update({
+          where: { id: booking.id },
+          data: {
+            qrCode: qrCodeData.qrText,
+            qrCodeExpiresAt: paymentExpiration,
+            paymentWebhookReference: qrCodeData.paymentReference,
+          },
+          include: {
+            bookingTrips: {
+              include: {
+                trip: {
+                  include: {
+                    route: true,
+                  },
+                },
+                seats: true,
+              },
+            },
+            voucherUsage: {
+              include: {
+                voucher: true,
+              },
             },
           },
         });
+      },
+      {
+        timeout: 20000,
       }
+    );
 
-      // Create booking history
-      await tx.bookingHistory.create({
-        data: {
-          bookingId: booking.id,
-          changedFields: {},
-          changedBy: userId,
-          changeReason: 'Booking created',
-        },
+    // After transaction completes, broadcast seat status changes
+    for (const seatId of seatIds) {
+      broadcastSeatStatusChange(tripId, seatId, SeatStatus.RESERVED, {
+        reservedBy: userId,
+        bookingId: result.id,
       });
+    }
 
-      // Calculate payment expiration time
-      const paymentExpiration = new Date();
-      paymentExpiration.setMinutes(paymentExpiration.getMinutes() + config.paymentTimeoutMinutes);
-
-      // Generate QR code for payment
-      const qrCodeData = await generatePaymentQRCode(booking.id, finalPrice, userId);
-
-      // Update booking with QR code
-      return await tx.booking.update({
-        where: { id: booking.id },
-        data: {
-          qrCode: qrCodeData,
-          qrCodeExpiresAt: paymentExpiration,
-        },
-        include: {
-          bookingTrips: {
-            include: {
-              trip: {
-                include: {
-                  route: true,
-                },
-              },
-              seats: true,
-            },
-          },
-          voucherUsage: {
-            include: {
-              voucher: true,
-            },
-          },
-        },
-      });
-    });
-
-    // Schedule automatic cancellation if not paid
-    scheduleBookingCancellation(result.id, config.paymentTimeoutMinutes);
+    // Schedule automatic cancellation using Redis queue instead of setTimeout
+    await scheduleBookingCancellation(result.id, config.paymentTimeoutMinutes);
 
     sendSuccess(res, 'booking.created', result, language);
   } catch (error) {
@@ -454,9 +321,13 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
 };
 
 /**
- * Generate QR code for payment using VietQR
+ * Generate VietQR payment code
  */
-async function generatePaymentQRCode(bookingId: string, amount: number, userId: string): Promise<string> {
+async function generateVietQRCode(
+  bookingId: string,
+  amount: number,
+  userId: string
+): Promise<{ qrText: string; paymentReference: string }> {
   try {
     // Get user info for the payment description
     const user = await prisma.user.findUnique({
@@ -464,34 +335,411 @@ async function generatePaymentQRCode(bookingId: string, amount: number, userId: 
       select: { name: true, email: true },
     });
 
-    // Create payment reference
-    const paymentRef = `BKG${bookingId.substring(0, 8)}`;
+    // Create unique payment reference that can be matched in webhook
+    const timestamp = Date.now();
+    const shortBookingId = bookingId.substring(0, 8).toUpperCase();
+    const paymentReference = `BKG${shortBookingId}${timestamp.toString().slice(-6)}`;
 
-    // Set up VietQR parameters (replace with actual VietQR API details)
+    // VietQR parameters
     const vietQRParams = {
       accountNo: process.env.PAYMENT_ACCOUNT_NUMBER || '0123456789',
       accountName: process.env.PAYMENT_ACCOUNT_NAME || 'COMPANY NAME',
       acqId: process.env.PAYMENT_BANK_ID || '970436', // Default to TCB (Techcombank)
       amount: Math.round(amount),
-      addInfo: `Thanh toan dat ve ${paymentRef} ${user?.name || 'Customer'}`,
-      format: 'text',
+      addInfo: `${paymentReference}`.substring(0, 25), // Limit length for bank compatibility
     };
 
-    // In a real implementation, call VietQR API here
-    // For this example, we'll just create a mock QR code text
-    const qrCodeText = `vietqr_${vietQRParams.acqId}_${vietQRParams.accountNo}_${vietQRParams.amount}_${paymentRef}`;
+    // Generate VietQR URL
+    const vietQRBaseUrl = 'https://img.vietqr.io/image';
+    const qrUrl = `${vietQRBaseUrl}/${vietQRParams.acqId}-${vietQRParams.accountNo}-compact2.jpg?amount=${vietQRParams.amount}&addInfo=${encodeURIComponent(vietQRParams.addInfo)}&accountName=${encodeURIComponent(vietQRParams.accountName)}`;
 
-    // Register this payment with the SePay webhook service (in a real impl)
-    await registerPaymentWebhook(bookingId, paymentRef, amount);
+    // For QR code text, you might want to store the URL or the raw QR data
+    // Here we'll store a structured text that can be used to recreate the QR or as reference
+    const qrText = JSON.stringify({
+      type: 'VietQR',
+      bankId: vietQRParams.acqId,
+      accountNo: vietQRParams.accountNo,
+      amount: vietQRParams.amount,
+      addInfo: vietQRParams.addInfo,
+      url: qrUrl,
+    });
 
-    return qrCodeText;
+    console.log(`Generated VietQR for booking ${bookingId}:`, {
+      reference: paymentReference,
+      amount: vietQRParams.amount,
+      addInfo: vietQRParams.addInfo,
+    });
+
+    return { qrText, paymentReference };
   } catch (error) {
-    console.error('Error generating payment QR code:', error);
-    // Return a fallback QR code on error
-    return `fallback_payment_${bookingId}`;
+    console.error('Error generating VietQR code:', error);
+    // Return a fallback reference
+    const fallbackRef = `FALLBACK${bookingId.substring(0, 8)}${Date.now().toString().slice(-6)}`;
+    return {
+      qrText: `fallback_payment_${bookingId}`,
+      paymentReference: fallbackRef,
+    };
   }
 }
 
+/**
+ * Schedule automatic cancellation for unpaid bookings using Redis queue
+ */
+async function scheduleBookingCancellation(bookingId: string, timeoutMinutes: number): Promise<void> {
+  try {
+    // Calculate delay in milliseconds
+    const delayMs = timeoutMinutes * 60 * 1000;
+
+    // Add job to booking cancellation queue
+    await addJob(
+      QueueType.BOOKING_CANCELLATION,
+      {
+        bookingId,
+        reason: 'Payment timeout',
+      },
+      {
+        delay: delayMs,
+        removeOnComplete: true,
+        removeOnFail: false,
+        attempts: 3,
+      }
+    );
+
+    console.log(`Scheduled booking cancellation for ${bookingId} in ${timeoutMinutes} minutes`);
+  } catch (error) {
+    console.error(`Error scheduling booking cancellation for ${bookingId}:`, error);
+    // Fallback to setTimeout as backup
+    setTimeout(
+      async () => {
+        await cancelExpiredBooking(bookingId);
+      },
+      timeoutMinutes * 60 * 1000
+    );
+  }
+}
+
+/**
+ * Cancel expired booking (used by both queue processor and fallback setTimeout)
+ */
+export async function cancelExpiredBooking(bookingId: string): Promise<void> {
+  try {
+    // Check if booking still exists and is unpaid
+    const booking = await prisma.booking.findUnique({
+      where: {
+        id: bookingId,
+        paymentStatus: PaymentStatus.PENDING,
+        status: BookingStatus.PENDING,
+      },
+      include: {
+        bookingTrips: {
+          include: {
+            seats: true,
+            trip: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      console.log(`Booking ${bookingId} not found or already processed`);
+      return;
+    }
+
+    // Cancel booking in transaction
+    await prisma.$transaction(async (tx) => {
+      // Update booking status
+      await tx.booking.update({
+        where: { id: bookingId },
+        data: {
+          status: BookingStatus.CANCELLED,
+        },
+      });
+
+      // Release seats and broadcast changes
+      for (const bookingTrip of booking.bookingTrips) {
+        for (const seat of bookingTrip.seats) {
+          await tx.seat.update({
+            where: { id: seat.id },
+            data: {
+              status: SeatStatus.AVAILABLE,
+              bookingTripId: null,
+            },
+          });
+
+          // Broadcast seat status change to connected clients
+          broadcastSeatStatusChange(bookingTrip.trip.id, seat.id, SeatStatus.AVAILABLE, {
+            reason: 'booking_cancelled',
+            bookingId: bookingId,
+          });
+        }
+      }
+
+      // Create history record
+      await tx.bookingHistory.create({
+        data: {
+          bookingId,
+          changedFields: {
+            status: { from: booking.status, to: BookingStatus.CANCELLED },
+          },
+          changedBy: booking.userId,
+          changeReason: 'Automatically cancelled due to payment timeout',
+        },
+      });
+    });
+
+    console.log(`Booking ${bookingId} automatically cancelled due to payment timeout`);
+  } catch (error) {
+    console.error(`Error cancelling expired booking ${bookingId}:`, error);
+  }
+}
+
+/**
+ * SePay payment webhook handler
+ */
+export const handlePaymentWebhook = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+
+  try {
+    const {
+      gateway,
+      transactionDate,
+      accountNumber,
+      code,
+      content,
+      transferType,
+      transferAmount,
+      accumulated,
+      referenceCode,
+      description,
+    } = req.body;
+
+    // Log the incoming webhook for debugging
+    console.log('Received SePay webhook:', {
+      gateway,
+      accountNumber,
+      transferAmount,
+      content,
+      referenceCode,
+    });
+
+    // Basic validation
+    if (!content || !transferAmount) {
+      return sendBadRequest(res, 'payment.invalidWebhookPayload', null, language);
+    }
+
+    // Extract payment reference from content (format: "BKG12345678901234 Customer Name")
+    const referenceMatch = content.match(/BKG[A-Z0-9]{14}/);
+    if (!referenceMatch) {
+      console.log('No valid booking reference found in content:', content);
+      return sendSuccess(res, 'payment.webhookReceived', { message: 'No booking reference found' }, language);
+    }
+
+    const paymentReference = referenceMatch[0];
+
+    // Find booking by payment reference
+    const booking = await prisma.booking.findFirst({
+      where: {
+        paymentWebhookReference: paymentReference,
+        paymentStatus: PaymentStatus.PENDING,
+        status: BookingStatus.PENDING,
+      },
+      include: {
+        bookingTrips: {
+          include: {
+            seats: true,
+            trip: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      console.log('No pending booking found for reference:', paymentReference);
+      return sendSuccess(res, 'payment.webhookReceived', { message: 'No pending booking found' }, language);
+    }
+
+    // Verify amount matches (allow small variance for bank fees)
+    const expectedAmount = booking.finalPrice;
+    const receivedAmount = parseFloat(transferAmount);
+    const amountDiff = Math.abs(expectedAmount - receivedAmount);
+    const isAmountValid = amountDiff <= 1000; // Allow 1000 VND difference
+
+    if (!isAmountValid) {
+      console.warn(
+        `Payment amount mismatch for booking ${booking.id}: expected ${expectedAmount}, got ${receivedAmount}`
+      );
+      // Log but don't fail - let admin review
+    }
+
+    // Process successful payment
+    await prisma.$transaction(async (tx) => {
+      // Update booking status
+      await tx.booking.update({
+        where: { id: booking.id },
+        data: {
+          paymentStatus: PaymentStatus.COMPLETED,
+          status: BookingStatus.CONFIRMED,
+        },
+      });
+
+      // Update seat status to booked and broadcast changes
+      for (const bookingTrip of booking.bookingTrips) {
+        for (const seat of bookingTrip.seats) {
+          await tx.seat.update({
+            where: { id: seat.id },
+            data: {
+              status: SeatStatus.BOOKED,
+            },
+          });
+
+          // Broadcast seat status change to connected clients
+          broadcastSeatStatusChange(bookingTrip.trip.id, seat.id, SeatStatus.BOOKED, {
+            bookedBy: booking.userId,
+            bookingId: booking.id,
+            paidAmount: receivedAmount,
+          });
+        }
+      }
+
+      // Create history record
+      await tx.bookingHistory.create({
+        data: {
+          bookingId: booking.id,
+          changedFields: {
+            paymentStatus: { from: PaymentStatus.PENDING, to: PaymentStatus.COMPLETED },
+            status: { from: BookingStatus.PENDING, to: BookingStatus.CONFIRMED },
+          },
+          changedBy: booking.userId,
+          changeReason: `Payment completed via SePay. Amount: ${receivedAmount}VND, Reference: ${paymentReference}`,
+        },
+      });
+    });
+
+    console.log(`Payment completed successfully for booking ${booking.id}`);
+    return sendSuccess(res, 'payment.webhookReceived', { bookingId: booking.id }, language);
+  } catch (error) {
+    console.error('Error processing payment webhook:', error);
+    return sendServerError(res, 'common.serverError', null, language);
+  }
+};
+
+// ... (rest of the functions remain the same: getBookingDetails, getUserBookings, cancelBooking, etc.)
+
+/**
+ * Cancel booking
+ */
+export const cancelBooking = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+  const userId = (req.user as { userId: string }).userId;
+
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    // Find booking
+    const booking = await prisma.booking.findUnique({
+      where: { id },
+      include: {
+        bookingTrips: {
+          include: {
+            seats: true,
+            trip: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      sendNotFound(res, 'booking.notFound', null, language);
+      return;
+    }
+
+    // Check permissions - only the booking owner or admins can cancel
+    const isOwner = booking.userId === userId;
+    const isAdmin = (req.user as any).role === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      return sendForbidden(res, 'booking.accessDenied', null, language);
+    }
+
+    // Check if booking can be cancelled
+    if (booking.status === BookingStatus.CANCELLED) {
+      return sendBadRequest(res, 'booking.alreadyCancelled', null, language);
+    }
+
+    // Check if the trip hasn't departed yet (for user cancellations)
+    if (!isAdmin) {
+      const tripStartTime = await prisma.trip.findFirst({
+        where: {
+          bookingTrips: {
+            some: {
+              bookingId: id,
+            },
+          },
+        },
+        select: {
+          departureTime: true,
+        },
+      });
+
+      if (tripStartTime && tripStartTime.departureTime <= new Date()) {
+        return sendBadRequest(res, 'booking.cannotCancelDeparted', null, language);
+      }
+    }
+
+    // Cancel booking in transaction
+    await prisma.$transaction(async (tx) => {
+      // Update booking status
+      await tx.booking.update({
+        where: { id },
+        data: {
+          status: BookingStatus.CANCELLED,
+        },
+      });
+
+      // Release seats and broadcast changes
+      for (const bookingTrip of booking.bookingTrips) {
+        for (const seat of bookingTrip.seats) {
+          await tx.seat.update({
+            where: { id: seat.id },
+            data: {
+              status: SeatStatus.AVAILABLE,
+              bookingTripId: null,
+            },
+          });
+
+          // Broadcast seat status change to connected clients
+          broadcastSeatStatusChange(bookingTrip.trip.id, seat.id, SeatStatus.AVAILABLE, {
+            reason: 'booking_cancelled_by_user',
+            cancelledBy: userId,
+          });
+        }
+      }
+
+      // Create history record
+      await tx.bookingHistory.create({
+        data: {
+          bookingId: id,
+          changedFields: {
+            status: { from: booking.status, to: BookingStatus.CANCELLED },
+          },
+          changedBy: userId,
+          changeReason: reason || 'Booking cancelled by user',
+        },
+      });
+    });
+
+    return sendSuccess(res, 'booking.cancelled', null, language);
+  } catch (error) {
+    console.error('Error cancelling booking:', error);
+    return sendServerError(
+      res,
+      'common.serverError',
+      error instanceof Error ? { message: error.message } : null,
+      language
+    );
+  }
+};
 /**
  * Register payment with SePay webhook service
  */
@@ -516,186 +764,6 @@ async function registerPaymentWebhook(bookingId: string, paymentRef: string, amo
     console.error('Error registering payment webhook:', error);
   }
 }
-
-/**
- * Schedule automatic cancellation for unpaid bookings
- */
-function scheduleBookingCancellation(bookingId: string, timeoutMinutes: number): void {
-  setTimeout(
-    async () => {
-      try {
-        // Check if booking still exists and is unpaid
-        const booking = await prisma.booking.findUnique({
-          where: {
-            id: bookingId,
-            paymentStatus: PaymentStatus.PENDING,
-            status: BookingStatus.PENDING,
-          },
-          include: {
-            bookingTrips: {
-              include: {
-                seats: true,
-              },
-            },
-          },
-        });
-
-        if (!booking) {
-          return; // Booking already processed or deleted
-        }
-
-        // Cancel booking in transaction
-        await prisma.$transaction(async (tx) => {
-          // Update booking status
-          await tx.booking.update({
-            where: { id: bookingId },
-            data: {
-              status: BookingStatus.CANCELLED,
-            },
-          });
-
-          // Release seats
-          for (const bookingTrip of booking.bookingTrips) {
-            for (const seat of bookingTrip.seats) {
-              await tx.seat.update({
-                where: { id: seat.id },
-                data: {
-                  status: SeatStatus.AVAILABLE,
-                  bookingTripId: null,
-                },
-              });
-            }
-          }
-
-          // Create history record
-          await tx.bookingHistory.create({
-            data: {
-              bookingId,
-              changedFields: {
-                status: { from: booking.status, to: BookingStatus.CANCELLED },
-              },
-              changedBy: booking.userId,
-              changeReason: 'Automatically cancelled due to payment timeout',
-            },
-          });
-        });
-
-        console.log(`Booking ${bookingId} automatically cancelled due to payment timeout`);
-      } catch (error) {
-        console.error(`Error cancelling booking ${bookingId}:`, error);
-      }
-    },
-    timeoutMinutes * 60 * 1000
-  );
-}
-
-/**
- * SePay payment webhook handler
- */
-export const handlePaymentWebhook = async (req: Request, res: Response): Promise<void> => {
-  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
-  try {
-    const { reference, status, amount, transactionId } = req.body;
-
-    // Basic validation
-    if (!reference || !status) {
-      return sendBadRequest(res, 'payment.invalidWebhookPayload', null, language);
-    }
-
-    // Find booking by webhook reference
-    const booking = await prisma.booking.findFirst({
-      where: {
-        paymentWebhookReference: reference,
-      },
-      include: {
-        bookingTrips: {
-          include: {
-            seats: true,
-          },
-        },
-      },
-    });
-
-    if (!booking) {
-      return sendNotFound(res, 'booking.notFound', null, language);
-    }
-
-    // Process based on payment status
-    if (status === 'COMPLETED' || status === 'SUCCESS') {
-      // Verify amount matches (with small tolerance for fees)
-      const amountDiff = Math.abs(booking.finalPrice - parseFloat(amount));
-      const isAmountValid = amountDiff <= 1000; // Allow 1000 VND difference
-
-      if (!isAmountValid) {
-        console.warn(`Payment amount mismatch: expected ${booking.finalPrice}, got ${amount}`);
-        // Still proceed but log the discrepancy
-      }
-
-      // Update booking in transaction
-      await prisma.$transaction(async (tx) => {
-        // Update booking status
-        await tx.booking.update({
-          where: { id: booking.id },
-          data: {
-            paymentStatus: PaymentStatus.COMPLETED,
-            status: BookingStatus.CONFIRMED,
-          },
-        });
-
-        // Update seat status to booked
-        for (const bookingTrip of booking.bookingTrips) {
-          for (const seat of bookingTrip.seats) {
-            await tx.seat.update({
-              where: { id: seat.id },
-              data: {
-                status: SeatStatus.BOOKED,
-              },
-            });
-          }
-        }
-
-        // Create history record
-        await tx.bookingHistory.create({
-          data: {
-            bookingId: booking.id,
-            changedFields: {
-              paymentStatus: { from: booking.paymentStatus, to: PaymentStatus.COMPLETED },
-              status: { from: booking.status, to: BookingStatus.CONFIRMED },
-            },
-            changedBy: booking.userId,
-            changeReason: `Payment completed via SePay. Transaction ID: ${transactionId}`,
-          },
-        });
-      });
-
-      console.log(`Payment completed for booking ${booking.id}`);
-    } else if (status === 'FAILED' || status === 'REJECTED') {
-      // Handle payment failure
-      await prisma.$transaction(async (tx) => {
-        // Update booking history
-        await tx.bookingHistory.create({
-          data: {
-            bookingId: booking.id,
-            changedFields: {
-              paymentStatus: { from: booking.paymentStatus, to: 'FAILED' },
-            },
-            changedBy: booking.userId,
-            changeReason: `Payment failed via SePay. Transaction ID: ${transactionId}`,
-          },
-        });
-      });
-
-      console.log(`Payment failed for booking ${booking.id}`);
-    }
-
-    // Acknowledge webhook
-    return sendSuccess(res, 'payment.webhookReceived', null, language);
-  } catch (error) {
-    console.error('Error processing payment webhook:', error);
-    return sendServerError(res, 'common.serverError', null, language);
-  }
-};
-
 /**
  * Get booking details
  */
@@ -815,8 +883,12 @@ export const getUserBookings = async (req: Request, res: Response): Promise<void
   const userId = (req.user as { userId: string }).userId;
 
   try {
-    const page = req.query.page ? parseInt(req.query.page as string) : 1;
-    const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string) : 10;
+    const page = req.query.page
+      ? parseInt(req.query.page as string)
+      : parseInt(process.env.PAGINATION_DEFAULT_PAGE as string) || 1;
+    const pageSize = req.query.pageSize
+      ? parseInt(req.query.pageSize as string)
+      : parseInt(process.env.PAGINATION_DEFAULT_LIMIT as string) || 10;
     const status = req.query.status as BookingStatus;
     const skip = (page - 1) * pageSize;
 
@@ -923,115 +995,6 @@ export const getUserBookings = async (req: Request, res: Response): Promise<void
 };
 
 /**
- * Cancel booking
- */
-export const cancelBooking = async (req: Request, res: Response): Promise<void> => {
-  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
-  const userId = (req.user as { userId: string }).userId;
-
-  try {
-    const { id } = req.params;
-    const { reason } = req.body;
-
-    // Find booking
-    const booking = await prisma.booking.findUnique({
-      where: { id },
-      include: {
-        bookingTrips: {
-          include: {
-            seats: true,
-          },
-        },
-      },
-    });
-
-    if (!booking) {
-      sendNotFound(res, 'booking.notFound', null, language);
-      return;
-    }
-
-    // Check permissions - only the booking owner or admins can cancel
-    const isOwner = booking.userId === userId;
-    const isAdmin = (req.user as any).role === 'admin';
-
-    if (!isOwner && !isAdmin) {
-      return sendForbidden(res, 'booking.accessDenied', null, language);
-    }
-
-    // Check if booking can be cancelled
-    if (booking.status === BookingStatus.CANCELLED) {
-      return sendBadRequest(res, 'booking.alreadyCancelled', null, language);
-    }
-
-    // Check if the trip hasn't departed yet (for user cancellations)
-    if (!isAdmin) {
-      const tripStartTime = await prisma.trip.findFirst({
-        where: {
-          bookingTrips: {
-            some: {
-              bookingId: id,
-            },
-          },
-        },
-        select: {
-          departureTime: true,
-        },
-      });
-
-      if (tripStartTime && tripStartTime.departureTime <= new Date()) {
-        return sendBadRequest(res, 'booking.cannotCancelDeparted', null, language);
-      }
-    }
-
-    // Cancel booking in transaction
-    await prisma.$transaction(async (tx) => {
-      // Update booking status
-      await tx.booking.update({
-        where: { id },
-        data: {
-          status: BookingStatus.CANCELLED,
-        },
-      });
-
-      // Release seats
-      for (const bookingTrip of booking.bookingTrips) {
-        for (const seat of bookingTrip.seats) {
-          await tx.seat.update({
-            where: { id: seat.id },
-            data: {
-              status: SeatStatus.AVAILABLE,
-              bookingTripId: null,
-            },
-          });
-        }
-      }
-
-      // Create history record
-      await tx.bookingHistory.create({
-        data: {
-          bookingId: id,
-          changedFields: {
-            status: { from: booking.status, to: BookingStatus.CANCELLED },
-          },
-          changedBy: userId,
-          changeReason: reason || 'Booking cancelled by user',
-        },
-      });
-    });
-
-    return sendSuccess(res, 'booking.cancelled', null, language);
-  } catch (error) {
-    console.error('Error cancelling booking:', error);
-    return sendServerError(
-      res,
-      'common.serverError',
-      error instanceof Error ? { message: error.message } : null,
-      language
-    );
-  }
-};
-
-/**
  * Get booking history
  */
 export const getBookingHistory = async (req: Request, res: Response): Promise<void> => {
@@ -1113,8 +1076,12 @@ export const getAllBookings = async (req: Request, res: Response): Promise<void>
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
 
   try {
-    const page = req.query.page ? parseInt(req.query.page as string) : 1;
-    const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string) : 20;
+    const page = req.query.page
+      ? parseInt(req.query.page as string)
+      : parseInt(process.env.PAGINATION_DEFAULT_PAGE as string) || 1;
+    const pageSize = req.query.pageSize
+      ? parseInt(req.query.pageSize as string)
+      : parseInt(process.env.PAGINATION_DEFAULT_LIMIT as string) || 10;
     const status = req.query.status as BookingStatus;
     const paymentStatus = req.query.paymentStatus as PaymentStatus;
     const userId = req.query.userId as string;
@@ -1563,7 +1530,7 @@ export const resendPaymentQR = async (req: Request, res: Response): Promise<void
     const config = await getBookingConfig();
 
     // Generate new QR code
-    const qrCodeData = await generatePaymentQRCode(booking.id, booking.finalPrice, booking.userId);
+    const qrCodeData = await generateVietQRCode(booking.id, booking.finalPrice, booking.userId);
 
     // Calculate payment expiration time
     const paymentExpiration = new Date();
@@ -1573,7 +1540,7 @@ export const resendPaymentQR = async (req: Request, res: Response): Promise<void
     const updatedBooking = await prisma.booking.update({
       where: { id },
       data: {
-        qrCode: qrCodeData,
+        qrCode: qrCodeData?.qrText,
         qrCodeExpiresAt: paymentExpiration,
       },
     });

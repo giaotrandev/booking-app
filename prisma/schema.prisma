@@ -149,6 +149,7 @@ model BusStop {
   isDeleted Boolean      @default(false)
 
   routeStops RouteStop[]
+  stopPrices TripStopPrice[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -209,10 +210,10 @@ model VehicleTypeHistory {
 
 // Vehicle Management
 model Vehicle {
-  id               String @id @default(auto()) @map("_id") @db.ObjectId
-  plateNumber      String @unique
-  registrationCode String @unique
-  image     String?
+  id               String  @id @default(auto()) @map("_id") @db.ObjectId
+  plateNumber      String  @unique
+  registrationCode String  @unique
+  image            String?
 
   vehicleTypeId String      @db.ObjectId
   vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id])
@@ -245,8 +246,8 @@ model VehicleHistory {
 }
 
 model Trip {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
-  image     String?
+  id    String  @id @default(auto()) @map("_id") @db.ObjectId
+  image String?
 
   // Route Information
   routeId String @db.ObjectId
@@ -270,6 +271,7 @@ model Trip {
   // Seat Management
   seats        Seat[]
   bookingTrips BookingTrip[]
+  stopPrices   TripStopPrice[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -277,6 +279,17 @@ model Trip {
 
   // Lịch sử thay đổi quan trọng
   histories TripHistory[]
+}
+
+model TripStopPrice {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  tripId    String   @db.ObjectId
+  trip      Trip     @relation(fields: [tripId], references: [id])
+  busStopId String   @db.ObjectId
+  busStop   BusStop  @relation(fields: [busStopId], references: [id])
+  price     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model TripHistory {
@@ -728,8 +741,10 @@ enum TripStatus {
 
 enum SeatType {
   STANDARD
+  BED
   PREMIUM
-  DISABLED
+  ACCESSIBLE
+  DRIVER
 }
 
 enum SeatStatus {

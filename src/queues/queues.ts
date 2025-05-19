@@ -8,6 +8,7 @@ export enum QueueType {
   HISTORY = 'history',
   SCHEDULED_POSTS = 'scheduled-posts',
   IMAGE_PROCESSING = 'image-processing',
+  BOOKING_CANCELLATION = 'booking-cancellation',
 }
 
 /**
@@ -69,7 +70,6 @@ export function getQueue(name: QueueType): Queue {
 
   // Get Redis URL from the helper function
   const redisUrl = getRedisQueueUrl();
-  console.log('Test: ', redisUrl);
 
   // Control logging verbosity with environment variable
   const verboseLogging = process.env.REDIS_VERBOSE_LOGGING === 'true';

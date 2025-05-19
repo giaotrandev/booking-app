@@ -10,8 +10,12 @@ export const getPermissionList = async (req: Request, res: Response): Promise<vo
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
 
   try {
-    const page = req.query.page ? parseInt(req.query.page as string) : undefined;
-    const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string) : undefined;
+    const page = req.query.page
+      ? parseInt(req.query.page as string)
+      : parseInt(process.env.PAGINATION_DEFAULT_PAGE as string) || 1;
+    const pageSize = req.query.pageSize
+      ? parseInt(req.query.pageSize as string)
+      : parseInt(process.env.PAGINATION_DEFAULT_LIMIT as string) || 10;
     const search = req.query.search as string | undefined;
     const searchFields = req.query.searchFields
       ? (req.query.searchFields as string).split(',').map((field) => field.trim())

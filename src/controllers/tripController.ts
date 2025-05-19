@@ -19,7 +19,7 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
 
   try {
-    const { routeId, vehicleId, departureTime, arrivalTime, basePrice, specialPrice } = req.body;
+    const { routeId, vehicleId, departureTime, arrivalTime, basePrice, specialPrice, stopPrices } = req.body;
 
     // Validate input
     if (!routeId || !vehicleId || !departureTime || !arrivalTime || !basePrice) {
@@ -30,9 +30,32 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
       return;
     }
 
-    // Check if route exists
+    // Validate stopPrices if provided
+    let parsedStopPrices = [];
+    if (stopPrices) {
+      try {
+        parsedStopPrices = JSON.parse(stopPrices);
+        if (!Array.isArray(parsedStopPrices)) {
+          throw new Error('stopPrices must be an array');
+        }
+        for (const stopPrice of parsedStopPrices) {
+          if (!stopPrice.busStopId || typeof stopPrice.price !== 'number') {
+            throw new Error('Each stopPrice must have busStopId and price');
+          }
+        }
+      } catch (error) {
+        if (req.file && fs.existsSync(req.file.path)) {
+          await safeDeleteFile(req.file.path);
+        }
+        sendBadRequest(res, 'trip.invalidStopPrices', null, language);
+        return;
+      }
+    }
+
+    // Check if route exists and fetch its stops
     const route = await prisma.route.findUnique({
       where: { id: routeId },
+      include: { routeStops: { include: { busStop: true } } },
     });
 
     if (!route) {
@@ -40,6 +63,20 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
         await safeDeleteFile(req.file.path);
       }
       return sendNotFound(res, 'route.notFound', null, language);
+    }
+
+    // Validate that all provided busStopIds exist in the route
+    if (parsedStopPrices.length > 0) {
+      const routeStopIds = route.routeStops.map((rs) => rs.busStopId);
+      for (const stopPrice of parsedStopPrices) {
+        if (!routeStopIds.includes(stopPrice.busStopId)) {
+          if (req.file && fs.existsSync(req.file.path)) {
+            await safeDeleteFile(req.file.path);
+          }
+          sendBadRequest(res, 'trip.invalidBusStopForRoute', null, language);
+          return;
+        }
+      }
     }
 
     // Check if vehicle exists
@@ -53,6 +90,16 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
         await safeDeleteFile(req.file.path);
       }
       return sendNotFound(res, 'vehicle.notFound', null, language);
+    }
+
+    // Validate seat configuration
+    const seatConfig = vehicle.vehicleType.seatConfiguration as any;
+    if (!seatConfig?.decks || !Array.isArray(seatConfig.decks)) {
+      if (req.file && fs.existsSync(req.file.path)) {
+        await safeDeleteFile(req.file.path);
+      }
+      sendBadRequest(res, 'vehicle.invalidSeatConfiguration', null, language);
+      return;
     }
 
     // Parse dates
@@ -73,25 +120,18 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
     // Handle file upload if present
     if (req.file) {
       try {
-        // Optimize the image
         const optimizedImagePath = await optimizeImage(req.file.path, {
           width: 800,
           height: 600,
           quality: 80,
           format: 'webp',
         });
-
-        // Create a unique key for the trip image
         const fileExtension = '.webp';
         const fileName = `${Date.now()}${fileExtension}`;
         const filePath = `${StorageFolders.TRIPS}`;
         const fileKey = `${filePath}/${fileName}`;
-
-        // Upload to Cloudflare R2
         await uploadFileToR2(optimizedImagePath, filePath, fileName, 'image/webp');
         imageKey = fileKey;
-
-        // Clean up temp files
         await safeDeleteFile(req.file.path);
         await safeDeleteFile(optimizedImagePath);
       } catch (uploadError) {
@@ -104,85 +144,98 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
       }
     }
 
-    // Create trip in transaction to ensure consistency with seats
-    const result = await prisma.$transaction(async (tx) => {
-      // Create the trip
-      const trip = await tx.trip.create({
-        data: {
-          routeId,
-          vehicleId,
-          departureTime: parsedDepartureTime,
-          arrivalTime: parsedArrivalTime,
-          basePrice: parseFloat(basePrice),
-          specialPrice: specialPrice ? parseFloat(specialPrice) : null,
-          status: TripStatus.SCHEDULED,
-          image: imageKey,
-        },
-      });
+    // Create trip in transaction
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const trip = await tx.trip.create({
+          data: {
+            routeId,
+            vehicleId,
+            departureTime: parsedDepartureTime,
+            arrivalTime: parsedArrivalTime,
+            basePrice: parseFloat(basePrice),
+            specialPrice: specialPrice ? parseFloat(specialPrice) : null,
+            status: TripStatus.SCHEDULED,
+            image: imageKey,
+            deletedAt: null,
+          },
+        });
 
-      // Get seat configuration from vehicle type
-      const seatConfig = vehicle.vehicleType.seatConfiguration as any;
-
-      // Create seats based on the vehicle type configuration
-      const seatsToCreate = [];
-
-      // Process seat configuration and create seats
-      for (const row of seatConfig.rows) {
-        for (const seat of row.seats) {
-          if (seat.exists) {
-            seatsToCreate.push({
+        // Create stop prices
+        if (parsedStopPrices.length > 0) {
+          await tx.tripStopPrice.createMany({
+            data: parsedStopPrices.map((sp) => ({
               tripId: trip.id,
-              seatNumber: seat.number,
-              seatType: seat.type || SeatType.STANDARD,
-              status: SeatStatus.AVAILABLE,
-            });
+              busStopId: sp.busStopId,
+              price: sp.price,
+            })),
+          });
+        }
+
+        // Create seats
+        const seatsToCreate = [];
+        for (const deck of seatConfig.decks) {
+          if (!deck.rows || !Array.isArray(deck.rows)) {
+            throw new Error(`Invalid rows for deck ${deck.deckId}`);
+          }
+          for (const row of deck.rows) {
+            if (!row.seats || !Array.isArray(row.seats)) {
+              throw new Error(`Invalid seats for row ${row.rowId} in deck ${deck.deckId}`);
+            }
+            for (const seat of row.seats) {
+              if (seat.exists && seat.number && seat.type !== 'DRIVER') {
+                seatsToCreate.push({
+                  tripId: trip.id,
+                  seatNumber: seat.number,
+                  seatType: seat.type as SeatType,
+                  status: SeatStatus.AVAILABLE,
+                });
+              }
+            }
           }
         }
-      }
+        await tx.seat.createMany({ data: seatsToCreate });
 
-      // Bulk create all seats
-      await tx.seat.createMany({
-        data: seatsToCreate,
-      });
-
-      // Create history entry
-      await tx.tripHistory.create({
-        data: {
-          tripId: trip.id,
-          changedFields: {},
-          changedBy: (req.user as any).userId,
-          changeReason: 'Trip created',
-        },
-      });
-
-      // Return the newly created trip with seats
-      return await tx.trip.findUnique({
-        where: { id: trip.id },
-        include: {
-          seats: true,
-          route: true,
-          vehicle: {
-            include: {
-              vehicleType: true,
-            },
+        // Create history entry
+        await tx.tripHistory.create({
+          data: {
+            tripId: trip.id,
+            changedFields: {},
+            changedBy: (req.user as any).userId,
+            changeReason: 'Trip created',
           },
-        },
-      });
-    });
+        });
 
-    // Generate image URL if exists
+        return await tx.trip.findUnique({
+          where: { id: trip.id },
+          include: {
+            seats: true,
+            route: {
+              include: {
+                routeStops: { include: { busStop: true } },
+                sourceProvince: true,
+                destinationProvince: true,
+              },
+            },
+            vehicle: { include: { vehicleType: true } },
+            stopPrices: { include: { busStop: true } },
+          },
+        });
+      },
+      { timeout: 20000 }
+    );
+
+    // Generate image URL
     let imageUrl = null;
     if (result?.image) {
       imageUrl = await getSignedUrlForFile(result.image);
     }
 
-    sendSuccess(res, 'trip.created', { ...result, imageUrl }, language);
+    return sendSuccess(res, 'trip.created', { ...result, imageUrl }, language);
   } catch (error) {
-    // Clean up file if exists
     if (req.file && fs.existsSync(req.file.path)) {
       await safeDeleteFile(req.file.path);
     }
-
     console.error('Error creating trip:', error);
     sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
   }
@@ -195,24 +248,39 @@ export const getTripList = async (req: Request, res: Response): Promise<void> =>
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
 
   try {
-    // Extract query parameters for filtering
     const routeId = req.query.routeId as string;
     const vehicleId = req.query.vehicleId as string;
     const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
     const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
     const status = req.query.status as TripStatus;
-    const page = req.query.page ? parseInt(req.query.page as string) : 1;
-    const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string) : 20;
+    const busStopId = req.query.busStopId as string; // New filter for pickup stop
+    const page = req.query.page
+      ? parseInt(req.query.page as string)
+      : parseInt(process.env.PAGINATION_DEFAULT_PAGE as string) || 1;
+    const pageSize = req.query.pageSize
+      ? parseInt(req.query.pageSize as string)
+      : parseInt(process.env.PAGINATION_DEFAULT_LIMIT as string) || 10;
     const skip = (page - 1) * pageSize;
 
     // Build filter object
     const filter: any = {
-      deletedAt: null,
+      OR: [{ deletedAt: null }, { deletedAt: { isSet: false } }],
     };
 
     if (routeId) filter.routeId = routeId;
     if (vehicleId) filter.vehicleId = vehicleId;
     if (status) filter.status = status;
+
+    // Filter by pickup stop
+    if (busStopId) {
+      filter.route = {
+        routeStops: {
+          some: {
+            busStopId,
+          },
+        },
+      };
+    }
 
     // Handle date range filtering
     if (startDate || endDate) {
@@ -226,41 +294,48 @@ export const getTripList = async (req: Request, res: Response): Promise<void> =>
       prisma.trip.findMany({
         where: filter,
         include: {
-          route: true,
-          vehicle: {
+          route: {
             include: {
-              vehicleType: true,
+              sourceProvince: true,
+              destinationProvince: true,
+              routeStops: {
+                include: {
+                  busStop: {
+                    include: {
+                      ward: {
+                        include: {
+                          district: { include: { province: true } },
+                        },
+                      },
+                    },
+                  },
+                },
+                orderBy: { stopOrder: 'asc' },
+              },
             },
           },
+          vehicle: { include: { vehicleType: true } },
+          stopPrices: { include: { busStop: true } },
           _count: {
             select: {
-              seats: {
-                where: {
-                  status: SeatStatus.AVAILABLE,
-                },
-              },
+              seats: { where: { status: SeatStatus.AVAILABLE } },
             },
           },
         },
         skip,
         take: pageSize,
-        orderBy: {
-          departureTime: 'asc',
-        },
+        orderBy: { departureTime: 'asc' },
       }),
-      prisma.trip.count({
-        where: filter,
-      }),
+      prisma.trip.count({ where: filter }),
     ]);
 
-    // Generate image URLs for trips
+    // Generate image URLs
     const tripsWithImageUrls = await Promise.all(
       trips.map(async (trip) => {
         let imageUrl = null;
         if (trip.image) {
           imageUrl = await getSignedUrlForFile(trip.image);
         }
-
         return {
           ...trip,
           imageUrl,
@@ -269,20 +344,14 @@ export const getTripList = async (req: Request, res: Response): Promise<void> =>
       })
     );
 
-    // Calculate pagination info
     const totalPages = Math.ceil(totalCount / pageSize);
 
-    sendSuccess(
+    return sendSuccess(
       res,
       'trip.listRetrieved',
       {
         data: tripsWithImageUrls,
-        pagination: {
-          page,
-          pageSize,
-          totalCount,
-          totalPages,
-        },
+        pagination: { page, pageSize, totalCount, totalPages },
       },
       language
     );
@@ -314,19 +383,13 @@ export const getTripDetails = async (req: Request, res: Response): Promise<void>
                   include: {
                     ward: {
                       include: {
-                        district: {
-                          include: {
-                            province: true,
-                          },
-                        },
+                        district: { include: { province: true } },
                       },
                     },
                   },
                 },
               },
-              orderBy: {
-                stopOrder: 'asc',
-              },
+              orderBy: { stopOrder: 'asc' },
             },
           },
         },
@@ -334,20 +397,12 @@ export const getTripDetails = async (req: Request, res: Response): Promise<void>
           include: {
             vehicleType: true,
             driver: {
-              select: {
-                id: true,
-                name: true,
-                phoneNumber: true,
-                avatar: true,
-              },
+              select: { id: true, name: true, phoneNumber: true, avatar: true },
             },
           },
         },
-        seats: {
-          orderBy: {
-            seatNumber: 'asc',
-          },
-        },
+        seats: { orderBy: { seatNumber: 'asc' } },
+        stopPrices: { include: { busStop: true } },
       },
     });
 
@@ -356,34 +411,26 @@ export const getTripDetails = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Generate image URL if exists
     let imageUrl = null;
     if (trip.image) {
       imageUrl = await getSignedUrlForFile(trip.image);
     }
 
-    // Get driver avatar if exists
     let driverAvatarUrl = null;
     if (trip.vehicle.driver?.avatar) {
       driverAvatarUrl = await getSignedUrlForFile(trip.vehicle.driver.avatar);
     }
 
-    // Prepare response data with all image URLs
     const result = {
       ...trip,
       imageUrl,
       vehicle: {
         ...trip.vehicle,
-        driver: trip.vehicle.driver
-          ? {
-              ...trip.vehicle.driver,
-              avatarUrl: driverAvatarUrl,
-            }
-          : null,
+        driver: trip.vehicle.driver ? { ...trip.vehicle.driver, avatarUrl: driverAvatarUrl } : null,
       },
     };
 
-    sendSuccess(res, 'trip.detailsRetrieved', result, language);
+    return sendSuccess(res, 'trip.detailsRetrieved', result, language);
   } catch (error) {
     console.error('Error retrieving trip details:', error);
     sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
@@ -398,11 +445,21 @@ export const updateTrip = async (req: RequestWithFile, res: Response): Promise<v
 
   try {
     const { id } = req.params;
-    const { routeId, vehicleId, departureTime, arrivalTime, basePrice, specialPrice, status, changeReason } = req.body;
+    const {
+      routeId,
+      vehicleId,
+      departureTime,
+      arrivalTime,
+      basePrice,
+      specialPrice,
+      status,
+      changeReason,
+      stopPrices,
+    } = req.body;
 
-    // Check if trip exists
     const trip = await prisma.trip.findUnique({
       where: { id },
+      include: { seats: true },
     });
 
     if (!trip) {
@@ -413,7 +470,6 @@ export const updateTrip = async (req: RequestWithFile, res: Response): Promise<v
       return;
     }
 
-    // Don't allow updating completed or in-progress trips
     if (trip.status === TripStatus.COMPLETED || trip.status === TripStatus.IN_PROGRESS) {
       if (req.file && fs.existsSync(req.file.path)) {
         await safeDeleteFile(req.file.path);
@@ -422,15 +478,35 @@ export const updateTrip = async (req: RequestWithFile, res: Response): Promise<v
       return;
     }
 
-    // Build update data
-    const updateData: any = {};
-    const changedFields: any = {};
+    // Validate stopPrices if provided
+    let parsedStopPrices = [];
+    if (stopPrices) {
+      try {
+        parsedStopPrices = JSON.parse(stopPrices);
+        if (!Array.isArray(parsedStopPrices)) {
+          throw new Error('stopPrices must be an array');
+        }
+        for (const stopPrice of parsedStopPrices) {
+          if (!stopPrice.busStopId || typeof stopPrice.price !== 'number') {
+            throw new Error('Each stopPrice must have busStopId and price');
+          }
+        }
+      } catch (error) {
+        if (req.file && fs.existsSync(req.file.path)) {
+          await safeDeleteFile(req.file.path);
+        }
+        sendBadRequest(res, 'trip.invalidStopPrices', null, language);
+        return;
+      }
+    }
 
-    // Track changes for history
-    if (routeId && routeId !== trip.routeId) {
-      // Check if route exists
-      const route = await prisma.route.findUnique({
-        where: { id: routeId },
+    // Validate route and stop prices
+    let route = null;
+    if (routeId || parsedStopPrices.length > 0) {
+      const targetRouteId = routeId || trip.routeId;
+      route = await prisma.route.findUnique({
+        where: { id: targetRouteId },
+        include: { routeStops: { include: { busStop: true } } },
       });
 
       if (!route) {
@@ -441,17 +517,36 @@ export const updateTrip = async (req: RequestWithFile, res: Response): Promise<v
         return;
       }
 
+      if (parsedStopPrices.length > 0) {
+        const routeStopIds = route.routeStops.map((rs) => rs.busStopId);
+        for (const stopPrice of parsedStopPrices) {
+          if (!routeStopIds.includes(stopPrice.busStopId)) {
+            if (req.file && fs.existsSync(req.file.path)) {
+              await safeDeleteFile(req.file.path);
+            }
+            sendBadRequest(res, 'trip.invalidBusStopForRoute', null, language);
+            return;
+          }
+        }
+      }
+    }
+
+    const updateData: any = {};
+    const changedFields: any = {};
+
+    if (routeId && routeId !== trip.routeId) {
       updateData.routeId = routeId;
       changedFields.routeId = { from: trip.routeId, to: routeId };
     }
 
+    let newVehicle = null;
     if (vehicleId && vehicleId !== trip.vehicleId) {
-      // Check if vehicle exists
-      const vehicle = await prisma.vehicle.findUnique({
+      newVehicle = await prisma.vehicle.findUnique({
         where: { id: vehicleId },
+        include: { vehicleType: true },
       });
 
-      if (!vehicle) {
+      if (!newVehicle) {
         if (req.file && fs.existsSync(req.file.path)) {
           await safeDeleteFile(req.file.path);
         }
@@ -459,11 +554,19 @@ export const updateTrip = async (req: RequestWithFile, res: Response): Promise<v
         return;
       }
 
+      const seatConfig = newVehicle.vehicleType.seatConfiguration as any;
+      if (!seatConfig?.decks || !Array.isArray(seatConfig.decks)) {
+        if (req.file && fs.existsSync(req.file.path)) {
+          await safeDeleteFile(req.file.path);
+        }
+        sendBadRequest(res, 'vehicle.invalidSeatConfiguration', null, language);
+        return;
+      }
+
       updateData.vehicleId = vehicleId;
       changedFields.vehicleId = { from: trip.vehicleId, to: vehicleId };
     }
 
-    // Handle date updates
     if (departureTime) {
       const parsedDepartureTime = new Date(departureTime);
       updateData.departureTime = parsedDepartureTime;
@@ -482,7 +585,6 @@ export const updateTrip = async (req: RequestWithFile, res: Response): Promise<v
       };
     }
 
-    // Validate that departure time is before arrival time
     if ((updateData.departureTime || trip.departureTime) >= (updateData.arrivalTime || trip.arrivalTime)) {
       if (req.file && fs.existsSync(req.file.path)) {
         await safeDeleteFile(req.file.path);
@@ -491,7 +593,6 @@ export const updateTrip = async (req: RequestWithFile, res: Response): Promise<v
       return;
     }
 
-    // Handle price updates
     if (basePrice !== undefined) {
       const parsedBasePrice = parseFloat(basePrice);
       updateData.basePrice = parsedBasePrice;
@@ -504,11 +605,8 @@ export const updateTrip = async (req: RequestWithFile, res: Response): Promise<v
       changedFields.specialPrice = { from: trip.specialPrice, to: parsedSpecialPrice };
     }
 
-    // Handle status update
     if (status && status !== trip.status) {
-      // Validate status transition
       const isValidTransition = validateStatusTransition(trip.status, status as TripStatus);
-
       if (!isValidTransition) {
         if (req.file && fs.existsSync(req.file.path)) {
           await safeDeleteFile(req.file.path);
@@ -516,33 +614,24 @@ export const updateTrip = async (req: RequestWithFile, res: Response): Promise<v
         sendBadRequest(res, 'trip.invalidStatusTransition', null, language);
         return;
       }
-
       updateData.status = status;
       changedFields.status = { from: trip.status, to: status };
     }
 
-    // Handle file upload if present
     let imageKey = trip.image;
     if (req.file) {
       try {
-        // Optimize the image
         const optimizedImagePath = await optimizeImage(req.file.path, {
           width: 800,
           height: 600,
           quality: 80,
           format: 'webp',
         });
-
-        // Create a unique key for the trip image
         const fileExtension = '.webp';
         const fileName = `${Date.now()}${fileExtension}`;
         const filePath = `${StorageFolders.TRIPS}`;
         const fileKey = `${filePath}/${fileName}`;
-
-        // Upload to Cloudflare R2
         await uploadFileToR2(optimizedImagePath, filePath, fileName, 'image/webp');
-
-        // Delete old image if exists
         if (trip.image) {
           try {
             await deleteFileFromR2(trip.image);
@@ -550,12 +639,9 @@ export const updateTrip = async (req: RequestWithFile, res: Response): Promise<v
             console.error('Error deleting old trip image:', deleteError);
           }
         }
-
         imageKey = fileKey;
         updateData.image = fileKey;
         changedFields.image = { from: trip.image, to: fileKey };
-
-        // Clean up temp files
         await safeDeleteFile(req.file.path);
         await safeDeleteFile(optimizedImagePath);
       } catch (uploadError) {
@@ -568,84 +654,113 @@ export const updateTrip = async (req: RequestWithFile, res: Response): Promise<v
       }
     }
 
-    // Skip update if no changes
-    if (Object.keys(updateData).length === 0) {
-      sendSuccess(res, 'trip.noChanges', null, language);
-      return;
-    }
-
-    // Perform update in transaction to ensure history is recorded
     const updatedTrip = await prisma.$transaction(async (tx) => {
-      // Update the trip
+      if (newVehicle) {
+        const bookedSeats = trip.seats.filter((seat) => seat.status === SeatStatus.BOOKED);
+        if (bookedSeats.length > 0) {
+          throw new Error('Cannot change vehicle: trip has booked seats');
+        }
+        await tx.seat.deleteMany({ where: { tripId: id } });
+        const seatConfig = newVehicle.vehicleType.seatConfiguration as any;
+        const seatsToCreate = [];
+        for (const deck of seatConfig.decks) {
+          if (!deck.rows || !Array.isArray(deck.rows)) {
+            throw new Error(`Invalid rows for deck ${deck.deckId}`);
+          }
+          for (const row of deck.rows) {
+            if (!row.seats || !Array.isArray(row.seats)) {
+              throw new Error(`Invalid seats for row ${row.rowId} in deck ${deck.deckId}`);
+            }
+            for (const seat of row.seats) {
+              if (seat.exists && seat.number && seat.type !== 'DRIVER') {
+                seatsToCreate.push({
+                  tripId: id,
+                  seatNumber: seat.number,
+                  seatType: seat.type as SeatType,
+                  status: SeatStatus.AVAILABLE,
+                });
+              }
+            }
+          }
+        }
+        await tx.seat.createMany({ data: seatsToCreate });
+      }
+
+      // Update stop prices
+      if (parsedStopPrices.length > 0) {
+        await tx.tripStopPrice.deleteMany({ where: { tripId: id } });
+        await tx.tripStopPrice.createMany({
+          data: parsedStopPrices.map((sp) => ({
+            tripId: id,
+            busStopId: sp.busStopId,
+            price: sp.price,
+          })),
+        });
+        changedFields.stopPrices = { updated: parsedStopPrices };
+      }
+
       const updated = await tx.trip.update({
         where: { id },
         data: updateData,
         include: {
-          route: true,
+          route: {
+            include: {
+              sourceProvince: true,
+              destinationProvince: true,
+              routeStops: { include: { busStop: true } },
+            },
+          },
           vehicle: {
             include: {
               vehicleType: true,
               driver: {
-                select: {
-                  id: true,
-                  name: true,
-                  phoneNumber: true,
-                  avatar: true,
-                },
+                select: { id: true, name: true, phoneNumber: true, avatar: true },
               },
             },
           },
           seats: true,
+          stopPrices: { include: { busStop: true } },
         },
       });
 
-      // Record history
-      await tx.tripHistory.create({
-        data: {
-          tripId: id,
-          changedFields: changedFields,
-          changedBy: (req.user as any).userId,
-          changeReason: changeReason || 'Trip updated',
-        },
-      });
+      if (Object.keys(changedFields).length > 0) {
+        await tx.tripHistory.create({
+          data: {
+            tripId: id,
+            changedFields: changedFields,
+            changedBy: (req.user as any).userId,
+            changeReason: changeReason || 'Trip updated',
+          },
+        });
+      }
 
       return updated;
     });
 
-    // Generate image URL if exists
     let imageUrl = null;
     if (updatedTrip.image) {
       imageUrl = await getSignedUrlForFile(updatedTrip.image);
     }
 
-    // Get driver avatar if exists
     let driverAvatarUrl = null;
     if (updatedTrip.vehicle.driver?.avatar) {
       driverAvatarUrl = await getSignedUrlForFile(updatedTrip.vehicle.driver.avatar);
     }
 
-    // Prepare response with URLs
     const result = {
       ...updatedTrip,
       imageUrl,
       vehicle: {
         ...updatedTrip.vehicle,
-        driver: updatedTrip.vehicle.driver
-          ? {
-              ...updatedTrip.vehicle.driver,
-              avatarUrl: driverAvatarUrl,
-            }
-          : null,
+        driver: updatedTrip.vehicle.driver ? { ...updatedTrip.vehicle.driver, avatarUrl: driverAvatarUrl } : null,
       },
     };
 
-    sendSuccess(res, 'trip.updated', result, language);
+    return sendSuccess(res, 'trip.updated', result, language);
   } catch (error) {
-    // Clean up file if exists
     if (req.file && fs.existsSync(req.file.path)) {
       await safeDeleteFile(req.file.path);
     }
-
     console.error('Error updating trip:', error);
     sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
   }
@@ -767,7 +882,7 @@ export const deleteTrip = async (req: Request, res: Response): Promise<void> => 
       }
     });
 
-    sendSuccess(res, 'trip.deleted', null, language);
+    return sendSuccess(res, 'trip.deleted', null, language);
   } catch (error) {
     console.error('Error deleting trip:', error);
     sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
@@ -823,7 +938,7 @@ export const restoreTrip = async (req: Request, res: Response): Promise<void> =>
       });
     });
 
-    sendSuccess(res, 'trip.restored', null, language);
+    return sendSuccess(res, 'trip.restored', null, language);
   } catch (error) {
     console.error('Error restoring trip:', error);
     sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
@@ -865,7 +980,7 @@ export const getTripSeats = async (req: Request, res: Response): Promise<void> =
     const seatConfig = trip.vehicle.vehicleType.seatConfiguration;
 
     // Return seats with configuration
-    sendSuccess(
+    return sendSuccess(
       res,
       'trip.seatsRetrieved',
       {
@@ -895,20 +1010,17 @@ export const searchTrips = async (req: Request, res: Response): Promise<void> =>
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
 
   try {
-    const {
-      sourceProvinceId,
-      destinationProvinceId,
-      departureDate,
-      returnDate,
-      maxPrice,
-      minPrice,
-      page = '1',
-      pageSize = '20',
-    } = req.query;
+    const { sourceProvinceId, destinationProvinceId, departureDate, returnDate, maxPrice, minPrice, page, pageSize } =
+      req.query;
 
     // Parse pagination parameters
-    const pageNum = parseInt(page as string);
-    const pageSizeNum = parseInt(pageSize as string);
+    const pageNum = page ? parseInt(page as string) : parseInt(process.env.PAGINATION_DEFAULT_PAGE as string) || 1;
+    const pageSizeNum = pageSize
+      ? parseInt(pageSize as string)
+      : parseInt(process.env.PAGINATION_DEFAULT_LIMIT as string) || 10;
+
+    // const pageNum = parseInt(page as string);
+    // const pageSizeNum = parseInt(pageSize as string);
     const skip = (pageNum - 1) * pageSizeNum;
 
     // Build filters
@@ -979,7 +1091,7 @@ export const searchTrips = async (req: Request, res: Response): Promise<void> =>
     });
 
     if (routes.length === 0) {
-      sendSuccess(
+      return sendSuccess(
         res,
         'trip.noRoutesFound',
         {
@@ -1174,7 +1286,7 @@ export const searchTrips = async (req: Request, res: Response): Promise<void> =>
     const totalPages = Math.ceil(totalCount / pageSizeNum);
     const returnTotalPages = Math.ceil(returnTotalCount / pageSizeNum);
 
-    sendSuccess(
+    return sendSuccess(
       res,
       'trip.searchResults',
       {
@@ -1275,7 +1387,7 @@ export const getTripHistory = async (req: Request, res: Response): Promise<void>
       })
     );
 
-    sendSuccess(res, 'trip.historyRetrieved', historyWithUsers, language);
+    return sendSuccess(res, 'trip.historyRetrieved', historyWithUsers, language);
   } catch (error) {
     console.error('Error retrieving trip history:', error);
     sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
@@ -1349,7 +1461,7 @@ export const updateSeatStatus = async (req: Request, res: Response): Promise<voi
       },
     });
 
-    sendSuccess(res, 'seat.statusUpdated', updatedSeat, language);
+    return sendSuccess(res, 'seat.statusUpdated', updatedSeat, language);
   } catch (error) {
     console.error('Error updating seat status:', error);
     sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
@@ -1434,7 +1546,7 @@ export const getTripsByDateRange = async (req: Request, res: Response): Promise<
       };
     });
 
-    sendSuccess(res, 'trip.calendarRetrieved', calendarEvents, language);
+    return sendSuccess(res, 'trip.calendarRetrieved', calendarEvents, language);
   } catch (error) {
     console.error('Error retrieving trip calendar:', error);
     sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
@@ -1452,7 +1564,7 @@ export const exportTripsData = async (req: Request, res: Response): Promise<void
 
     // Build filter
     const filter: any = {
-      deletedAt: null,
+      OR: [{ deletedAt: null }, { deletedAt: { isSet: false } }],
     };
 
     if (startDate && endDate) {
@@ -1559,7 +1671,7 @@ export const exportTripsData = async (req: Request, res: Response): Promise<void
       res.send(csv);
     } else {
       // Default to JSON
-      sendSuccess(res, 'trip.dataExported', exportData, language);
+      return sendSuccess(res, 'trip.dataExported', exportData, language);
     }
   } catch (error) {
     console.error('Error exporting trip data:', error);

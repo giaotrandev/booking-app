@@ -221,6 +221,28 @@
                 transform: rotate(360deg);
             }
         }
+
+        .deck-container {
+            margin-bottom: 20px;
+        }
+
+        .deck-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .image-preview {
+            max-width: 200px;
+            max-height: 150px;
+            margin-top: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .image-preview.show {
+            display: block;
+        }
     </style>
 </head>
 
@@ -278,8 +300,63 @@
                     <label for="tripSpecialPrice">Special Price (optional):</label>
                     <input type="number" id="tripSpecialPrice" placeholder="Enter special price">
                 </div>
+                <div class="form-group form-full">
+                    <label for="tripImage">Trip Image (optional):</label>
+                    <input type="file" id="tripImage" accept="image/*">
+                </div>
             </div>
             <button id="createTripBtn">Create Trip</button>
+        </div>
+
+        <div class="container" id="updateTripContainer" style="display: none;">
+            <h2>Update Trip</h2>
+            <div class="form-grid">
+                <input type="hidden" id="updateTripId">
+                <div class="form-group">
+                    <label for="updateTripRouteId">Route:</label>
+                    <select id="updateTripRouteId"></select>
+                </div>
+                <div class="form-group">
+                    <label for="updateTripVehicleId">Vehicle:</label>
+                    <select id="updateTripVehicleId"></select>
+                </div>
+                <div class="form-group">
+                    <label for="updateTripDepartureTime">Departure Time:</label>
+                    <input type="datetime-local" id="updateTripDepartureTime">
+                </div>
+                <div class="form-group">
+                    <label for="updateTripArrivalTime">Arrival Time:</label>
+                    <input type="datetime-local" id="updateTripArrivalTime">
+                </div>
+                <div class="form-group">
+                    <label for="updateTripBasePrice">Base Price:</label>
+                    <input type="number" id="updateTripBasePrice" placeholder="Enter base price">
+                </div>
+                <div class="form-group">
+                    <label for="updateTripSpecialPrice">Special Price (optional):</label>
+                    <input type="number" id="updateTripSpecialPrice" placeholder="Enter special price">
+                </div>
+                <div class="form-group">
+                    <label for="updateTripStatus">Status:</label>
+                    <select id="updateTripStatus">
+                        <option value="SCHEDULED">Scheduled</option>
+                        <option value="IN_PROGRESS">In Progress</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="CANCELLED">Cancelled</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="updateTripChangeReason">Change Reason:</label>
+                    <input type="text" id="updateTripChangeReason" placeholder="Enter reason for change">
+                </div>
+                <div class="form-group form-full">
+                    <label for="updateTripImage">Trip Image (optional):</label>
+                    <input type="file" id="updateTripImage" accept="image/*">
+                    <img id="currentTripImage" class="image-preview" src="" alt="Current Trip Image">
+                </div>
+            </div>
+            <button id="updateTripBtn">Update Trip</button>
+            <button id="cancelUpdateTripBtn" class="warning">Cancel</button>
         </div>
 
         <div class="container">
@@ -414,6 +491,8 @@
         const testConnectionBtn = document.getElementById('testConnectionBtn');
         const connectionStatus = document.getElementById('connectionStatus');
         const createTripBtn = document.getElementById('createTripBtn');
+        const updateTripBtn = document.getElementById('updateTripBtn');
+        const cancelUpdateTripBtn = document.getElementById('cancelUpdateTripBtn');
         const refreshTripsBtn = document.getElementById('refreshTripsBtn');
         const refreshRoutesBtn = document.getElementById('refreshRoutesBtn');
         const refreshVehiclesBtn = document.getElementById('refreshVehiclesBtn');
@@ -439,25 +518,29 @@
             return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
         }
 
-        // function addLog(message, type = 'info') {
-        //     const logEntry = document.createElement('div');
-        //     logEntry.className = `log-entry ${type}`;
-        //     logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-        //     eventLogs.appendChild(logEntry);
-        //     eventLogs.scrollTop = eventLogs.scrollHeight;
-        // }
+        function formatDateTimeLocal(dateString) {
+            const date = new Date(dateString);
+            return date.toISOString().slice(0, 16);
+        }
+
+        function addLog(message, type = 'info') {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            eventLogs.appendChild(logEntry);
+            eventLogs.scrollTop = eventLogs.scrollHeight;
+        }
 
         async function fetchWithAuth(url, options = {}) {
             const token = document.getElementById('adminToken').value;
             const baseUrl = document.getElementById('apiUrl').value;
 
             if (!token) {
-                // addLog('Please enter an admin JWT token', 'error');
+                addLog('Please enter an admin JWT token', 'error');
                 throw new Error('Admin token is required');
             }
 
             const headers = {
-                'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
                 ...options.headers,
             };
@@ -475,7 +558,7 @@
 
                 return await response.json();
             } catch (error) {
-                // addLog(`API error: ${error.message}`, 'error');
+                addLog(`API error: ${error.message}`, 'error');
                 throw error;
             }
         }
@@ -483,13 +566,14 @@
         // Tab navigation
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
-                // Remove active class from all tabs
                 tabs.forEach(t => t.classList.remove('active'));
                 tabContents.forEach(c => c.classList.remove('active'));
 
-                // Add active class to clicked tab
                 tab.classList.add('active');
                 document.getElementById(`${tab.dataset.tab}Tab`).classList.add('active');
+
+                // Hide update form when switching tabs
+                document.getElementById('updateTripContainer').style.display = 'none';
             });
         });
 
@@ -501,20 +585,19 @@
 
                 if (response.status === 'OK') {
                     connectionStatus.innerHTML = '<span class="success">✓ Connected successfully</span>';
-                    // addLog('API connection successful', 'success');
+                    addLog('API connection successful', 'success');
 
-                    // Load initial data
                     loadRoutes();
                     loadVehicles();
                     loadVehicleTypes();
                     loadTrips();
                 } else {
                     connectionStatus.innerHTML = '<span class="error">✗ Connection failed</span>';
-                    // addLog('API connection failed', 'error');
+                    addLog('API connection failed', 'error');
                 }
             } catch (error) {
                 connectionStatus.innerHTML = `<span class="error">✗ Error: ${error.message}</span>`;
-                // addLog(`Connection error: ${error.message}`, 'error');
+                addLog(`Connection error: ${error.message}`, 'error');
             }
         });
 
@@ -522,28 +605,25 @@
         async function loadRoutes() {
             try {
                 const response = await fetchWithAuth('/routes');
-                console.log("Dô hong trời 1", )
 
                 if (response.success) {
-                    console.log("Dô hong trời 2", )
+                    addLog(`Loaded ${response.data?.data.length} routes`, 'info');
 
-                    // addLog(`Loaded ${response.data?.data.length} routes`, 'info');
+                    const createRouteSelect = document.getElementById('tripRouteId');
+                    const updateRouteSelect = document.getElementById('updateTripRouteId');
+                    createRouteSelect.innerHTML = '';
+                    updateRouteSelect.innerHTML = '';
 
-                    // Clear existing options
-                    const routeSelect = document.getElementById('tripRouteId');
-                    routeSelect.innerHTML = '';
-                    console.log("Dô hong trời 3", response.data?.data)
-
-                    // Add route options
                     response.data?.data.forEach(route => {
-                        console.log("Dô hong trời 4")
-                        const option = document.createElement('option');
-                        option.value = route.id;
-                        option.textContent = `${route.name} (${route.sourceProvince.name} -> ${route.destinationProvince.name})`;
-                        routeSelect.appendChild(option);
+                        const option1 = document.createElement('option');
+                        option1.value = route.id;
+                        option1.textContent = `${route.name} (${route.sourceProvince.name} -> ${route.destinationProvince.name})`;
+                        createRouteSelect.appendChild(option1);
+
+                        const option2 = option1.cloneNode(true);
+                        updateRouteSelect.appendChild(option2);
                     });
 
-                    // Populate routes table
                     routesTable.innerHTML = '';
                     response.data?.data.forEach(route => {
                         const row = document.createElement('tr');
@@ -558,11 +638,10 @@
                         routesTable.appendChild(row);
                     });
                 } else {
-                    // addLog(`Failed to load routes: ${response.message}`, 'error');
+                    addLog(`Failed to load routes: ${response.message}`, 'error');
                 }
             } catch (error) {
-            console.error(error)
-                // addLog(`Error loading routes: ${error.message}`, 'error');
+                addLog(`Error loading routes: ${error.message}`, 'error');
             }
         }
 
@@ -572,21 +651,23 @@
                 const response = await fetchWithAuth('/vehicles');
 
                 if (response.success) {
-                    // addLog(`Loaded ${response.data?.data.length} vehicles`, 'info');
+                    addLog(`Loaded ${response.data?.data.length} vehicles`, 'info');
 
-                    // Clear existing options
-                    const vehicleSelect = document.getElementById('tripVehicleId');
-                    vehicleSelect.innerHTML = '';
+                    const createVehicleSelect = document.getElementById('tripVehicleId');
+                    const updateVehicleSelect = document.getElementById('updateTripVehicleId');
+                    createVehicleSelect.innerHTML = '';
+                    updateVehicleSelect.innerHTML = '';
 
-                    // Add vehicle options
                     response.data?.data.forEach(vehicle => {
-                        const option = document.createElement('option');
-                        option.value = vehicle.id;
-                        option.textContent = `${vehicle.plateNumber} (${vehicle.vehicleType.name})`;
-                        vehicleSelect.appendChild(option);
+                        const option1 = document.createElement('option');
+                        option1.value = vehicle.id;
+                        option1.textContent = `${vehicle.plateNumber} (${vehicle.vehicleType.name})`;
+                        createVehicleSelect.appendChild(option1);
+
+                        const option2 = option1.cloneNode(true);
+                        updateVehicleSelect.appendChild(option2);
                     });
 
-                    // Populate vehicles table
                     vehiclesTable.innerHTML = '';
                     response.data?.data.forEach(vehicle => {
                         const row = document.createElement('tr');
@@ -600,10 +681,10 @@
                         vehiclesTable.appendChild(row);
                     });
                 } else {
-                    // addLog(`Failed to load vehicles: ${response.message}`, 'error');
+                    addLog(`Failed to load vehicles: ${response.message}`, 'error');
                 }
             } catch (error) {
-                // addLog(`Error loading vehicles: ${error.message}`, 'error');
+                addLog(`Error loading vehicles: ${error.message}`, 'error');
             }
         }
 
@@ -613,9 +694,8 @@
                 const response = await fetchWithAuth('/vehicle-types');
 
                 if (response.success) {
-                    // addLog(`Loaded ${response.data?.data.length} vehicle types`, 'info');
+                    addLog(`Loaded ${response.data?.data.length} vehicle types`, 'info');
 
-                    // Populate vehicle types table
                     vehicleTypesTable.innerHTML = '';
                     response.data?.data.forEach(type => {
                         const row = document.createElement('tr');
@@ -630,17 +710,16 @@
                         vehicleTypesTable.appendChild(row);
                     });
 
-                    // Add event listeners to view buttons
                     document.querySelectorAll('.view-vehicle-type').forEach(btn => {
                         btn.addEventListener('click', () => {
                             viewVehicleType(btn.dataset.id);
                         });
                     });
                 } else {
-                    // addLog(`Failed to load vehicle types: ${response.message}`, 'error');
+                    addLog(`Failed to load vehicle types: ${response.message}`, 'error');
                 }
             } catch (error) {
-                // addLog(`Error loading vehicle types: ${error.message}`, 'error');
+                addLog(`Error loading vehicle types: ${error.message}`, 'error');
             }
         }
 
@@ -650,13 +729,11 @@
                 const response = await fetchWithAuth(`/vehicle-types/${id}`);
 
                 if (response.success) {
-                    const vehicleType = response.data?.data;
-                    // addLog(`Loaded vehicle type: ${vehicleType.name}`, 'info');
+                    const vehicleType = response.data?.data.vehicleType;
+                    addLog(`Loaded vehicle type: ${vehicleType.name}`, 'info');
 
-                    // Show vehicle type detail container
                     document.getElementById('vehicleTypeDetailContainer').style.display = 'block';
 
-                    // Populate vehicle type details
                     document.getElementById('vehicleTypeDetails').innerHTML = `
                         <div class="form-grid">
                             <div class="form-group">
@@ -670,13 +747,12 @@
                         </div>
                     `;
 
-                    // Render seat layout
                     renderSeatLayout(vehicleType.seatConfiguration);
                 } else {
-                    // addLog(`Failed to load vehicle type: ${response.message}`, 'error');
+                    addLog(`Failed to load vehicle type: ${response.message}`, 'error');
                 }
             } catch (error) {
-                // addLog(`Error loading vehicle type: ${error.message}`, 'error');
+                addLog(`Error loading vehicle type: ${error.message}`, 'error');
             }
         }
 
@@ -685,40 +761,75 @@
             const layoutGrid = document.getElementById('seatLayoutGrid');
             layoutGrid.innerHTML = '';
 
-            if (!seatConfig || !seatConfig.rows) {
+            if (!seatConfig) {
                 layoutGrid.innerHTML = '<p>No seat configuration available</p>';
+                addLog('Seat configuration is missing', 'error');
                 return;
             }
 
-            // Calculate grid size
-            const numRows = seatConfig.rows.length;
-            const numCols = Math.max(...seatConfig.rows.map(row => row.seats.length));
+            const decks = seatConfig.decks || [{ deckId: 'default', name: 'Main Deck', rows: seatConfig.rows || [] }];
 
-            // Create grid layout
-            layoutGrid.style.display = 'grid';
-            layoutGrid.style.gridTemplateRows = `repeat(${numRows}, 40px)`;
-            layoutGrid.style.gridTemplateColumns = `repeat(${numCols}, 40px)`;
-            layoutGrid.style.gap = '5px';
+            if (!Array.isArray(decks)) {
+                layoutGrid.innerHTML = '<p>Invalid seat configuration: decks must be an array</p>';
+                addLog('Seat configuration decks is not an array', 'error');
+                return;
+            }
 
-            // Create seats
-            seatConfig.rows.forEach((row, rowIndex) => {
-                row.seats.forEach((seat, colIndex) => {
-                    const seatElement = document.createElement('div');
-                    seatElement.className = `vehicle-seat exists-${seat.exists}`;
+            decks.forEach(deck => {
+                const deckContainer = document.createElement('div');
+                deckContainer.className = 'deck-container';
 
-                    if (seat.exists) {
-                        seatElement.textContent = seat.number;
+                const deckTitle = document.createElement('div');
+                deckTitle.className = 'deck-title';
+                deckTitle.textContent = deck.name || `Deck ${deck.deckId}`;
+                deckContainer.appendChild(deckTitle);
 
-                        if (seat.type === 'PREMIUM') {
-                            seatElement.classList.add('premium');
-                        }
+                const deckGrid = document.createElement('div');
+                deckGrid.className = 'deck-grid';
+                deckContainer.appendChild(deckGrid);
+
+                if (!deck.rows || !Array.isArray(deck.rows)) {
+                    deckGrid.innerHTML = '<p>No rows defined for this deck</p>';
+                    addLog(`No rows defined for deck ${deck.deckId}`, 'error');
+                    return;
+                }
+
+                const numRows = deck.rows.length;
+                const numCols = Math.max(...deck.rows.map(row => row.seats?.length || 0));
+
+                deckGrid.style.display = 'grid';
+                deckGrid.style.gridTemplateRows = `repeat(${numRows}, 40px)`;
+                deckGrid.style.gridTemplateColumns = `repeat(${numCols}, 40px)`;
+                deckGrid.style.gap = '5px';
+
+                deck.rows.forEach((row, rowIndex) => {
+                    if (!row.seats || !Array.isArray(row.seats)) {
+                        deckGrid.innerHTML += '<p>Invalid row: seats must be an array</p>';
+                        addLog(`Invalid seats for row ${row.rowId} in deck ${deck.deckId}`, 'error');
+                        return;
                     }
 
-                    seatElement.style.gridRow = `${rowIndex + 1}`;
-                    seatElement.style.gridColumn = `${colIndex + 1}`;
+                    row.seats.forEach((seat, colIndex) => {
+                        const seatElement = document.createElement('div');
+                        seatElement.className = `vehicle-seat exists-${seat.exists}`;
 
-                    layoutGrid.appendChild(seatElement);
+                        if (seat.exists) {
+                            seatElement.textContent = seat.number || '-';
+                            if (seat.type === 'PREMIUM') {
+                                seatElement.classList.add('premium');
+                            }
+                            if (seat.position) {
+                                seatElement.title = `${seat.position} seat`;
+                            }
+                        }
+
+                        seatElement.style.gridRow = `${rowIndex + 1}`;
+                        seatElement.style.gridColumn = `${colIndex + 1}`;
+                        deckGrid.appendChild(seatElement);
+                    });
                 });
+
+                layoutGrid.appendChild(deckContainer);
             });
         }
 
@@ -728,11 +839,10 @@
                 const response = await fetchWithAuth('/trips');
 
                 if (response.success) {
-                    // addLog(`Loaded ${response.data?.data.data.length} trips`, 'info');
+                    addLog(`Loaded ${response.data?.data.length} trips`, 'info');
 
-                    // Populate trips table
                     tripsTable.innerHTML = '';
-                    response.data?.data?.forEach(trip => {
+                    response.data?.data.forEach(trip => {
                         const row = document.createElement('tr');
                         row.innerHTML = `
                             <td>${trip.id}</td>
@@ -743,23 +853,28 @@
                             <td>${trip.status}</td>
                             <td>
                                 <button class="info view-trip" data-id="${trip.id}">View</button>
+                                <button class="warning edit-trip" data-id="${trip.id}">Edit</button>
                             </td>
                         `;
                         tripsTable.appendChild(row);
                     });
 
-                    // Add event listeners to view buttons
                     document.querySelectorAll('.view-trip').forEach(btn => {
                         btn.addEventListener('click', () => {
                             viewTrip(btn.dataset.id);
                         });
                     });
+
+                    document.querySelectorAll('.edit-trip').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            editTrip(btn.dataset.id);
+                        });
+                    });
                 } else {
-                    // addLog(`Failed to load trips: ${response.message}`, 'error');
+                    addLog(`Failed to load trips: ${response.message}`, 'error');
                 }
             } catch (error) {
-                console.error(error)
-                // addLog(`Error loading trips: ${error.message}`, 'error');
+                addLog(`Error loading trips: ${error.message}`, 'error');
             }
         }
 
@@ -769,14 +884,11 @@
                 const response = await fetchWithAuth(`/trips/${id}`);
 
                 if (response.success) {
-                    console.log(response)
-                    const trip = response?.data;
-                    // addLog(`Loaded trip details: ${trip.route.name}`, 'info');
+                    const trip = response.data;
+                    addLog(`Loaded trip details: ${trip.route.name}`, 'info');
 
-                    // Show trip detail container
                     document.getElementById('tripDetailContainer').style.display = 'block';
 
-                    // Populate trip details
                     document.getElementById('tripDetails').innerHTML = `
                         <div class="form-grid">
                             <div class="form-group">
@@ -803,17 +915,59 @@
                                 <label>Status:</label>
                                 <div>${trip.status}</div>
                             </div>
+                            ${trip.imageUrl ? `
+                                <div class="form-group form-full">
+                                    <label>Trip Image:</label>
+                                    <img src="${trip.imageUrl}" alt="Trip Image" style="max-width: 200px; max-height: 150px; border-radius: 5px;">
+                                </div>
+                            ` : ''}
                         </div>
                     `;
 
-                    // Render seats
                     renderSeats(trip.seats);
                 } else {
-                    // addLog(`Failed to load trip details: ${response.message}`, 'error');
+                    addLog(`Failed to load trip details: ${response.message}`, 'error');
                 }
             } catch (error) {
-                    console.error(error)
-                // addLog(`Error loading trip details: ${error.message}`, 'error');
+                addLog(`Error loading trip details: ${error.message}`, 'error');
+            }
+        }
+
+        // Edit Trip
+        async function editTrip(id) {
+            try {
+                const response = await fetchWithAuth(`/trips/${id}`);
+
+                if (response.success) {
+                    const trip = response.data?.data;
+                    addLog(`Loaded trip for editing: ${trip.route.name}`, 'info');
+
+                    document.getElementById('updateTripContainer').style.display = 'block';
+
+                    document.getElementById('updateTripId').value = trip.id;
+                    document.getElementById('updateTripRouteId').value = trip.routeId;
+                    document.getElementById('updateTripVehicleId').value = trip.vehicleId;
+                    document.getElementById('updateTripDepartureTime').value = formatDateTimeLocal(trip.departureTime);
+                    document.getElementById('updateTripArrivalTime').value = formatDateTimeLocal(trip.arrivalTime);
+                    document.getElementById('updateTripBasePrice').value = trip.basePrice;
+                    document.getElementById('updateTripSpecialPrice').value = trip.specialPrice || '';
+                    document.getElementById('updateTripStatus').value = trip.status;
+                    document.getElementById('updateTripChangeReason').value = '';
+
+                    const currentImage = document.getElementById('currentTripImage');
+                    if (trip.imageUrl) {
+                        currentImage.src = trip.imageUrl;
+                        currentImage.classList.add('show');
+                    } else {
+                        currentImage.classList.remove('show');
+                    }
+
+                    document.getElementById('updateTripImage').value = '';
+                } else {
+                    addLog(`Failed to load trip for editing: ${response.message}`, 'error');
+                }
+            } catch (error) {
+                addLog(`Error loading trip for editing: ${error.message}`, 'error');
             }
         }
 
@@ -822,12 +976,15 @@
             const seatsContainer = document.getElementById('seatsContainer');
             seatsContainer.innerHTML = '';
 
-            if (!seats || seats.length === 0) {
+            console.log('Seats:', seats);
+            console.log('Seat length:', seats.length);
+
+            if (!seats || !Array.isArray(seats) || seats.length === 0) {
                 seatsContainer.innerHTML = '<p>No seats available</p>';
+                addLog('No seats available for this trip', 'warning');
                 return;
             }
 
-            // Group seats by seat number prefix (e.g., A1, A2, A3 -> A row)
             const seatsByRow = {};
             seats.forEach(seat => {
                 const match = seat.seatNumber.match(/([A-Za-z]+|^[0-9]+)/);
@@ -840,14 +997,11 @@
                 seatsByRow[rowPrefix].push(seat);
             });
 
-            // Sort rows alphabetically
             const sortedRows = Object.keys(seatsByRow).sort();
 
-            // Create seat display
             const seatsTable = document.createElement('table');
             seatsTable.className = 'table';
 
-            // Header
             const thead = document.createElement('thead');
             const headerRow = document.createElement('tr');
             headerRow.innerHTML = `
@@ -859,13 +1013,11 @@
             thead.appendChild(headerRow);
             seatsTable.appendChild(thead);
 
-            // Body
             const tbody = document.createElement('tbody');
 
             seats.forEach(seat => {
                 const row = document.createElement('tr');
 
-                // Determine status class
                 let statusClass = '';
                 switch (seat.status) {
                     case 'AVAILABLE':
@@ -898,7 +1050,6 @@
             seatsTable.appendChild(tbody);
             seatsContainer.appendChild(seatsTable);
 
-            // Add event listeners for seat actions
             document.querySelectorAll('.reset-seat').forEach(btn => {
                 btn.addEventListener('click', () => {
                     resetSeatStatus(btn.dataset.id, btn.dataset.tripId);
@@ -918,75 +1069,173 @@
                 });
 
                 if (response.success) {
-                    // addLog(`Seat ${seatId} reset to AVAILABLE`, 'success');
-                    // Refresh trip details to show updated seat status
+                    addLog(`Seat ${seatId} reset to AVAILABLE`, 'success');
                     viewTrip(tripId);
                 } else {
-                    // addLog(`Failed to reset seat: ${response.message}`, 'error');
+                    addLog(`Failed to reset seat: ${response.message}`, 'error');
                 }
             } catch (error) {
-                // addLog(`Error resetting seat: ${error.message}`, 'error');
+                addLog(`Error resetting seat: ${error.message}`, 'error');
             }
         }
 
         // Create Trip
-        createTripBtn.addEventListener('click', async () => {
+        createTripBtn.addEventListener('click', async (event) => {
+            event.preventDefault(); // Prevent default button behavior
             try {
+                addLog('Initiating trip creation', 'info');
+
                 const routeId = document.getElementById('tripRouteId').value;
                 const vehicleId = document.getElementById('tripVehicleId').value;
                 const departureTime = document.getElementById('tripDepartureTime').value;
                 const arrivalTime = document.getElementById('tripArrivalTime').value;
                 const basePrice = document.getElementById('tripBasePrice').value;
                 const specialPrice = document.getElementById('tripSpecialPrice').value;
+                const imageFile = document.getElementById('tripImage').files[0];
 
                 if (!routeId || !vehicleId || !departureTime || !arrivalTime || !basePrice) {
-                    // addLog('Please fill in all required fields', 'error');
+                    addLog('Please fill in all required fields', 'error');
                     return;
                 }
 
-                const tripData = {
-                    routeId,
-                    vehicleId,
-                    departureTime,
-                    arrivalTime,
-                    basePrice: parseFloat(basePrice),
-                };
-
-                if (specialPrice) {
-                    tripData.specialPrice = parseFloat(specialPrice);
+                if (imageFile && !['image/jpeg', 'image/png', 'image/webp'].includes(imageFile.type)) {
+                    addLog('Please upload a valid image (JPEG, PNG, or WebP)', 'error');
+                    return;
                 }
+
+                const formData = new FormData();
+                formData.append('routeId', routeId);
+                formData.append('vehicleId', vehicleId);
+                formData.append('departureTime', departureTime);
+                formData.append('arrivalTime', arrivalTime);
+                formData.append('basePrice', basePrice);
+                if (specialPrice) formData.append('specialPrice', specialPrice);
+                if (imageFile) formData.append('image', imageFile);
 
                 createTripBtn.disabled = true;
                 createTripBtn.innerHTML = '<span class="loading"></span> Creating...';
 
                 const response = await fetchWithAuth('/trips', {
                     method: 'POST',
-                    body: JSON.stringify(tripData)
+                    body: formData,
                 });
 
                 if (response.success) {
-                    // addLog(`Trip created successfully: ${response.data?.data.id}`, 'success');
+                    addLog(`Trip created successfully: ${response.data?.data.id}`, 'success');
 
-                    // Clear form fields
+                    document.getElementById('tripRouteId').value = '';
+                    document.getElementById('tripVehicleId').value = '';
                     document.getElementById('tripDepartureTime').value = '';
                     document.getElementById('tripArrivalTime').value = '';
                     document.getElementById('tripBasePrice').value = '';
                     document.getElementById('tripSpecialPrice').value = '';
+                    document.getElementById('tripImage').value = '';
 
-                    // Refresh trips list
                     loadTrips();
-
-                    // Show trip details
                     viewTrip(response.data?.data.id);
                 } else {
-                    // addLog(`Failed to create trip: ${response.message}`, 'error');
+                    addLog(`Failed to create trip: ${response.message}`, 'error');
                 }
             } catch (error) {
-                // addLog(`Error creating trip: ${error.message}`, 'error');
+                addLog(`Error creating trip: ${error.message}`, 'error');
             } finally {
                 createTripBtn.disabled = false;
                 createTripBtn.textContent = 'Create Trip';
             }
+        });
+
+        // Update Trip
+        updateTripBtn.addEventListener('click', async () => {
+            try {
+                const tripId = document.getElementById('updateTripId').value;
+                const routeId = document.getElementById('updateTripRouteId').value;
+                const vehicleId = document.getElementById('updateTripVehicleId').value;
+                const departureTime = document.getElementById('updateTripDepartureTime').value;
+                const arrivalTime = document.getElementById('updateTripArrivalTime').value;
+                const basePrice = document.getElementById('updateTripBasePrice').value;
+                const specialPrice = document.getElementById('updateTripSpecialPrice').value;
+                const status = document.getElementById('updateTripStatus').value;
+                const changeReason = document.getElementById('updateTripChangeReason').value;
+                const imageFile = document.getElementById('updateTripImage').files[0];
+
+                if (!routeId || !vehicleId || !departureTime || !arrivalTime || !basePrice || !status) {
+                    addLog('Please fill in all required fields', 'error');
+                    return;
+                }
+
+                if (!changeReason) {
+                    addLog('Please provide a change reason', 'error');
+                    return;
+                }
+
+                if (imageFile && !['image/jpeg', 'image/png', 'image/webp'].includes(imageFile.type)) {
+                    addLog('Please upload a valid image (JPEG, PNG, or WebP)', 'error');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('routeId', routeId);
+                formData.append('vehicleId', vehicleId);
+                formData.append('departureTime', departureTime);
+                formData.append('arrivalTime', arrivalTime);
+                formData.append('basePrice', basePrice);
+                if (specialPrice) formData.append('specialPrice', specialPrice);
+                formData.append('status', status);
+                formData.append('changeReason', changeReason);
+                if (imageFile) formData.append('image', imageFile);
+
+                updateTripBtn.disabled = true;
+                updateTripBtn.innerHTML = '<span class="loading"></span> Updating...';
+
+                const response = await fetchWithAuth(`/trips/${tripId}`, {
+                    method: 'PUT',
+                    body: formData,
+                });
+
+                if (response.success) {
+                    addLog(`Trip updated successfully: ${tripId}`, 'success');
+
+                    document.getElementById('updateTripContainer').style.display = 'none';
+                    document.getElementById('updateTripId').value = '';
+                    document.getElementById('updateTripRouteId').value = '';
+                    document.getElementById('updateTripVehicleId').value = '';
+                    document.getElementById('updateTripDepartureTime').value = '';
+                    document.getElementById('updateTripArrivalTime').value = '';
+                    document.getElementById('updateTripBasePrice').value = '';
+                    document.getElementById('updateTripSpecialPrice').value = '';
+                    document.getElementById('updateTripStatus').value = 'SCHEDULED';
+                    document.getElementById('updateTripChangeReason').value = '';
+                    document.getElementById('updateTripImage').value = '';
+                    document.getElementById('currentTripImage').classList.remove('show');
+
+                    loadTrips();
+                    viewTrip(tripId);
+                } else {
+                    addLog(`Failed to update trip: ${response.message}`, 'error');
+                }
+            } catch (error) {
+                addLog(`Error updating trip: ${error.message}`, 'error');
+            } finally {
+                updateTripBtn.disabled = false;
+                updateTripBtn.textContent = 'Update Trip';
+            }
+        });
+
+        // Cancel Update Trip
+        cancelUpdateTripBtn.addEventListener('click', () => {
+            document.getElementById('updateTripContainer').style.display = 'none';
+            document.getElementById('updateTripId').value = '';
+            document.getElementById('updateTripRouteId').value = '';
+            document.getElementById('updateTripVehicleId').value = '';
+            document.getElementById('updateTripDepartureTime').value = '';
+            document.getElementById('updateTripArrivalTime').value = '';
+            document.getElementById('updateTripBasePrice').value = '';
+            document.getElementById('updateTripSpecialPrice').value = '';
+            document.getElementById('updateTripStatus').value = 'SCHEDULED';
+            document.getElementById('updateTripChangeReason').value = '';
+            document.getElementById('updateTripImage').value = '';
+            document.getElementById('currentTripImage').classList.remove('show');
+            addLog('Trip update cancelled', 'info');
         });
 
         // Load Bookings
@@ -995,14 +1244,12 @@
                 const response = await fetchWithAuth('/bookings');
 
                 if (response.success) {
-                    // addLog(`Loaded ${response.data?.data.data.length} bookings`, 'info');
+                    addLog(`Loaded ${response.data?.data.length} bookings`, 'info');
 
-                    // Populate bookings table
                     bookingsTable.innerHTML = '';
-                    response.data?.data?.forEach(booking => {
+                    response.data?.data.forEach(booking => {
                         const row = document.createElement('tr');
 
-                        // Get trip info from the first booking trip
                         const trip = booking.bookingTrips[0]?.trip;
                         const tripInfo = trip ?
                             `${trip.route.sourceProvince.name} → ${trip.route.destinationProvince.name} (${formatDateTime(trip.departureTime)})` :
@@ -1029,7 +1276,6 @@
                         bookingsTable.appendChild(row);
                     });
 
-                    // Add event listeners to buttons
                     document.querySelectorAll('.view-booking').forEach(btn => {
                         btn.addEventListener('click', () => {
                             viewBooking(btn.dataset.id);
@@ -1048,10 +1294,10 @@
                         });
                     });
                 } else {
-                    // addLog(`Failed to load bookings: ${response.message}`, 'error');
+                    addLog(`Failed to load bookings: ${response.message}`, 'error');
                 }
             } catch (error) {
-                // addLog(`Error loading bookings: ${error.message}`, 'error');
+                addLog(`Error loading bookings: ${error.message}`, 'error');
             }
         }
 
@@ -1062,17 +1308,14 @@
 
                 if (response.success) {
                     const booking = response.data?.data;
-                    // addLog(`Loaded booking details: ${booking.id}`, 'info');
+                    addLog(`Loaded booking details: ${booking.id}`, 'info');
 
-                    // Show booking detail container
                     document.getElementById('bookingDetailContainer').style.display = 'block';
 
-                    // Get trip and seat details
                     const bookingTrip = booking.bookingTrips[0];
                     const trip = bookingTrip?.trip;
                     const seats = bookingTrip?.seats || [];
 
-                    // Populate booking details
                     document.getElementById('bookingDetails').innerHTML = `
                         <div class="form-grid">
                             <div class="form-group">
@@ -1137,7 +1380,6 @@
                         </div>
                     `;
 
-                    // Add event listeners to buttons
                     const confirmBtn = document.querySelector('.confirm-booking-detail');
                     if (confirmBtn) {
                         confirmBtn.addEventListener('click', () => {
@@ -1152,10 +1394,10 @@
                         });
                     }
                 } else {
-                    // addLog(`Failed to load booking details: ${response.message}`, 'error');
+                    addLog(`Failed to load booking details: ${response.message}`, 'error');
                 }
             } catch (error) {
-                // addLog(`Error loading booking details: ${error.message}`, 'error');
+                addLog(`Error loading booking details: ${error.message}`, 'error');
             }
         }
 
@@ -1174,20 +1416,16 @@
                 });
 
                 if (response.success) {
-                    // addLog(`Booking ${id} confirmed successfully`, 'success');
-
-                    // Refresh bookings list
+                    addLog(`Booking ${id} confirmed successfully`, 'success');
                     loadBookings();
-
-                    // Refresh booking details if viewing
                     if (document.getElementById('bookingDetailContainer').style.display !== 'none') {
                         viewBooking(id);
                     }
                 } else {
-                    // addLog(`Failed to confirm booking: ${response.message}`, 'error');
+                    addLog(`Failed to confirm booking: ${response.message}`, 'error');
                 }
             } catch (error) {
-                // addLog(`Error confirming booking: ${error.message}`, 'error');
+                addLog(`Error confirming booking: ${error.message}`, 'error');
             }
         }
 
@@ -1206,20 +1444,16 @@
                 });
 
                 if (response.success) {
-                    // addLog(`Booking ${id} cancelled successfully`, 'success');
-
-                    // Refresh bookings list
+                    addLog(`Booking ${id} cancelled successfully`, 'success');
                     loadBookings();
-
-                    // Refresh booking details if viewing
                     if (document.getElementById('bookingDetailContainer').style.display !== 'none') {
                         viewBooking(id);
                     }
                 } else {
-                    // addLog(`Failed to cancel booking: ${response.message}`, 'error');
+                    addLog(`Failed to cancel booking: ${response.message}`, 'error');
                 }
             } catch (error) {
-                // addLog(`Error cancelling booking: ${error.message}`, 'error');
+                addLog(`Error cancelling booking: ${error.message}`, 'error');
             }
         }
 
@@ -1238,8 +1472,8 @@
         // Set default values for date-time fields
         function setDefaultDateTime() {
             const now = new Date();
-            const departureTime = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
-            const arrivalTime = new Date(now.getTime() + 3 * 60 * 60 * 1000); // 3 hours from now
+            const departureTime = new Date(now.getTime() + 60 * 60 * 1000);
+            const arrivalTime = new Date(now.getTime() + 3 * 60 * 60 * 1000);
 
             document.getElementById('tripDepartureTime').value = departureTime.toISOString().slice(0, 16);
             document.getElementById('tripArrivalTime').value = arrivalTime.toISOString().slice(0, 16);
@@ -1247,7 +1481,7 @@
 
         // Initialize
         setDefaultDateTime();
-        // addLog('Admin test page loaded', 'info');
+        addLog('Admin test page loaded', 'info');
     </script>
 </body>
 

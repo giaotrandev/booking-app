@@ -1,144 +1,609 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Socket.IO Test</title>
+    <title>Bus Booking Test Client</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #f5f5f5;
         }
+
         .container {
-            border: 1px solid #ccc;
-            border-radius: 5px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
             padding: 20px;
             margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        h1, h2 {
+
+        h1 {
             color: #333;
+            text-align: center;
+            margin-bottom: 30px;
         }
+
+        h2 {
+            color: #444;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+
         button {
-            background-color: #4CAF50;
+            background-color: #007bff;
             border: none;
             color: white;
             padding: 10px 15px;
             text-align: center;
             text-decoration: none;
             display: inline-block;
-            font-size: 16px;
+            font-size: 14px;
             margin: 4px 2px;
             cursor: pointer;
             border-radius: 5px;
+            transition: background-color 0.3s;
         }
+
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+
         button:disabled {
-            background-color: #cccccc;
+            background-color: #6c757d;
             cursor: not-allowed;
         }
+
+        button.success {
+            background-color: #28a745;
+        }
+
+        button.success:hover:not(:disabled) {
+            background-color: #218838;
+        }
+
+        button.danger {
+            background-color: #dc3545;
+        }
+
+        button.danger:hover:not(:disabled) {
+            background-color: #c82333;
+        }
+
         .seat {
             display: inline-block;
-            width: 40px;
-            height: 40px;
-            margin: 5px;
-            line-height: 40px;
+            width: 60px;
+            height: 60px;
+            margin: 8px;
+            line-height: 60px;
             text-align: center;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: bold;
+            font-size: 12px;
+            border: 2px solid transparent;
+            position: relative;
+            transition: all 0.3s ease;
         }
+
         .seat.available {
-            background-color: #ddd;
+            background-color: #e3f2fd;
+            border-color: #2196f3;
+            color: #1976d2;
         }
+
+        .seat.available:hover {
+            background-color: #bbdefb;
+            transform: translateY(-2px);
+        }
+
         .seat.selected {
             background-color: #4CAF50;
             color: white;
+            border-color: #2e7d32;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
+
         .seat.reserved {
             background-color: #ff9800;
             color: white;
+            border-color: #f57c00;
         }
+
         .seat.booked {
             background-color: #f44336;
             color: white;
             cursor: not-allowed;
+            border-color: #c62828;
         }
-        input, select {
+
+        .seat.blocked {
+            background-color: #9e9e9e;
+            color: white;
+            cursor: not-allowed;
+            border-color: #616161;
+        }
+
+        .seat.premium {
+            border-width: 3px;
+        }
+
+        .seat.bed::before {
+            content: "🛏️";
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 10px;
+        }
+
+        .seat.driver::before {
+            content: "🚗";
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 10px;
+        }
+
+        .seat.accessible::before {
+            content: "♿";
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 10px;
+        }
+
+        input,
+        select {
             padding: 8px;
             margin: 5px 0;
             border-radius: 4px;
             border: 1px solid #ccc;
+            width: 100%;
+            box-sizing: border-box;
         }
+
         .form-group {
             margin-bottom: 15px;
         }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
         .logs {
-            background-color: #f9f9f9;
-            padding: 10px;
-            border: 1px solid #ddd;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border: 1px solid #dee2e6;
             border-radius: 5px;
-            height: 200px;
+            height: 300px;
             overflow-y: auto;
             margin-top: 20px;
+            font-family: monospace;
+            font-size: 13px;
         }
+
         .log-entry {
-            margin-bottom: 5px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 5px;
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid #e9ecef;
         }
-        .success { color: #4CAF50; }
-        .error { color: #f44336; }
-        .info { color: #2196F3; }
+
+        .success {
+            color: #28a745;
+        }
+
+        .error {
+            color: #dc3545;
+        }
+
+        .info {
+            color: #007bff;
+        }
+
+        .warning {
+            color: #ffc107;
+        }
+
+        .seat-legend {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .legend-item {
+            display: inline-block;
+            margin-right: 20px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .legend-seat {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            border-radius: 3px;
+            vertical-align: middle;
+        }
+
+        .seats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            max-width: 400px;
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            display: inline-block;
+        }
+
+        .status-connected {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .status-disconnected {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .status-connecting {
+            background-color: #ffc107;
+            color: black;
+        }
+
+        .booking-section {
+            border: 2px dashed #007bff;
+            padding: 20px;
+            border-radius: 8px;
+            background-color: #f8f9ff;
+        }
+
+        .selected-seats {
+            background-color: #e8f5e9;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .selected-seats h3 {
+            margin-top: 0;
+            color: #2e7d32;
+        }
+
+        .qr-code-section {
+            text-align: center;
+            padding: 25px;
+            background: linear-gradient(145deg, #fff3cd 0%, #ffeaa7 100%);
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            margin-top: 20px;
+            box-shadow: 0 4px 12px rgba(255, 193, 7, 0.2);
+        }
+
+        .qr-code-section h2 {
+            color: #856404;
+            margin-bottom: 15px;
+        }
+
+        .qr-code-section img {
+            max-width: 350px;
+            height: auto;
+            border: 3px solid #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin: 15px 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .countdown {
+            font-size: 28px;
+            font-weight: bold;
+            margin: 15px 0;
+            padding: 10px 20px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            display: inline-block;
+            min-width: 150px;
+        }
+
+        .payment-info {
+            background-color: rgba(212, 237, 218, 0.9);
+            border: 2px solid #28a745;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 15px;
+            text-align: left;
+        }
+
+        .payment-info h3 {
+            color: #155724;
+            margin-top: 0;
+            text-align: center;
+        }
+
+        .payment-info p {
+            margin: 8px 0;
+            font-size: 16px;
+        }
+
+        .payment-info strong {
+            color: #155724;
+        }
+
+        .booking-success {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .booking-success h3 {
+            color: #0c5460;
+            margin-top: 0;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #dee2e6;
+            margin-bottom: 20px;
+        }
+
+        .tab-button {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-bottom: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .tab-button.active {
+            background-color: white;
+            border-color: #007bff;
+            border-bottom: 2px solid white;
+            margin-bottom: -2px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .price-calculation {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .price-row.total {
+            border-top: 2px solid #dee2e6;
+            padding-top: 10px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .webhook-simulator {
+            background-color: #fff3e0;
+            border: 1px solid #ffcc02;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
     </style>
 </head>
+
 <body>
-    <h1>Socket.IO Test Page</h1>
-    
-    <div class="container">
-        <h2>Connection</h2>
-        <div class="form-group">
-            <label for="serverUrl">Server URL:</label>
-            <input type="text" id="serverUrl" value="http://localhost:5000" style="width: 250px;">
-        </div>
-        <div class="form-group">
-            <label for="token">JWT Token:</label>
-            <input type="text" id="token" placeholder="Enter your JWT token" style="width: 450px;">
-        </div>
-        <button id="connectBtn">Connect</button>
-        <button id="disconnectBtn" disabled>Disconnect</button>
-        <div id="connectionStatus">Status: Disconnected</div>
+    <h1>🚌 Bus Booking Test Client</h1>
+
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab-button active" onclick="openTab(event, 'socket-tab')">Socket & Seats</button>
+        <button class="tab-button" onclick="openTab(event, 'booking-tab')">Booking Process</button>
+        <button class="tab-button" onclick="openTab(event, 'logs-tab')">Event Logs</button>
     </div>
 
-    <div class="container">
-        <h2>Join Trip Room</h2>
-        <div class="form-group">
-            <label for="tripId">Trip ID:</label>
-            <input type="text" id="tripId" placeholder="Enter Trip ID">
+    <!-- Socket & Seats Tab -->
+    <div id="socket-tab" class="tab-content active">
+        <div class="container">
+            <h2>Connection</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="serverUrl">Socket Server URL:</label>
+                    <input type="text" id="serverUrl" value="http://localhost:5000">
+                </div>
+                <div class="form-group">
+                    <label for="apiUrl">API Base URL:</label>
+                    <input type="text" id="apiUrl" value="http://localhost:8000">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="token">JWT Token:</label>
+                <input type="text" id="token" placeholder="Enter your JWT token">
+            </div>
+            <button id="connectBtn">Connect</button>
+            <button id="disconnectBtn" disabled>Disconnect</button>
+            <div style="margin-top: 15px;">
+                Status: <span id="connectionStatus" class="status-badge status-disconnected">Disconnected</span>
+            </div>
         </div>
-        <div class="form-group">
-            <label for="userId">User ID:</label>
-            <input type="text" id="userId" placeholder="Enter your User ID">
+
+        <div class="container">
+            <h2>Trip & Seat Selection</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="tripId">Trip ID:</label>
+                    <input type="text" id="tripId" placeholder="Enter Trip ID">
+                </div>
+                <div class="form-group">
+                    <label for="userId">User ID:</label>
+                    <input type="text" id="userId" placeholder="Enter your User ID">
+                </div>
+            </div>
+            <button id="joinRoomBtn" disabled>Join Trip Room</button>
+            <button id="leaveRoomBtn" disabled>Leave Trip Room</button>
+            <button id="loadSeatsBtn" disabled>Load Seats</button>
+
+            <div class="seat-legend">
+                <h3>Seat Legend:</h3>
+                <div class="legend-item">
+                    <span class="legend-seat available"></span>Available
+                </div>
+                <div class="legend-item">
+                    <span class="legend-seat selected"></span>Selected
+                </div>
+                <div class="legend-item">
+                    <span class="legend-seat reserved"></span>Reserved
+                </div>
+                <div class="legend-item">
+                    <span class="legend-seat booked"></span>Booked
+                </div>
+                <div class="legend-item">
+                    <span class="legend-seat blocked"></span>Blocked
+                </div>
+            </div>
+            
+            <div id="seatsContainer" class="seats-grid">
+                <div class="loading">Join a trip and load seats to see availability</div>
+            </div>
+            
+            <div>
+                <button id="selectSeatBtn" disabled>Reserve Selected Seat</button>
+                <button id="releaseSeatBtn" disabled>Release Reserved Seat</button>
+            </div>
+            
+            <div id="selectedSeatsInfo" class="selected-seats" style="display: none;">
+                <h3>Selected Seats</h3>
+                <div id="selectedSeatsList"></div>
+            </div>
         </div>
-        <button id="joinRoomBtn" disabled>Join Trip Room</button>
-        <button id="leaveRoomBtn" disabled>Leave Trip Room</button>
     </div>
 
-    <div class="container">
-        <h2>Seat Selection</h2>
-        <div id="seatsContainer" style="margin-bottom: 15px;">
-            <!-- Seats will be generated here -->
+    <!-- Booking Process Tab -->
+    <div id="booking-tab" class="tab-content">
+        <div class="container booking-section">
+            <h2>Create Booking</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="bookingTripId">Trip ID:</label>
+                    <input type="text" id="bookingTripId" placeholder="Enter Trip ID">
+                </div>
+                <div class="form-group">
+                    <label for="voucherCode">Voucher Code (Optional):</label>
+                    <input type="text" id="voucherCode" placeholder="Enter voucher code">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="customerNotes">Customer Notes (Optional):</label>
+                <textarea id="customerNotes" rows="3" placeholder="Any special requirements..."></textarea>
+            </div>
+
+            <div id="priceCalculation" class="price-calculation" style="display: none;">
+                <h3>Price Calculation</h3>
+                <div id="priceDetails"></div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button id="calculatePriceBtn" disabled>Calculate Price</button>
+                <button id="createBookingBtn" disabled>Create Booking</button>
+                <button id="debugBookingBtn" style="background: #6c757d; margin-left: 10px;">Debug Current Booking</button>
+            </div>
         </div>
-        <div>
-            <button id="selectSeatBtn" disabled>Select Seat</button>
-            <button id="releaseSeatBtn" disabled>Release Seat</button>
+
+        <div id="qrCodeSection" class="container qr-code-section" style="display: none;">
+            <h2>Payment Required</h2>
+            <div id="paymentCountdown" class="countdown"></div>
+            <div>
+                <img id="qrCodeImage" src="" alt="Payment QR Code">
+            </div>
+            <div class="payment-info">
+                <h3>Payment Information</h3>
+                <p><strong>Amount:</strong> <span id="paymentAmount"></span> VND</p>
+                <p><strong>Reference:</strong> <span id="paymentReference"></span></p>
+                <p><strong>Bank Account:</strong> <span id="bankAccount"></span></p>
+                <p>Scan the QR code above with your banking app to complete the payment.</p>
+            </div>
+            <button id="resendQrBtn">Resend QR Code</button>
+            <button id="cancelBookingBtn" class="danger">Cancel Booking</button>
+        </div>
+
+        <div id="webhookSimulator" class="container webhook-simulator" style="display: none;">
+            <h3>🧪 Webhook Simulator (For Testing)</h3>
+            <p>Simulate a payment webhook to test the payment completion flow:</p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="webhookAmount">Transfer Amount:</label>
+                    <input type="number" id="webhookAmount" placeholder="Amount">
+                </div>
+                <div class="form-group">
+                    <label for="webhookContent">Transfer Content:</label>
+                    <input type="text" id="webhookContent" placeholder="Transfer content with reference">
+                </div>
+            </div>
+            <button id="simulateWebhookBtn" class="success">Simulate Payment</button>
+        </div>
+
+        <div id="bookingSuccess" class="container booking-success" style="display: none;">
+            <h3>🎉 Booking Confirmed!</h3>
+            <p>Your payment has been processed successfully.</p>
+            <div id="bookingDetails"></div>
+            <button id="viewBookingBtn">View Booking Details</button>
         </div>
     </div>
 
-    <div class="container">
-        <h2>Event Logs</h2>
-        <div class="logs" id="eventLogs"></div>
-        <button id="clearLogsBtn">Clear Logs</button>
+    <!-- Event Logs Tab -->
+    <div id="logs-tab" class="tab-content">
+        <div class="container">
+            <h2>Event Logs</h2>
+            <div class="logs" id="eventLogs"></div>
+            <button id="clearLogsBtn">Clear Logs</button>
+        </div>
     </div>
 
     <!-- Include Socket.IO client from CDN -->
@@ -149,59 +614,725 @@
         const disconnectBtn = document.getElementById('disconnectBtn');
         const joinRoomBtn = document.getElementById('joinRoomBtn');
         const leaveRoomBtn = document.getElementById('leaveRoomBtn');
+        const loadSeatsBtn = document.getElementById('loadSeatsBtn');
         const selectSeatBtn = document.getElementById('selectSeatBtn');
         const releaseSeatBtn = document.getElementById('releaseSeatBtn');
         const clearLogsBtn = document.getElementById('clearLogsBtn');
         const connectionStatus = document.getElementById('connectionStatus');
         const eventLogs = document.getElementById('eventLogs');
         const seatsContainer = document.getElementById('seatsContainer');
+        const selectedSeatsInfo = document.getElementById('selectedSeatsInfo');
+        const selectedSeatsList = document.getElementById('selectedSeatsList');
+
+        // Booking elements
+        const calculatePriceBtn = document.getElementById('calculatePriceBtn');
+        const createBookingBtn = document.getElementById('createBookingBtn');
+        const priceCalculation = document.getElementById('priceCalculation');
+        const priceDetails = document.getElementById('priceDetails');
+        const qrCodeSection = document.getElementById('qrCodeSection');
+        const qrCodeImage = document.getElementById('qrCodeImage');
+        const paymentCountdown = document.getElementById('paymentCountdown');
+        const paymentAmount = document.getElementById('paymentAmount');
+        const paymentReference = document.getElementById('paymentReference');
+        const bankAccount = document.getElementById('bankAccount');
+        const resendQrBtn = document.getElementById('resendQrBtn');
+        const cancelBookingBtn = document.getElementById('cancelBookingBtn');
+        const webhookSimulator = document.getElementById('webhookSimulator');
+        const simulateWebhookBtn = document.getElementById('simulateWebhookBtn');
+        const bookingSuccess = document.getElementById('bookingSuccess');
+        const bookingDetails = document.getElementById('bookingDetails');
+        const viewBookingBtn = document.getElementById('viewBookingBtn');
 
         // State
         let socket = null;
-        let selectedSeat = null;
+        let selectedSeats = new Set();
+        let tripSeats = [];
+        let currentBooking = null;
+        let paymentTimer = null;
         let sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-        // Generate some fake seats for testing
-        function generateSeats() {
-            seatsContainer.innerHTML = '';
-            for (let i = 1; i <= 20; i++) {
-                const seat = document.createElement('div');
-                seat.className = 'seat available';
-                seat.textContent = i;
-                seat.dataset.seatId = `seat_${i}`;
-                seat.dataset.status = 'AVAILABLE';
-                seat.onclick = () => selectSeat(seat);
-                seatsContainer.appendChild(seat);
+        // Tab functionality
+        function openTab(evt, tabName) {
+            const tabcontent = document.getElementsByClassName('tab-content');
+            for (let i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove('active');
             }
+            
+            const tabbuttons = document.getElementsByClassName('tab-button');
+            for (let i = 0; i < tabbuttons.length; i++) {
+                tabbuttons[i].classList.remove('active');
+            }
+            
+            document.getElementById(tabName).classList.add('active');
+            evt.currentTarget.classList.add('active');
         }
 
-        // Select a seat
-        function selectSeat(seatElement) {
-            if (seatElement.dataset.status === 'BOOKED') {
-                addLog('Cannot select booked seat', 'error');
+        // Load seats from API
+        async function loadSeats() {
+            const tripId = document.getElementById('tripId').value;
+            const apiUrl = document.getElementById('apiUrl').value;
+            const token = document.getElementById('token').value;
+
+            if (!tripId) {
+                addLog('Please enter a Trip ID', 'error');
                 return;
             }
 
-            // Clear previous selection
-            if (selectedSeat) {
-                if (selectedSeat.dataset.status === 'SELECTED') {
-                    selectedSeat.classList.remove('selected');
-                    selectedSeat.classList.add('available');
-                    selectedSeat.dataset.status = 'AVAILABLE';
+            try {
+                seatsContainer.innerHTML = '<div class="loading">Loading seats...</div>';
+                
+                const response = await fetch(`${apiUrl}/trips/${tripId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
+
+                const data = await response.json();
+                tripSeats = data.data.seats || [];
+                
+                generateSeatsFromAPI();
+                addLog(`Loaded ${tripSeats.length} seats for trip ${tripId}`, 'success');
+                updateBookingForm();
+                
+            } catch (error) {
+                addLog(`Error loading seats: ${error.message}`, 'error');
+                seatsContainer.innerHTML = '<div class="loading">Error loading seats</div>';
+            }
+        }
+
+        // Generate seats from API data
+        function generateSeatsFromAPI() {
+            seatsContainer.innerHTML = '';
+            
+            if (tripSeats.length === 0) {
+                seatsContainer.innerHTML = '<div class="loading">No seats available</div>';
+                return;
             }
 
-            // Set new selection
-            selectedSeat = seatElement;
-            if (selectedSeat.dataset.status === 'AVAILABLE') {
-                selectedSeat.classList.remove('available');
-                selectedSeat.classList.add('selected');
-                selectedSeat.dataset.status = 'SELECTED';
+            tripSeats.forEach(seat => {
+                const seatElement = document.createElement('div');
+                seatElement.className = `seat ${seat.status.toLowerCase()}`;
+                seatElement.textContent = seat.seatNumber;
+                seatElement.dataset.seatId = seat.id;
+                seatElement.dataset.status = seat.status;
+                seatElement.dataset.seatType = seat.seatType;
+                seatElement.dataset.seatNumber = seat.seatNumber;
+
+                // Add seat type classes for styling
+                if (seat.seatType !== 'STANDARD') {
+                    seatElement.classList.add(seat.seatType.toLowerCase());
+                }
+
+                // Only allow clicking on available seats
+                if (seat.status === 'AVAILABLE') {
+                    seatElement.onclick = () => toggleSeatSelection(seatElement);
+                }
+
+                seatsContainer.appendChild(seatElement);
+            });
+        }
+
+        // Toggle seat selection (allow multiple seats)
+        function toggleSeatSelection(seatElement) {
+            const seatId = seatElement.dataset.seatId;
+            const status = seatElement.dataset.status;
+            
+            // Prevent selection of non-available seats
+            if (status !== 'AVAILABLE') {
+                addLog(`Cannot select ${status.toLowerCase()} seat`, 'error');
+                return;
+            }
+
+            if (selectedSeats.has(seatId)) {
+                // Deselect seat
+                selectedSeats.delete(seatId);
+                seatElement.classList.remove('selected');
+                seatElement.classList.add('available');
+            } else {
+                // Select seat
+                selectedSeats.add(seatId);
+                seatElement.classList.remove('available');
+                seatElement.classList.add('selected');
+            }
+
+            updateSelectedSeatsDisplay();
+            updateBookingForm();
+        }
+
+        // Update selected seats display
+        function updateSelectedSeatsDisplay() {
+            if (selectedSeats.size > 0) {
+                selectedSeatsInfo.style.display = 'block';
+                const seatNumbers = Array.from(selectedSeats).map(seatId => {
+                    const seat = tripSeats.find(s => s.id === seatId);
+                    return seat ? `${seat.seatNumber} (${seat.seatType})` : seatId;
+                });
+                selectedSeatsList.innerHTML = `
+                    <p><strong>Selected:</strong> ${seatNumbers.join(', ')}</p>
+                    <p><strong>Count:</strong> ${selectedSeats.size} seat(s)</p>
+                `;
+                
                 selectSeatBtn.disabled = false;
-                releaseSeatBtn.disabled = true;
-            } else if (selectedSeat.dataset.status === 'RESERVED') {
-                releaseSeatBtn.disabled = false;
+                selectSeatBtn.textContent = `Reserve ${selectedSeats.size} Seat(s)`;
+            } else {
+                selectedSeatsInfo.style.display = 'none';
                 selectSeatBtn.disabled = true;
+                selectSeatBtn.textContent = 'Reserve Selected Seat';
+            }
+            
+            releaseSeatBtn.disabled = selectedSeats.size === 0;
+        }
+
+        // Update booking form
+        function updateBookingForm() {
+            const tripId = document.getElementById('tripId').value;
+            document.getElementById('bookingTripId').value = tripId;
+            
+            calculatePriceBtn.disabled = selectedSeats.size === 0 || !tripId;
+            createBookingBtn.disabled = selectedSeats.size === 0 || !tripId;
+        }
+
+        // Calculate booking price
+        async function calculatePrice() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const token = document.getElementById('token').value;
+            const tripId = document.getElementById('bookingTripId').value;
+            const voucherCode = document.getElementById('voucherCode').value;
+
+            try {
+                const response = await fetch(`${apiUrl}/bookings/calculate`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        tripId,
+                        seatCount: selectedSeats.size,
+                        voucherCode: voucherCode || undefined
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                const calculation = data.data;
+
+                let priceHtml = `
+                    <div class="price-row">
+                        <span>Base Price per Seat:</span>
+                        <span>${calculation.basePrice.toLocaleString()} VND</span>
+                    </div>
+                    <div class="price-row">
+                        <span>Number of Seats:</span>
+                        <span>${calculation.seatCount}</span>
+                    </div>
+                    <div class="price-row">
+                        <span>Subtotal:</span>
+                        <span>${calculation.totalPrice.toLocaleString()} VND</span>
+                    </div>
+                `;
+
+                if (calculation.discountAmount > 0) {
+                    priceHtml += `
+                        <div class="price-row">
+                            <span>Discount (${calculation.voucher.code}):</span>
+                            <span style="color: #28a745;">-${calculation.discountAmount.toLocaleString()} VND</span>
+                        </div>
+                    `;
+                }
+
+                priceHtml += `
+                    <div class="price-row total">
+                        <span>Total Amount:</span>
+                        <span>${calculation.finalPrice.toLocaleString()} VND</span>
+                    </div>
+                `;
+
+                priceDetails.innerHTML = priceHtml;
+                priceCalculation.style.display = 'block';
+                
+                addLog(`Price calculated: ${calculation.finalPrice.toLocaleString()} VND`, 'success');
+            } catch (error) {
+                addLog(`Error calculating price: ${error.message}`, 'error');
+            }
+        }
+
+        // Create booking
+        async function createBooking() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const token = document.getElementById('token').value;
+            const tripId = document.getElementById('bookingTripId').value;
+            const voucherCode = document.getElementById('voucherCode').value;
+            const customerNotes = document.getElementById('customerNotes').value;
+
+            if (selectedSeats.size === 0) {
+                addLog('Please select at least one seat', 'error');
+                return;
+            }
+
+            try {
+                createBookingBtn.disabled = true;
+                createBookingBtn.textContent = 'Creating Booking...';
+                
+                addLog('Creating booking...', 'info');
+
+                const response = await fetch(`${apiUrl}/bookings`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        tripId,
+                        seatIds: Array.from(selectedSeats),
+                        voucherCode: voucherCode || undefined,
+                        customerNotes: customerNotes || undefined
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.message || `HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                currentBooking = result.data;
+                console.log('Booking created:', currentBooking);
+                
+                addLog(`✅ Booking created successfully!`, 'success');
+                addLog(`📋 Booking ID: ${currentBooking.id}`, 'info');
+                addLog(`💰 Amount: ${currentBooking.finalPrice?.toLocaleString()} VND`, 'info');
+                addLog(`🔗 Payment Reference: ${currentBooking.paymentWebhookReference}`, 'info');
+
+                // Clear selected seats from UI (they're now reserved)
+                selectedSeats.clear();
+                updateSelectedSeatsDisplay();
+                updateBookingForm();
+
+                // Check if booking has QR code
+                if (currentBooking.qrCode && currentBooking.qrCodeExpiresAt) {
+                    addLog('✅ QR code generated successfully', 'success');
+                    showPaymentSection();
+                } else if (currentBooking.qrCodeError) {
+                    addLog('⚠️ QR code generation failed, but booking was created', 'warning');
+                    addLog(`Error: ${currentBooking.qrCodeError}`, 'error');
+                    showRetryQROption();
+                } else {
+                    addLog('⚠️ Booking created but QR code not ready yet', 'warning');
+                    addLog('You can try to resend QR code or contact support', 'info');
+                    showRetryQROption();
+                }
+                
+                // Switch to booking tab to show payment
+                const bookingTabBtn = document.querySelector('.tab-button:nth-child(2)');
+                if (bookingTabBtn) {
+                    openTab({ currentTarget: bookingTabBtn }, 'booking-tab');
+                }
+                
+            } catch (error) {
+                addLog(`❌ Error creating booking: ${error.message}`, 'error');
+            } finally {
+                createBookingBtn.disabled = false;
+                createBookingBtn.textContent = 'Create Booking';
+            }
+        }
+
+        // Show retry QR option when QR generation fails
+        function showRetryQROption() {
+            qrCodeSection.style.display = 'block';
+            qrCodeImage.style.display = 'none'; // Hide image container
+            
+            // Show booking info without QR
+            paymentAmount.textContent = currentBooking.finalPrice?.toLocaleString() || 'N/A';
+            paymentReference.textContent = currentBooking.paymentWebhookReference || 'Not set';
+            bankAccount.textContent = 'QR code generation failed';
+            
+            // Hide countdown and show retry message
+            paymentCountdown.textContent = 'QR Code Generation Failed';
+            paymentCountdown.style.color = '#dc3545';
+            
+            // Show retry button prominently
+            const retryContainer = document.createElement('div');
+            retryContainer.innerHTML = `
+                <div style="text-align: center; padding: 20px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; margin: 15px 0;">
+                    <p style="margin: 0 0 15px 0; color: #856404;">
+                        <strong>QR Code generation failed, but your booking is confirmed!</strong>
+                    </p>
+                    <p style="margin: 0 0 15px 0; color: #856404;">
+                        Click "Resend QR Code" to generate a new payment QR code.
+                    </p>
+                </div>
+            `;
+            
+            // Insert retry container before the existing payment info
+            const paymentInfo = qrCodeSection.querySelector('.payment-info');
+            if (paymentInfo) {
+                qrCodeSection.insertBefore(retryContainer, paymentInfo);
+            }
+            
+            // Hide webhook simulator until QR is ready
+            webhookSimulator.style.display = 'none';
+        }
+
+        // Show payment section
+        function showPaymentSection() {
+            if (!currentBooking) {
+                addLog('❌ No current booking available', 'error');
+                return;
+            }
+
+            // Show the payment section container
+            qrCodeSection.style.display = 'block';
+                console.log("Test 1:", currentBooking);
+
+            if (!currentBooking.qrCode || !currentBooking.qrCodeExpiresAt) {
+                addLog('❌ QR code or expiry time not available', 'error');
+                showRetryQROption();
+                return;
+            }
+
+            try {
+                addLog('🔍 Processing QR code data...', 'info');
+                
+                // Parse QR code data
+                let qrData;
+                console.log("Test 2:", currentBooking);
+                try {
+                    qrData = JSON.parse(currentBooking.qrCode);
+                console.log("Test 3:", qrData);
+                } catch (parseError) {
+                    addLog('❌ Error parsing QR code data - invalid JSON format', 'error');
+                    console.error('QR Code raw data:', currentBooking.qrCode);
+                    showRetryQROption();
+                    return;
+                }
+                console.log("Test 3:", qrData.url);
+                
+                // Validate QR data structure
+                if (!qrData.url) {
+                    addLog('❌ QR code data missing URL field', 'error');
+                    console.error('QR Data structure:', qrData);
+                    showRetryQROption();
+                    return;
+                }
+                
+                // Remove any existing retry containers
+                const retryContainers = qrCodeSection.querySelectorAll('div[style*="background: #fff3cd"]');
+                retryContainers.forEach(container => container.remove());
+                
+                // Show and configure QR image
+                qrCodeImage.style.display = 'block';
+                qrCodeImage.src = qrData.url;
+                
+                qrCodeImage.onload = () => {
+                    addLog('✅ QR code image loaded successfully', 'success');
+                };
+                qrCodeImage.onerror = () => {
+                    addLog('❌ Failed to load QR code image', 'error');
+                    addLog(`QR URL: ${qrData.url}`, 'info');
+                    showRetryQROption();
+                };
+
+                // Update payment info
+                paymentAmount.textContent = currentBooking.finalPrice?.toLocaleString() || 'N/A';
+                paymentReference.textContent = currentBooking.paymentWebhookReference || 'Not set';
+                
+                // Display bank account info
+                const accountInfo = `${qrData.accountNo || 'N/A'} - ${qrData.accountName || 'N/A'}`;
+                bankAccount.textContent = accountInfo;
+                
+                // Show webhook simulator
+                webhookSimulator.style.display = 'block';
+                
+                // Setup webhook simulator with correct data
+                const webhookAmountField = document.getElementById('webhookAmount');
+                const webhookContentField = document.getElementById('webhookContent');
+                
+                if (webhookAmountField) webhookAmountField.value = currentBooking.finalPrice || '';
+                if (webhookContentField) webhookContentField.value = `${currentBooking.paymentWebhookReference || ''} Customer Payment`;
+                
+                // Start countdown timer
+                startPaymentCountdown();
+                
+                addLog(`💳 Payment section displayed successfully`, 'success');
+                addLog(`💰 Amount: ${currentBooking.finalPrice?.toLocaleString()} VND`, 'info');
+                addLog(`📱 Scan QR code with your banking app to complete payment`, 'info');
+                addLog(`⏰ Payment expires at: ${new Date(currentBooking.qrCodeExpiresAt).toLocaleTimeString()}`, 'info');
+                
+            } catch (error) {
+                addLog(`❌ Error showing payment section: ${error.message}`, 'error');
+                console.error('Error details:', error);
+                console.error('Current booking:', currentBooking);
+                showRetryQROption();
+            }
+        }
+
+        // Start payment countdown
+        function startPaymentCountdown() {
+            if (paymentTimer) {
+                clearInterval(paymentTimer);
+            }
+
+            if (!currentBooking.qrCodeExpiresAt) {
+                addLog('No expiry time available for payment', 'warning');
+                return;
+            }
+
+            const expiryTime = new Date(currentBooking.qrCodeExpiresAt);
+            
+            const updateCountdown = () => {
+                const now = new Date();
+                const timeLeft = expiryTime - now;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(paymentTimer);
+                    paymentCountdown.textContent = 'Payment expired ⏰';
+                    paymentCountdown.style.color = '#dc3545';
+                    addLog('Payment timeout - booking may be cancelled', 'warning');
+                    
+                    // Disable QR code and show expiry message
+                    qrCodeImage.style.opacity = '0.5';
+                    const expiredMsg = document.createElement('div');
+                    expiredMsg.style.cssText = 'color: #dc3545; font-weight: bold; text-align: center; margin-top: 10px;';
+                    expiredMsg.textContent = 'This QR code has expired. Please resend or cancel the booking.';
+                    qrCodeSection.appendChild(expiredMsg);
+                    return;
+                }
+                
+                const minutes = Math.floor(timeLeft / 60000);
+                const seconds = Math.floor((timeLeft % 60000) / 1000);
+                paymentCountdown.textContent = `⏱️ ${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                // Color coding based on time left
+                if (timeLeft < 120000) { // Less than 2 minutes
+                    paymentCountdown.style.color = '#dc3545';
+                } else if (timeLeft < 300000) { // Less than 5 minutes
+                    paymentCountdown.style.color = '#ffc107';
+                } else {
+                    paymentCountdown.style.color = '#28a745';
+                }
+            };
+            
+            // Update immediately then every second
+            updateCountdown();
+            paymentTimer = setInterval(updateCountdown, 1000);
+            
+            addLog(`Payment countdown started. Expires at ${expiryTime.toLocaleTimeString()}`, 'info');
+        }
+
+        // Simulate webhook payment
+        async function simulateWebhook() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const amount = document.getElementById('webhookAmount').value;
+            const content = document.getElementById('webhookContent').value;
+
+            if (!amount || !content) {
+                addLog('Please fill in both amount and content for webhook simulation', 'error');
+                return;
+            }
+
+            try {
+                addLog('Simulating payment webhook...', 'info');
+                simulateWebhookBtn.disabled = true;
+                simulateWebhookBtn.textContent = 'Processing...';
+
+                // Add ngrok bypass header
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'ngrok-skip-browser-warning': 'true'
+                };
+
+                const response = await fetch(`${apiUrl}/bookings/webhook/payment`, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({
+                        gateway: 'TECHCOMBANK',
+                        transactionDate: new Date().toISOString(),
+                        accountNumber: '0123456789',
+                        transferType: 'in',
+                        transferAmount: amount,
+                        content: content,
+                        referenceCode: currentBooking.paymentWebhookReference,
+                        description: 'Booking payment simulation'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                addLog(`Webhook simulated successfully: ${data.message || 'Payment processed'}`, 'success');
+                
+                // Check if payment was successful
+                if (data.data && data.data.bookingId) {
+                    addLog('Payment confirmed by webhook!', 'success');
+                    setTimeout(() => {
+                        showBookingSuccess();
+                    }, 1500);
+                }
+                
+            } catch (error) {
+                addLog(`Error simulating webhook: ${error.message}`, 'error');
+            } finally {
+                simulateWebhookBtn.disabled = false;
+                simulateWebhookBtn.textContent = 'Simulate Payment';
+            }
+        }
+
+        // Show booking success
+        function showBookingSuccess() {
+            if (paymentTimer) {
+                clearInterval(paymentTimer);
+                paymentTimer = null;
+            }
+            
+            // Hide payment sections
+            qrCodeSection.style.display = 'none';
+            webhookSimulator.style.display = 'none';
+            
+            // Show success section
+            bookingSuccess.style.display = 'block';
+            
+            if (currentBooking) {
+                const seatNumbers = Array.from(selectedSeats).map(seatId => {
+                    const seat = tripSeats.find(s => s.id === seatId);
+                    return seat ? seat.seatNumber : seatId;
+                }).join(', ');
+
+                // If selectedSeats is empty (after booking), get seat info from booking
+                let displaySeats = seatNumbers;
+                if (!seatNumbers && currentBooking.bookingTrips && currentBooking.bookingTrips[0]) {
+                    displaySeats = currentBooking.bookingTrips[0].seats?.map(s => s.seatNumber).join(', ') || 'N/A';
+                }
+
+                bookingDetails.innerHTML = `
+                    <div style="text-align: left; max-width: 400px; margin: 0 auto;">
+                        <p><strong>🎫 Booking ID:</strong> ${currentBooking.id}</p>
+                        <p><strong>💰 Amount Paid:</strong> ${currentBooking.finalPrice?.toLocaleString()} VND</p>
+                        <p><strong>🪑 Seats:</strong> ${displaySeats}</p>
+                        <p><strong>📅 Booking Date:</strong> ${currentBooking.createdAt ? new Date(currentBooking.createdAt).toLocaleDateString() : 'N/A'}</p>
+                        <p><strong>🔗 Reference:</strong> ${currentBooking.paymentWebhookReference}</p>
+                    </div>
+                `;
+            }
+            
+            addLog('🎉 Payment completed successfully!', 'success');
+            addLog('Your booking is now confirmed. Have a great trip!', 'success');
+            
+            // Auto-reload seats to show updated status
+            setTimeout(() => {
+                if (tripSeats.length > 0) {
+                    loadSeats();
+                    addLog('🔄 Seat status refreshed', 'info');
+                }
+            }, 2000);
+        }
+
+        // Resend QR code
+        async function resendQR() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const token = document.getElementById('token').value;
+
+            if (!currentBooking) {
+                addLog('No current booking to resend QR for', 'error');
+                return;
+            }
+
+            try {
+                addLog('🔄 Requesting new QR code...', 'info');
+                resendQrBtn.disabled = true;
+                resendQrBtn.textContent = 'Generating QR...';
+                
+                const response = await fetch(`${apiUrl}/bookings/${currentBooking.id}/resend-payment`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                // Update current booking with new QR data
+                currentBooking.qrCode = data.data.qrCode;
+                currentBooking.qrCodeExpiresAt = data.data.qrCodeExpiresAt;
+                
+                addLog('✅ New QR code generated successfully!', 'success');
+                
+                // Clear any existing expired messages
+                const expiredMsgs = qrCodeSection.querySelectorAll('div[style*="color: #dc3545"]');
+                expiredMsgs.forEach(msg => msg.remove());
+                
+                // Reset QR code opacity and show updated payment section
+                qrCodeImage.style.opacity = '1';
+                qrCodeImage.style.display = 'block';
+                
+                // Show updated payment section
+                showPaymentSection();
+                
+            } catch (error) {
+                addLog(`❌ Error generating new QR code: ${error.message}`, 'error');
+            } finally {
+                resendQrBtn.disabled = false;
+                resendQrBtn.textContent = 'Resend QR Code';
+            }
+        }
+
+        // Cancel booking
+        async function cancelBooking() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const token = document.getElementById('token').value;
+
+            if (!confirm('Are you sure you want to cancel this booking?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${apiUrl}/bookings/${currentBooking.id}/cancel`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        reason: 'Cancelled by user via test client'
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                addLog('Booking cancelled successfully', 'success');
+                
+                // Reset UI
+                if (paymentTimer) {
+                    clearInterval(paymentTimer);
+                }
+                qrCodeSection.style.display = 'none';
+                webhookSimulator.style.display = 'none';
+                currentBooking = null;
+                
+                // Reload seats to see updated status
+                loadSeats();
+                
+            } catch (error) {
+                addLog(`Error cancelling booking: ${error.message}`, 'error');
             }
         }
 
@@ -230,6 +1361,9 @@
                     socket.disconnect();
                 }
 
+                connectionStatus.textContent = 'Connecting...';
+                connectionStatus.className = 'status-badge status-connecting';
+
                 // Connect to server
                 socket = io(serverUrl, {
                     auth: { token },
@@ -238,97 +1372,131 @@
 
                 // Connection events
                 socket.on('connect', () => {
-                    connectionStatus.textContent = 'Status: Connected';
+                    connectionStatus.textContent = 'Connected';
+                    connectionStatus.className = 'status-badge status-connected';
                     connectBtn.disabled = true;
                     disconnectBtn.disabled = false;
                     joinRoomBtn.disabled = false;
-                    addLog('Connected to server', 'success');
+                    addLog('Connected to socket server', 'success');
                 });
 
                 socket.on('connect_error', (error) => {
-                    connectionStatus.textContent = `Status: Connection Error - ${error.message}`;
+                    connectionStatus.textContent = `Error: ${error.message}`;
+                    connectionStatus.className = 'status-badge status-disconnected';
                     addLog(`Connection error: ${error.message}`, 'error');
                     connectBtn.disabled = false;
                     disconnectBtn.disabled = true;
                     joinRoomBtn.disabled = true;
                     leaveRoomBtn.disabled = true;
+                    loadSeatsBtn.disabled = true;
                 });
 
                 socket.on('disconnect', () => {
-                    connectionStatus.textContent = 'Status: Disconnected';
+                    connectionStatus.textContent = 'Disconnected';
+                    connectionStatus.className = 'status-badge status-disconnected';
                     connectBtn.disabled = false;
                     disconnectBtn.disabled = true;
                     joinRoomBtn.disabled = true;
                     leaveRoomBtn.disabled = true;
+                    loadSeatsBtn.disabled = true;
                     selectSeatBtn.disabled = true;
                     releaseSeatBtn.disabled = true;
-                    addLog('Disconnected from server', 'info');
+                    addLog('Disconnected from socket server', 'info');
                 });
 
                 // Seat related events
                 socket.on('seatStatusChanged', (data) => {
-                    addLog(`Seat status changed: ${JSON.stringify(data)}`, 'info');
-                    
+                    addLog(`Seat status changed: ${data.seatId} -> ${data.status}`, 'info');
+
                     // Update seat in UI
-                    const seats = document.querySelectorAll('.seat');
-                    for (const seat of seats) {
-                        if (seat.dataset.seatId === data.seatId) {
-                            seat.classList.remove('available', 'reserved', 'booked', 'selected');
-                            seat.dataset.status = data.status;
-                            
-                            switch (data.status) {
-                                case 'AVAILABLE':
-                                    seat.classList.add('available');
-                                    break;
-                                case 'RESERVED':
-                                    seat.classList.add('reserved');
-                                    break;
-                                case 'BOOKED':
-                                    seat.classList.add('booked');
-                                    break;
-                            }
+                    const seatElement = document.querySelector(`[data-seat-id="${data.seatId}"]`);
+                    if (seatElement) {
+                        // Remove old status classes
+                        seatElement.classList.remove('available', 'reserved', 'booked', 'blocked', 'selected');
+                        
+                        // Update data attribute
+                        seatElement.dataset.status = data.status;
+
+                        // Add new status class
+                        seatElement.classList.add(data.status.toLowerCase());
+
+                        // Update click handler based on status
+                        if (data.status === 'AVAILABLE') {
+                            seatElement.onclick = () => toggleSeatSelection(seatElement);
+                        } else {
+                            seatElement.onclick = null;
+                        }
+
+                        // If this seat was selected but now unavailable, remove from selection
+                        if (data.status !== 'AVAILABLE' && selectedSeats.has(data.seatId)) {
+                            selectedSeats.delete(data.seatId);
+                            updateSelectedSeatsDisplay();
+                            updateBookingForm();
                         }
                     }
                 });
 
                 socket.on('seatSelectionConfirmed', (data) => {
-                    addLog(`Seat selection confirmed: ${JSON.stringify(data)}`, 'success');
-                    if (selectedSeat && selectedSeat.dataset.seatId === data.seatId) {
-                        selectedSeat.dataset.status = 'RESERVED';
-                        selectedSeat.classList.remove('selected');
-                        selectedSeat.classList.add('reserved');
-                        selectSeatBtn.disabled = true;
-                        releaseSeatBtn.disabled = false;
-                    }
+                    addLog(`Seat selection confirmed: ${data.seatId}`, 'success');
                 });
 
                 socket.on('seatSelectionError', (data) => {
-                    addLog(`Seat selection error: ${JSON.stringify(data)}`, 'error');
-                    if (selectedSeat) {
-                        selectedSeat.dataset.status = 'AVAILABLE';
-                        selectedSeat.classList.remove('selected');
-                        selectedSeat.classList.add('available');
-                        selectSeatBtn.disabled = true;
-                    }
+                    addLog(`Seat selection error: ${data.error}`, 'error');
                 });
 
                 socket.on('seatReleased', (data) => {
-                    addLog(`Seat released: ${JSON.stringify(data)}`, 'success');
-                    if (selectedSeat && selectedSeat.dataset.seatId === data.seatId) {
-                        selectedSeat.dataset.status = 'AVAILABLE';
-                        selectedSeat.classList.remove('reserved');
-                        selectedSeat.classList.add('available');
-                        releaseSeatBtn.disabled = true;
-                    }
+                    addLog(`Seat released: ${data.seatId}`, 'success');
                 });
 
                 socket.on('seatReleaseError', (data) => {
-                    addLog(`Seat release error: ${JSON.stringify(data)}`, 'error');
+                    addLog(`Seat release error: ${data.error}`, 'error');
+                });
+
+                // Listen for booking-related events
+                socket.on('bookingCreated', (data) => {
+                    addLog(`📋 New booking created: ${data.bookingId} by user ${data.userId}`, 'info');
+                    addLog(`💰 Amount: ${data.finalPrice.toLocaleString()} VND, Seats: ${data.seatIds.length}`, 'info');
+                    
+                    // If this is our booking, update UI
+                    const userId = document.getElementById('userId').value;
+                    if (data.userId === userId && currentBooking && currentBooking.id === data.bookingId) {
+                        addLog('✅ This is your booking - payment section should be visible', 'success');
+                    }
+                });
+
+                // Listen for payment success events
+                socket.on('paymentCompleted', (data) => {
+                    addLog(`💳 Payment completed for booking: ${data.bookingId}`, 'success');
+                    addLog(`💰 Amount paid: ${data.amount.toLocaleString()} VND`, 'success');
+                    
+                    if (currentBooking && currentBooking.id === data.bookingId) {
+                        setTimeout(() => {
+                            showBookingSuccess();
+                        }, 1000);
+                    }
+                });
+
+                // Listen for booking cancellation events
+                socket.on('bookingCancelled', (data) => {
+                    addLog(`❌ Booking cancelled: ${data.bookingId}`, 'warning');
+                    addLog(`Reason: ${data.reason}`, 'warning');
+                    
+                    if (currentBooking && currentBooking.id === data.bookingId) {
+                        // Reset UI
+                        qrCodeSection.style.display = 'none';
+                        webhookSimulator.style.display = 'none';
+                        currentBooking = null;
+                        if (paymentTimer) {
+                            clearInterval(paymentTimer);
+                        }
+                        addLog('Your booking has been cancelled', 'warning');
+                    }
                 });
 
             } catch (err) {
                 addLog(`Error initializing socket: ${err.message}`, 'error');
-                connectionStatus.textContent = `Status: Error - ${err.message}`;
+                connectionStatus.textContent = `Error: ${err.message}`;
+                connectionStatus.className = 'status-badge status-disconnected';
             }
         });
 
@@ -343,7 +1511,7 @@
         // Join trip room
         joinRoomBtn.addEventListener('click', () => {
             const tripId = document.getElementById('tripId').value;
-            
+
             if (!tripId) {
                 addLog('Please enter a Trip ID', 'error');
                 return;
@@ -354,65 +1522,127 @@
                 addLog(`Joined trip room: ${tripId}`, 'info');
                 joinRoomBtn.disabled = true;
                 leaveRoomBtn.disabled = false;
+                loadSeatsBtn.disabled = false;
                 selectSeatBtn.disabled = true;
-                
-                // Generate seats for testing
-                generateSeats();
+                releaseSeatBtn.disabled = true;
+                selectedSeats.clear();
+                selectedSeatsInfo.style.display = 'none';
             }
         });
 
         // Leave trip room
         leaveRoomBtn.addEventListener('click', () => {
             const tripId = document.getElementById('tripId').value;
-            
+
             if (socket) {
                 socket.emit('leaveTripRoom', tripId);
                 addLog(`Left trip room: ${tripId}`, 'info');
                 joinRoomBtn.disabled = false;
                 leaveRoomBtn.disabled = true;
+                loadSeatsBtn.disabled = true;
                 selectSeatBtn.disabled = true;
                 releaseSeatBtn.disabled = true;
-                selectedSeat = null;
-                seatsContainer.innerHTML = '';
+                selectedSeats.clear();
+                selectedSeatsInfo.style.display = 'none';
+                seatsContainer.innerHTML = '<div class="loading">Join a trip and load seats to see availability</div>';
             }
         });
 
-        // Select seat via socket
+        // Load seats
+        loadSeatsBtn.addEventListener('click', loadSeats);
+
+        // Reserve seats via socket
         selectSeatBtn.addEventListener('click', () => {
-            if (!socket || !selectedSeat) return;
+            if (!socket || selectedSeats.size === 0) return;
 
             const tripId = document.getElementById('tripId').value;
             const userId = document.getElementById('userId').value;
-            const seatId = selectedSeat.dataset.seatId;
 
             if (!tripId || !userId) {
                 addLog('Trip ID and User ID are required', 'error');
                 return;
             }
 
-            addLog(`Selecting seat: ${seatId}`, 'info');
-            socket.emit('selectSeat', {
-                tripId,
-                seatId,
-                userId,
-                sessionId
+            // Reserve each selected seat
+            selectedSeats.forEach(seatId => {
+                addLog(`Reserving seat: ${seatId}`, 'info');
+                socket.emit('selectSeat', {
+                    tripId,
+                    seatId,
+                    userId,
+                    sessionId
+                });
             });
         });
 
-        // Release seat via socket
+        // Release seats via socket
         releaseSeatBtn.addEventListener('click', () => {
-            if (!socket || !selectedSeat) return;
+            if (!socket || selectedSeats.size === 0) return;
 
             const tripId = document.getElementById('tripId').value;
             const userId = document.getElementById('userId').value;
-            const seatId = selectedSeat.dataset.seatId;
 
-            addLog(`Releasing seat: ${seatId}`, 'info');
-            socket.emit('releaseSeat', {
-                tripId,
-                seatId,
-                userId
+            // Release each selected seat
+            selectedSeats.forEach(seatId => {
+                addLog(`Releasing seat: ${seatId}`, 'info');
+                socket.emit('releaseSeat', {
+                    tripId,
+                    seatId,
+                    userId
+                });
             });
+
+            // Clear selection
+            selectedSeats.clear();
+            updateSelectedSeatsDisplay();
+            updateBookingForm();
+        });
+
+        // Booking event listeners
+        calculatePriceBtn.addEventListener('click', calculatePrice);
+        createBookingBtn.addEventListener('click', createBooking);
+        resendQrBtn.addEventListener('click', resendQR);
+        cancelBookingBtn.addEventListener('click', cancelBooking);
+        simulateWebhookBtn.addEventListener('click', simulateWebhook);
+
+        // Debug button
+        document.getElementById('debugBookingBtn').addEventListener('click', () => {
+            console.log('=== CURRENT BOOKING DEBUG ===');
+            console.log('Current booking object:', currentBooking);
+            console.log('Selected seats:', Array.from(selectedSeats));
+            console.log('Trip seats:', tripSeats);
+            console.log('QR Code section visible:', getComputedStyle(qrCodeSection).display !== 'none');
+            console.log('Payment timer active:', paymentTimer !== null);
+            
+            if (currentBooking) {
+                addLog(`🔍 Debug Info:`, 'info');
+                addLog(`- Booking ID: ${currentBooking.id}`, 'info');
+                addLog(`- Has QR Code: ${!!currentBooking.qrCode}`, 'info');
+                addLog(`- Payment Reference: ${currentBooking.paymentWebhookReference || 'Not set'}`, 'info');
+                addLog(`- Final Price: ${currentBooking.finalPrice || 'Not set'}`, 'info');
+                addLog(`- QR Expires At: ${currentBooking.qrCodeExpiresAt || 'Not set'}`, 'info');
+                addLog(`- QR Code Error: ${currentBooking.qrCodeError || 'None'}`, 'info');
+                
+                if (currentBooking.qrCode) {
+                    try {
+                        const qrData = JSON.parse(currentBooking.qrCode);
+                        addLog(`- QR URL: ${qrData.url}`, 'info');
+                        addLog(`- Bank ID: ${qrData.bankId}`, 'info');
+                        addLog(`- Account: ${qrData.accountNo}`, 'info');
+                    } catch (e) {
+                        addLog(`- QR Parse Error: ${e.message}`, 'error');
+                        addLog(`- Raw QR Data: ${currentBooking.qrCode}`, 'error');
+                    }
+                }
+            } else {
+                addLog('🔍 No current booking object found', 'warning');
+            }
+            
+            // Test QR display
+            if (currentBooking && currentBooking.qrCode) {
+                addLog('🧪 Testing payment section display...', 'info');
+                showPaymentSection();
+            }
         });
 
         // Clear logs
@@ -420,8 +1650,17 @@
             eventLogs.innerHTML = '';
         });
 
+        // View booking details (placeholder)
+        viewBookingBtn.addEventListener('click', () => {
+            if (currentBooking) {
+                addLog(`Viewing booking details: ${currentBooking.id}`, 'info');
+                // In a real app, this would navigate to booking details page
+            }
+        });
+
         // Initialize
-        generateSeats();
+        addLog('Bus Booking Test Client initialized', 'info');
     </script>
 </body>
+
 </html>
