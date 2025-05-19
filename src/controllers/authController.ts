@@ -448,7 +448,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
     });
 
     // Create reset URL
-    const resetUrl = `${req.protocol}://${req.get('host')}/api/auth/reset-password/${resetToken}`;
+    const resetUrl = `${req.protocol}://${req.get('host')}/reset-password/${resetToken}`;
 
     try {
       await sendEmail(email, 'Reset Your Password', resetPasswordEmailTemplate, {
@@ -480,6 +480,36 @@ export const checkVerificationToken = async (req: Request, res: Response): Promi
       where: {
         emailVerificationToken: hashedToken,
         emailVerificationExpire: { gt: new Date() },
+      },
+    });
+
+    if (!user) {
+      sendBadRequest(res, 'auth.invalidOrExpiredToken', null, language);
+      return;
+    }
+
+    sendSuccess(res, 'auth.validToken', { isValid: true }, language);
+  } catch (error) {
+    sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
+  }
+};
+
+export const checkResetToken = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      sendBadRequest(res, 'auth.tokenRequired', null, language);
+      return;
+    }
+
+    const hashedToken = TokenHandler.hashToken(token);
+
+    const user = await prisma.user.findFirst({
+      where: {
+        resetPasswordToken: hashedToken,
+        resetPasswordExpire: { gt: new Date() },
       },
     });
 

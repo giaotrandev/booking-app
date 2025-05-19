@@ -24,6 +24,7 @@ router.post(
   authController.forgotPassword
 );
 router.get('/check-verification-token/:token', authController.checkVerificationToken);
+router.get('/check-reset-token/:token', authController.checkResetToken);
 router.post('/reset-password', validateSchema(resetPasswordSchema), authController.resetPassword);
 
 router.post('/verify-email/:token', authController.verifyEmail);

@@ -271,6 +271,40 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
+    '/auth/check-reset-token/{token}': {
+      get: {
+        tags: ['Authentication'],
+        summary: 'Kiểm tra token đặt lại mật khẩu',
+        parameters: [
+          {
+            name: 'token',
+            in: 'path',
+            required: true,
+            schema: {
+              type: 'string',
+            },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Token hợp lệ',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    isValid: { type: 'boolean' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Token không hợp lệ hoặc đã hết hạn',
+          },
+        },
+      },
+    },
     '/auth/login': {
       post: {
         tags: ['Authentication'],
