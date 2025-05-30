@@ -155,7 +155,7 @@ export const processWebhookPayload = async (payload: any): Promise<boolean> => {
               paymentStatus: { from: booking.paymentStatus, to: 'COMPLETED' },
               status: { from: booking.status, to: 'CONFIRMED' },
             },
-            changedBy: booking.userId,
+            changedBy: booking.userId || booking.guestName || 'N/A',
             changeReason: `Payment completed via SePay. Transaction ID: ${transactionId}`,
           },
         });
@@ -171,7 +171,7 @@ export const processWebhookPayload = async (payload: any): Promise<boolean> => {
           changedFields: {
             paymentStatus: { from: booking.paymentStatus, to: 'FAILED' },
           },
-          changedBy: booking.userId,
+          changedBy: booking.userId || booking.guestName || 'N/A',
           changeReason: `Payment failed via SePay. Transaction ID: ${transactionId}`,
         },
       });
