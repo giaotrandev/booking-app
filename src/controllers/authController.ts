@@ -448,7 +448,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
     });
 
     // Create reset URL
-    const resetUrl = `${req.protocol}://${req.get('host')}/reset-password/${resetToken}`;
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
     try {
       await sendEmail(email, 'Reset Your Password', resetPasswordEmailTemplate, {
@@ -691,6 +691,7 @@ export const googleAuthRoutes = {
   // Google OAuth Callback
   handleGoogleCallback: async (req: Request, res: Response, next: NextFunction) => {
     const language = (req.query.state as string) || process.env.DEFAULT_LANGUAGE || 'en';
+    console.log('Test');
 
     passport.authenticate('google', async (err: Error | null, user: any, info: any) => {
       // Create a universal error response script
@@ -746,13 +747,30 @@ export const googleAuthRoutes = {
         const accessTokenExpirationMs = ms(ACCESS_TOKEN_EXPIRATION as ms.StringValue);
         const refreshTokenExpirationMs = ms(REFRESH_TOKEN_EXPIRATION as ms.StringValue);
 
-        // Remove old login sessions
-        await prisma.loginSession.deleteMany({
+        // Find old login sessions to delete
+        const oldSessions = await prisma.loginSession.findMany({
           where: {
             userId: user.id,
             lastActivityAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // 30 days
           },
+          select: { id: true },
         });
+
+        // Delete refresh tokens first (child records)
+        if (oldSessions.length > 0) {
+          await prisma.refreshToken.deleteMany({
+            where: {
+              sessionId: { in: oldSessions.map((session) => session.id) },
+            },
+          });
+
+          // Then delete login sessions (parent records)
+          await prisma.loginSession.deleteMany({
+            where: {
+              id: { in: oldSessions.map((session) => session.id) },
+            },
+          });
+        }
 
         // Create new login session
         const session = await prisma.loginSession.create({
@@ -838,6 +856,8 @@ export const googleAuthRoutes = {
           <body>Đang xử lý...</body>
           </html>
         `;
+
+        console.log('Google OAuth login successful:', res);
 
         return res.status(200).send(createSuccessResponseScript());
       } catch (processingError) {

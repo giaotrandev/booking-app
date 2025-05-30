@@ -436,11 +436,104 @@
             border-radius: 8px;
             margin-top: 15px;
         }
+
+        /* Modal Dialog Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 10px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: #28a745;
+            font-size: 1.5em;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: #000;
+            text-decoration: none;
+        }
+
+        .modal-body {
+            padding: 10px 0;
+        }
+
+        .modal-body p {
+            margin: 8px 0;
+            font-size: 16px;
+        }
+
+        .modal-footer {
+            border-top: 1px solid #dee2e6;
+            padding-top: 10px;
+            text-align: right;
+        }
+
+        .modal-footer button {
+            background-color: #28a745;
+        }
+
+        .modal-footer button:hover {
+            background-color: #218838;
+        }
     </style>
 </head>
 
 <body>
     <h1>🚌 Bus Booking Test Client</h1>
+
+    <!-- Booking Success Modal -->
+    <div id="bookingSuccessModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 data-i18n="booking.success">🎉 Booking Confirmed!</h2>
+                <span class="close">×</span>
+            </div>
+            <div class="modal-body">
+                <p><strong>Booking ID:</strong> <span id="modalBookingId"></span></p>
+                <p><strong>Seats:</strong> <span id="modalSeatNumbers"></span></p>
+                <p><strong>Amount:</strong> <span id="modalFinalPrice"></span> VND</p>
+                <p data-i18n="booking.successMessage">Your booking is confirmed. Check your email for tickets!</p>
+            </div>
+            <div class="modal-footer">
+                <button id="closeModalBtn">Close</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Tabs -->
     <div class="tabs">
@@ -643,6 +736,14 @@
         const bookingDetails = document.getElementById('bookingDetails');
         const viewBookingBtn = document.getElementById('viewBookingBtn');
 
+        // Modal elements
+        const bookingSuccessModal = document.getElementById('bookingSuccessModal');
+        const modalBookingId = document.getElementById('modalBookingId');
+        const modalSeatNumbers = document.getElementById('modalSeatNumbers');
+        const modalFinalPrice = document.getElementById('modalFinalPrice');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const modalClose = bookingSuccessModal.querySelector('.close');
+
         // State
         let socket = null;
         let selectedSeats = new Set();
@@ -650,6 +751,45 @@
         let currentBooking = null;
         let paymentTimer = null;
         let sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+        // Translation function (placeholder, replace with your actual translation service)
+        function t(key) {
+            const translations = {
+                en: {
+                    'booking.success': 'Booking Confirmed!',
+                    'booking.successMessage': 'Your booking is confirmed. Check your email for tickets!',
+                },
+                vi: {
+                    'booking.success': 'Đặt chỗ thành công!',
+                    'booking.successMessage': 'Đặt chỗ của bạn đã được xác nhận. Vui lòng kiểm tra email để nhận vé!',
+                },
+            };
+            const lang = 'en'; // Replace with actual language detection
+            return translations[lang][key] || key;
+        }
+
+        // Show booking success modal
+        function showBookingSuccessModal(data) {
+            modalBookingId.textContent = data.bookingId || 'N/A';
+            modalSeatNumbers.textContent = data.seatNumbers || 'N/A';
+            modalFinalPrice.textContent = data.finalPrice ? data.finalPrice.toLocaleString() : 'N/A';
+            bookingSuccessModal.style.display = 'block';
+            addLog('🎉 Booking success modal displayed', 'success');
+        }
+
+        // Close modal
+        function closeBookingSuccessModal() {
+            bookingSuccessModal.style.display = 'none';
+        }
+
+        // Modal event listeners
+        closeModalBtn.addEventListener('click', closeBookingSuccessModal);
+        modalClose.addEventListener('click', closeBookingSuccessModal);
+        window.addEventListener('click', (event) => {
+            if (event.target === bookingSuccessModal) {
+                closeBookingSuccessModal();
+            }
+        });
 
         // Tab functionality
         function openTab(evt, tabName) {
@@ -912,6 +1052,12 @@
                 addLog(`💰 Amount: ${currentBooking.finalPrice?.toLocaleString()} VND`, 'info');
                 addLog(`🔗 Payment Reference: ${currentBooking.paymentWebhookReference}`, 'info');
 
+                // Join booking room to receive status updates
+                if (socket) {
+                    socket.emit('joinBookingRoom', currentBooking.id);
+                    addLog(`Joined booking room: ${currentBooking.id}`, 'info');
+                }
+
                 // Clear selected seats from UI (they're now reserved)
                 selectedSeats.clear();
                 updateSelectedSeatsDisplay();
@@ -959,7 +1105,7 @@
             paymentCountdown.textContent = 'QR Code Generation Failed';
             paymentCountdown.style.color = '#dc3545';
             
-            // Show retry button prominently
+            // Show retry container
             const retryContainer = document.createElement('div');
             retryContainer.innerHTML = `
                 <div style="text-align: center; padding: 20px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; margin: 15px 0;">
@@ -991,7 +1137,6 @@
 
             // Show the payment section container
             qrCodeSection.style.display = 'block';
-                console.log("Test 1:", currentBooking);
 
             if (!currentBooking.qrCode || !currentBooking.qrCodeExpiresAt) {
                 addLog('❌ QR code or expiry time not available', 'error');
@@ -1004,17 +1149,14 @@
                 
                 // Parse QR code data
                 let qrData;
-                console.log("Test 2:", currentBooking);
                 try {
                     qrData = JSON.parse(currentBooking.qrCode);
-                console.log("Test 3:", qrData);
                 } catch (parseError) {
                     addLog('❌ Error parsing QR code data - invalid JSON format', 'error');
                     console.error('QR Code raw data:', currentBooking.qrCode);
                     showRetryQROption();
                     return;
                 }
-                console.log("Test 3:", qrData.url);
                 
                 // Validate QR data structure
                 if (!qrData.url) {
@@ -1236,6 +1378,12 @@
                     addLog('🔄 Seat status refreshed', 'info');
                 }
             }, 2000);
+
+            // Switch to booking tab to show success
+            const bookingTabBtn = document.querySelector('.tab-button:nth-child(2)');
+            if (bookingTabBtn) {
+                openTab({ currentTarget: bookingTabBtn }, 'booking-tab');
+            }
         }
 
         // Resend QR code
@@ -1420,87 +1568,62 @@
                         // Add new status class
                         seatElement.classList.add(data.status.toLowerCase());
 
-                        // Update click handler based on status
+                        // Update onclick handler based on status
                         if (data.status === 'AVAILABLE') {
                             seatElement.onclick = () => toggleSeatSelection(seatElement);
                         } else {
                             seatElement.onclick = null;
                         }
 
-                        // If this seat was selected but now unavailable, remove from selection
+                        // If this seat was selected, remove from selection
                         if (data.status !== 'AVAILABLE' && selectedSeats.has(data.seatId)) {
                             selectedSeats.delete(data.seatId);
                             updateSelectedSeatsDisplay();
-                            updateBookingForm();
                         }
                     }
                 });
 
                 socket.on('seatSelectionConfirmed', (data) => {
-                    addLog(`Seat selection confirmed: ${data.seatId}`, 'success');
+                    addLog(`Seat ${data.seatId} reserved until ${new Date(data.expireAt).toLocaleTimeString()}`, 'success');
+                    releaseSeatBtn.disabled = false;
                 });
 
                 socket.on('seatSelectionError', (data) => {
-                    addLog(`Seat selection error: ${data.error}`, 'error');
+                    addLog(`Error selecting seat ${data.seatId}: ${data.error}`, 'error');
+                    // Remove from selected seats if error occurred
+                    selectedSeats.delete(data.seatId);
+                    updateSelectedSeatsDisplay();
+                    loadSeats(); // Refresh seats
                 });
 
                 socket.on('seatReleased', (data) => {
-                    addLog(`Seat released: ${data.seatId}`, 'success');
+                    addLog(`Seat ${data.seatId} released`, 'success');
+                    releaseSeatBtn.disabled = true;
                 });
 
                 socket.on('seatReleaseError', (data) => {
-                    addLog(`Seat release error: ${data.error}`, 'error');
+                    addLog(`Error releasing seat ${data.seatId}: ${data.error}`, 'error');
                 });
 
-                // Listen for booking-related events
-                socket.on('bookingCreated', (data) => {
-                    addLog(`📋 New booking created: ${data.bookingId} by user ${data.userId}`, 'info');
-                    addLog(`💰 Amount: ${data.finalPrice.toLocaleString()} VND, Seats: ${data.seatIds.length}`, 'info');
-                    
-                    // If this is our booking, update UI
-                    const userId = document.getElementById('userId').value;
-                    if (data.userId === userId && currentBooking && currentBooking.id === data.bookingId) {
-                        addLog('✅ This is your booking - payment section should be visible', 'success');
+                socket.on('seatExpirationWarning', (data) => {
+                    addLog(`Seat ${data.seatId} reservation expires in ${data.remainingTime} seconds`, 'warning');
+                });
+
+                // Booking status change event
+                socket.on('bookingStatusChanged', (data) => {
+                    addLog(`Booking ${data.bookingId} status changed to ${data.status}`, 'info');
+                    if (data.status === 'CONFIRMED' && currentBooking && currentBooking.id === data.bookingId) {
+                        showBookingSuccessModal(data);
+                        showBookingSuccess();
                     }
                 });
 
-                // Listen for payment success events
-                socket.on('paymentCompleted', (data) => {
-                    addLog(`💳 Payment completed for booking: ${data.bookingId}`, 'success');
-                    addLog(`💰 Amount paid: ${data.amount.toLocaleString()} VND`, 'success');
-                    
-                    if (currentBooking && currentBooking.id === data.bookingId) {
-                        setTimeout(() => {
-                            showBookingSuccess();
-                        }, 1000);
-                    }
-                });
-
-                // Listen for booking cancellation events
-                socket.on('bookingCancelled', (data) => {
-                    addLog(`❌ Booking cancelled: ${data.bookingId}`, 'warning');
-                    addLog(`Reason: ${data.reason}`, 'warning');
-                    
-                    if (currentBooking && currentBooking.id === data.bookingId) {
-                        // Reset UI
-                        qrCodeSection.style.display = 'none';
-                        webhookSimulator.style.display = 'none';
-                        currentBooking = null;
-                        if (paymentTimer) {
-                            clearInterval(paymentTimer);
-                        }
-                        addLog('Your booking has been cancelled', 'warning');
-                    }
-                });
-
-            } catch (err) {
-                addLog(`Error initializing socket: ${err.message}`, 'error');
-                connectionStatus.textContent = `Error: ${err.message}`;
-                connectionStatus.className = 'status-badge status-disconnected';
+            } catch (error) {
+                addLog(`Socket connection error: ${error.message}`, 'error');
             }
         });
 
-        // Disconnect from server
+        // Disconnect from socket server
         disconnectBtn.addEventListener('click', () => {
             if (socket) {
                 socket.disconnect();
@@ -1511,22 +1634,22 @@
         // Join trip room
         joinRoomBtn.addEventListener('click', () => {
             const tripId = document.getElementById('tripId').value;
+            const userId = document.getElementById('userId').value;
 
-            if (!tripId) {
-                addLog('Please enter a Trip ID', 'error');
+            if (!tripId || !userId) {
+                addLog('Please enter both Trip ID and User ID', 'error');
                 return;
             }
 
             if (socket) {
                 socket.emit('joinTripRoom', tripId);
-                addLog(`Joined trip room: ${tripId}`, 'info');
+                addLog(`Joined trip room: ${tripId}`, 'success');
                 joinRoomBtn.disabled = true;
                 leaveRoomBtn.disabled = false;
                 loadSeatsBtn.disabled = false;
-                selectSeatBtn.disabled = true;
-                releaseSeatBtn.disabled = true;
-                selectedSeats.clear();
-                selectedSeatsInfo.style.display = 'none';
+                loadSeats();
+            } else {
+                addLog('Not connected to socket server', 'error');
             }
         });
 
@@ -1536,130 +1659,116 @@
 
             if (socket) {
                 socket.emit('leaveTripRoom', tripId);
-                addLog(`Left trip room: ${tripId}`, 'info');
+                addLog(`Left trip room: ${tripId}`, 'success');
                 joinRoomBtn.disabled = false;
                 leaveRoomBtn.disabled = true;
                 loadSeatsBtn.disabled = true;
                 selectSeatBtn.disabled = true;
                 releaseSeatBtn.disabled = true;
-                selectedSeats.clear();
-                selectedSeatsInfo.style.display = 'none';
                 seatsContainer.innerHTML = '<div class="loading">Join a trip and load seats to see availability</div>';
+                selectedSeats.clear();
+                updateSelectedSeatsDisplay();
             }
         });
 
-        // Load seats
+        // Load seats button
         loadSeatsBtn.addEventListener('click', loadSeats);
 
-        // Reserve seats via socket
+        // Select seat
         selectSeatBtn.addEventListener('click', () => {
-            if (!socket || selectedSeats.size === 0) return;
-
             const tripId = document.getElementById('tripId').value;
             const userId = document.getElementById('userId').value;
 
-            if (!tripId || !userId) {
-                addLog('Trip ID and User ID are required', 'error');
+            if (selectedSeats.size === 0) {
+                addLog('No seats selected', 'error');
                 return;
             }
 
-            // Reserve each selected seat
-            selectedSeats.forEach(seatId => {
-                addLog(`Reserving seat: ${seatId}`, 'info');
-                socket.emit('selectSeat', {
-                    tripId,
-                    seatId,
-                    userId,
-                    sessionId
+            if (socket) {
+                selectedSeats.forEach(seatId => {
+                    socket.emit('selectSeat', {
+                        tripId,
+                        seatId,
+                        userId,
+                        sessionId
+                    });
                 });
-            });
+                addLog(`Attempting to reserve ${selectedSeats.size} seat(s)`, 'info');
+            }
         });
 
-        // Release seats via socket
+        // Release seat
         releaseSeatBtn.addEventListener('click', () => {
-            if (!socket || selectedSeats.size === 0) return;
-
             const tripId = document.getElementById('tripId').value;
             const userId = document.getElementById('userId').value;
 
-            // Release each selected seat
-            selectedSeats.forEach(seatId => {
-                addLog(`Releasing seat: ${seatId}`, 'info');
-                socket.emit('releaseSeat', {
-                    tripId,
-                    seatId,
-                    userId
-                });
-            });
+            if (selectedSeats.size === 0) {
+                addLog('No seats to release', 'error');
+                return;
+            }
 
-            // Clear selection
-            selectedSeats.clear();
-            updateSelectedSeatsDisplay();
-            updateBookingForm();
+            if (socket) {
+                selectedSeats.forEach(seatId => {
+                    socket.emit('releaseSeat', {
+                        tripId,
+                        seatId,
+                        userId
+                    });
+                });
+                addLog(`Releasing ${selectedSeats.size} seat(s)`, 'info');
+                selectedSeats.clear();
+                updateSelectedSeatsDisplay();
+            }
         });
 
-        // Booking event listeners
+        // Calculate price
         calculatePriceBtn.addEventListener('click', calculatePrice);
+
+        // Create booking
         createBookingBtn.addEventListener('click', createBooking);
+
+        // Resend QR code
         resendQrBtn.addEventListener('click', resendQR);
+
+        // Cancel booking
         cancelBookingBtn.addEventListener('click', cancelBooking);
+
+        // Simulate webhook
         simulateWebhookBtn.addEventListener('click', simulateWebhook);
 
-        // Debug button
-        document.getElementById('debugBookingBtn').addEventListener('click', () => {
-            console.log('=== CURRENT BOOKING DEBUG ===');
-            console.log('Current booking object:', currentBooking);
-            console.log('Selected seats:', Array.from(selectedSeats));
-            console.log('Trip seats:', tripSeats);
-            console.log('QR Code section visible:', getComputedStyle(qrCodeSection).display !== 'none');
-            console.log('Payment timer active:', paymentTimer !== null);
-            
+        // View booking details
+        viewBookingBtn.addEventListener('click', () => {
             if (currentBooking) {
-                addLog(`🔍 Debug Info:`, 'info');
-                addLog(`- Booking ID: ${currentBooking.id}`, 'info');
-                addLog(`- Has QR Code: ${!!currentBooking.qrCode}`, 'info');
-                addLog(`- Payment Reference: ${currentBooking.paymentWebhookReference || 'Not set'}`, 'info');
-                addLog(`- Final Price: ${currentBooking.finalPrice || 'Not set'}`, 'info');
-                addLog(`- QR Expires At: ${currentBooking.qrCodeExpiresAt || 'Not set'}`, 'info');
-                addLog(`- QR Code Error: ${currentBooking.qrCodeError || 'None'}`, 'info');
-                
-                if (currentBooking.qrCode) {
-                    try {
-                        const qrData = JSON.parse(currentBooking.qrCode);
-                        addLog(`- QR URL: ${qrData.url}`, 'info');
-                        addLog(`- Bank ID: ${qrData.bankId}`, 'info');
-                        addLog(`- Account: ${qrData.accountNo}`, 'info');
-                    } catch (e) {
-                        addLog(`- QR Parse Error: ${e.message}`, 'error');
-                        addLog(`- Raw QR Data: ${currentBooking.qrCode}`, 'error');
-                    }
+                addLog(`Viewing booking details for ${currentBooking.id}`, 'info');
+                const bookingTabBtn = document.querySelector('.tab-button:nth-child(2)');
+                if (bookingTabBtn) {
+                    openTab({ currentTarget: bookingTabBtn }, 'booking-tab');
                 }
-            } else {
-                addLog('🔍 No current booking object found', 'warning');
-            }
-            
-            // Test QR display
-            if (currentBooking && currentBooking.qrCode) {
-                addLog('🧪 Testing payment section display...', 'info');
-                showPaymentSection();
             }
         });
 
         // Clear logs
         clearLogsBtn.addEventListener('click', () => {
             eventLogs.innerHTML = '';
+            addLog('Logs cleared', 'info');
         });
 
-        // View booking details (placeholder)
-        viewBookingBtn.addEventListener('click', () => {
+        // Debug current booking
+        document.getElementById('debugBookingBtn').addEventListener('click', () => {
             if (currentBooking) {
-                addLog(`Viewing booking details: ${currentBooking.id}`, 'info');
-                // In a real app, this would navigate to booking details page
+                console.log('Current Booking:', currentBooking);
+                addLog(`Debug: Current booking ID: ${currentBooking.id}`, 'info');
+                addLog(`Debug: Status: ${currentBooking.status || 'N/A'}`, 'info');
+                addLog(`Debug: Final Price: ${currentBooking.finalPrice?.toLocaleString() || 'N/A'} VND`, 'info');
+                addLog(`Debug: Payment Reference: ${currentBooking.paymentWebhookReference || 'N/A'}`, 'info');
+            } else {
+                addLog('No current booking to debug', 'warning');
             }
         });
 
         // Initialize
-        addLog('Bus Booking Test Client initialized', 'info');
+        updateSelectedSeatsDisplay();
+        updateBookingForm();
     </script>
 </body>
 

@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { prisma } from '#config/db';
-import { SeatStatus } from '@prisma/client';
+import { BookingStatus, SeatStatus } from '@prisma/client';
 import { getSocketIOInstance, setSocketIOInstance } from './bookingControllerSocketInterface';
 
 // Keep track of temporary seat reservations
@@ -228,6 +228,18 @@ export const initializeSocketConnection = (io: Server): void => {
       }
     });
 
+    // Join booking room
+    socket.on('joinBookingRoom', (bookingId: string) => {
+      socket.join(`booking:${bookingId}`);
+      console.log(`Client joined booking room: ${bookingId}`);
+    });
+
+    // Leave booking room
+    socket.on('leaveBookingRoom', (bookingId: string) => {
+      socket.leave(`booking:${bookingId}`);
+      console.log(`Client left booking room: ${bookingId}`);
+    });
+
     // Disconnect event
     socket.on('disconnect', () => {
       console.log('Client disconnected:', socket.id);
@@ -387,8 +399,8 @@ export const updateSeatStatus = async (tripId: string, seatId: string, status: S
       data: { status },
     });
 
-    // Get socket.io instance (assuming it's available)
-    const io = getSocketIOInstance(); // or however you store the io instance
+    // Get socket.io instance
+    const io = getSocketIOInstance();
 
     if (io) {
       // Remove from reservations if seat is now booked or blocked
@@ -442,6 +454,53 @@ export const clearExpiredReservations = async (): Promise<void> => {
       }
     } catch (error) {
       console.error('Error clearing expired reservation:', error);
+    }
+  }
+};
+
+/**
+ * Broadcast booking status changes with detailed information
+ */
+export const broadcastBookingStatus = async (bookingId: string, status: BookingStatus) => {
+  const io = getSocketIOInstance();
+  if (io) {
+    try {
+      // Fetch booking details to include in the broadcast
+      const booking = await prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: {
+          bookingTrips: {
+            include: {
+              seats: {
+                select: {
+                  seatNumber: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!booking) {
+        console.error(`Booking ${bookingId} not found for broadcast`);
+        return;
+      }
+
+      // Prepare seat numbers
+      const seatNumbers = booking.bookingTrips.flatMap((trip) => trip.seats.map((seat) => seat.seatNumber)).join(', ');
+
+      // Broadcast detailed event
+      io.to(`booking:${bookingId}`).emit('bookingStatusChanged', {
+        bookingId,
+        status,
+        finalPrice: booking.finalPrice,
+        seatNumbers,
+        updatedAt: new Date().toISOString(),
+      });
+
+      console.log(`Broadcasted booking status change: ${bookingId} -> ${status}`);
+    } catch (error) {
+      console.error(`Error broadcasting booking status for ${bookingId}:`, error);
     }
   }
 };

@@ -156,3 +156,14 @@ export const deleteFileFromR2 = async (fileKey: string): Promise<void> => {
     throw error;
   }
 };
+
+/**
+ * Get public URL for accessing a file
+ */
+export function getPublicR2Url(fileKey: string): string {
+  const publicBaseUrl = process.env.CLOUDFLARE_R2_PUBLIC_URL || '';
+  if (!publicBaseUrl) {
+    throw new Error('Cloudflare R2 public URL is not configured');
+  }
+  return `${publicBaseUrl}/${fileKey}`;
+}

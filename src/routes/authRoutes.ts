@@ -20,7 +20,7 @@ router.post('/login', authController.loginUser);
 router.post(
   '/forgot-password',
   validateSchema(forgotPasswordSchema),
-  createRateLimiter('forgotPassword'),
+  createRateLimiter('email', 'forgotPassword'),
   authController.forgotPassword
 );
 router.get('/check-verification-token/:token', authController.checkVerificationToken);
@@ -32,7 +32,7 @@ router.post('/verify-email/:token', authController.verifyEmail);
 router.post(
   '/resend-verification',
   validateSchema(resendVerificationSchema),
-  createRateLimiter('emailVerification'),
+  createRateLimiter('email', 'emailVerification'),
   authController.resendVerification
 );
 

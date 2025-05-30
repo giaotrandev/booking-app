@@ -354,9 +354,6 @@ export const updateUser = async (req: RequestWithFile, res: Response): Promise<v
     const currentUserId = (req.user as { userId: string })?.userId;
     const isCurrentUser = id === currentUserId;
 
-    console.log('1:', id);
-    console.log('2:', currentUserId);
-
     // Check if user exists
     const user = await prisma.user.findUnique({
       where: { id: currentUserId || id },

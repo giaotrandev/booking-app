@@ -278,7 +278,8 @@ model Trip {
   deletedAt DateTime?
 
   // Lịch sử thay đổi quan trọng
-  histories TripHistory[]
+  histories     TripHistory[]
+  notifications Notification[]
 }
 
 model TripStopPrice {
@@ -318,6 +319,7 @@ model Seat {
 
   bookingTripId String?      @db.ObjectId
   bookingTrip   BookingTrip? @relation(fields: [bookingTripId], references: [id])
+  tickets       Ticket[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -454,6 +456,7 @@ model User {
   userSessions   SupportSession[] @relation("UserSupportSessions")
   agentSessions  SupportSession[] @relation("AgentSupportSessions")
   voucherUsages  VoucherUsage[]
+  notifications  Notification[]
 
   posts Post[]
 }
@@ -534,9 +537,15 @@ model SupportMessage {
 }
 
 model Booking {
-  id            String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId        String        @db.ObjectId
-  user          User          @relation(fields: [userId], references: [id])
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId String? @db.ObjectId
+  user   User?   @relation(fields: [userId], references: [id])
+
+  guestName      String?
+  guestEmail     String?
+  guestPhone     String?
+  isGuestBooking Boolean @default(false)
+
   status        BookingStatus @default(PENDING)
   paymentStatus PaymentStatus @default(PENDING)
   isDeleted     Boolean       @default(false)
@@ -552,8 +561,9 @@ model Booking {
 
   paymentWebhookReference String?
 
-  // Link to BookingTrip instead of Trip
-  bookingTrips BookingTrip[]
+  bookingTrips  BookingTrip[]
+  tickets       Ticket[]
+  notifications Notification[]
 
   voucherUsage VoucherUsage?
 
@@ -563,7 +573,8 @@ model Booking {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  histories BookingHistory[]
+  histories  BookingHistory[]
+  PaymentLog PaymentLog[]
 }
 
 model BookingHistory {
@@ -584,11 +595,76 @@ model BookingTrip {
   tripId    String  @db.ObjectId
   trip      Trip    @relation(fields: [tripId], references: [id])
 
-  // Seats selected for this trip
-  seats Seat[]
+  seats   Seat[]
+  tickets Ticket[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Ticket {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  bookingTripId String      @db.ObjectId
+  bookingTrip   BookingTrip @relation(fields: [bookingTripId], references: [id])
+
+  bookingId String  @db.ObjectId
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  seatId String @db.ObjectId
+  seat   Seat   @relation(fields: [seatId], references: [id])
+
+  passengerName  String
+  passengerPhone String?
+
+  ticketNumber String  @unique
+  qrCode       String  @unique
+  qrCodeImage  String?
+
+  printCount    Int       @default(0)
+  lastPrintedAt DateTime?
+
+  status TicketStatus @default(PENDING)
+
+  // Thông tin check-in
+  isCheckedIn Boolean   @default(false)
+  checkedInAt DateTime?
+  checkedInBy String?   @db.ObjectId
+
+  // Metadata về vé
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notifications Notification[]
+}
+
+model PaymentLog {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  bookingId String  @db.ObjectId
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  // Thông tin thanh toán
+  gateway       String
+  transactionId String?
+  amount        Float
+  currency      String
+
+  // Trạng thái thanh toán
+  status PaymentLogStatus
+
+  // Chi tiết webhook
+  rawPayload  Json?
+  matchStatus PaymentMatchStatus
+
+  expectedAmount Float
+  receivedAmount Float
+
+  discrepancyReason String?
+
+  createdAt DateTime @default(now())
 }
 
 model SnapshotLog {
@@ -686,6 +762,39 @@ model PostHistory {
   changedBy     String   @db.ObjectId
   changeReason  String?
   createdAt     DateTime @default(now())
+}
+
+model Notification {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  type     NotificationType
+  category NotificationCategory
+
+  title   String
+  message String
+
+  // Liên kết với các thực thể khác
+  bookingId String?  @db.ObjectId
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+
+  tripId String? @db.ObjectId
+  trip   Trip?   @relation(fields: [tripId], references: [id])
+
+  ticketId String? @db.ObjectId
+  ticket   Ticket? @relation(fields: [ticketId], references: [id])
+
+  // Trạng thái đọc
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  // Dữ liệu bổ sung
+  additionalData Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum CommonStatus {
@@ -787,4 +896,48 @@ enum PostStatus {
   SCHEDULED
   STARRED
   ARCHIVED
+}
+
+enum TicketStatus {
+  PENDING
+  VALID
+  CHECKED_IN
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentLogStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+  DISPUTED
+}
+
+enum PaymentMatchStatus {
+  EXACT_MATCH
+  AMOUNT_MISMATCH
+  REFERENCE_MISMATCH
+  PARTIAL_MATCH
+}
+
+enum NotificationType {
+  BOOKING_CREATED
+  BOOKING_UPDATED
+  BOOKING_CANCELLED
+  TICKET_GENERATED
+  TICKET_PRINTED
+  TICKET_CHECKED_IN
+  TRIP_BOARDING_SOON
+  TRIP_DELAYED
+  TRIP_STATUS_CHANGED
+  PAYMENT_SUCCESSFUL
+  PAYMENT_FAILED
+}
+
+enum NotificationCategory {
+  BOOKING
+  TICKET
+  TRIP
+  PAYMENT
+  SYSTEM
 }

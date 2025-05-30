@@ -128,6 +128,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
 
         return next();
       } catch (refreshError) {
+        console.log('Refresh token verification error:', refreshError);
         // Refresh token expired or invalid
         return sendUnauthorized(res, 'auth.refreshTokenExpired', null, language);
       }

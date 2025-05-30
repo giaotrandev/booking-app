@@ -7,14 +7,14 @@ import { getRedisCacheClient } from '#config/redis';
  * Tạo middleware giới hạn request
  * @param type Loại rate limit (general, email, v.v.)
  */
-export function createRateLimiter(type: string = 'general') {
+export function createRateLimiter(type: string = 'general', name: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Lấy cấu hình rate limit từ database
       const config = await getRateLimitMiddlewareConfig(type);
 
       // Khóa được tạo dựa trên IP và loại
-      const key = `rate_limit:${type}:${req.ip}`;
+      const key = `rate_limit:${name}/${type}:${req.ip}`;
 
       // Tăng số lần request
       const currentCount = (await incrementRequestCount(key, config)) || 0;
@@ -57,13 +57,13 @@ async function incrementRequestCount(key: string, config: RateLimitConfig) {
 }
 
 // Các middleware rate limit được định nghĩa sẵn
-export const rateLimiters = {
-  // Giới hạn request chung
-  general: createRateLimiter('general'),
+// export const rateLimiters = {
+//   // Giới hạn request chung
+//   general: createRateLimiter('general'),
 
-  // Giới hạn gửi email
-  email: createRateLimiter('email'),
+//   // Giới hạn gửi email
+//   email: createRateLimiter('email'),
 
-  // Các loại rate limit khác
-  login: createRateLimiter('login'),
-};
+//   // Các loại rate limit khác
+//   login: createRateLimiter('login'),
+// };

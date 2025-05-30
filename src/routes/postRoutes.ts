@@ -27,7 +27,7 @@ router.post(
   parseRequestData,
   // validatePermissions(['ADMIN', 'CONTENT_MANAGER']),
   validateSchema(createPostSchema),
-  createRateLimiter('createPost'),
+  // createRateLimiter('createPost'),
   postController.createPost
 );
 
@@ -39,7 +39,7 @@ router.put(
   parseRequestData,
   // validatePermissions(['ADMIN', 'CONTENT_MANAGER']),
   validateSchema(updatePostSchema),
-  createRateLimiter('updatePost'),
+  // createRateLimiter('updatePost'),
   postController.updatePost
 );
 
@@ -54,7 +54,7 @@ router.delete(
   '/:slugOrId',
   authenticateToken,
   validatePermissions(['ADMIN', 'CONTENT_MANAGER']),
-  createRateLimiter('deletePost'),
+  // createRateLimiter('deletePost'),
   postController.deletePost
 );
 

@@ -8,6 +8,7 @@ import axios from 'axios';
 import { Socket, Server } from 'socket.io';
 import { addJob, QueueType } from '#queues/index';
 import { getSocketIOInstance } from './bookingControllerSocketInterface';
+import { generateTicketsForBooking } from '#services/ticketService';
 
 // Keep track of temporary seat reservations
 interface SeatReservation {
@@ -149,7 +150,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
       }
 
       // Check per-user limit
-      if (voucher.perUserLimit) {
+      if (voucher.perUserLimit && userId) {
         const userUsageCount = await prisma.voucherUsage.count({
           where: {
             voucherId: voucher.id,
@@ -203,6 +204,10 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
         const booking = await tx.booking.create({
           data: {
             userId,
+            isGuestBooking: !userId,
+            guestName: !userId ? req.body.guestName : undefined,
+            guestEmail: !userId ? req.body.guestEmail : undefined,
+            guestPhone: !userId ? req.body.guestPhone : undefined,
             status: BookingStatus.PENDING,
             paymentStatus: PaymentStatus.PENDING,
             totalPrice,
@@ -268,7 +273,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
         paymentExpiration.setMinutes(paymentExpiration.getMinutes() + config.paymentTimeoutMinutes);
 
         // Generate VietQR payment code
-        const qrCodeData = await generateVietQRCode(booking.id, finalPrice, userId);
+        const qrCodeData = await generateVietQRCode(booking.id, finalPrice);
 
         // Update booking with QR code and payment reference
         return await tx.booking.update({
@@ -310,6 +315,33 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
       });
     }
 
+    const io = getSocketIOInstance();
+    if (io && result) {
+      // Emit event to booking room
+      io.to(`booking:${result.id}`).emit('bookingCreated', {
+        bookingId: result.id,
+        status: result.status,
+        totalPrice: result.finalPrice,
+        trips: result.bookingTrips.map((bt) => ({
+          tripId: bt.tripId,
+          routeName: bt.trip.route.name,
+          departureTime: bt.trip.departureTime,
+        })),
+      });
+
+      // Optional: Create a notification
+      await prisma.notification.create({
+        data: {
+          userId: result.userId || '', // Handle guest bookings
+          type: 'BOOKING_CREATED',
+          category: 'BOOKING',
+          title: 'Booking Successful',
+          message: `Your booking for ${result.bookingTrips[0].trip.route.name} is confirmed`,
+          bookingId: result.id,
+        },
+      });
+    }
+
     // Schedule automatic cancellation using Redis queue instead of setTimeout
     await scheduleBookingCancellation(result.id, config.paymentTimeoutMinutes);
 
@@ -325,16 +357,9 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
  */
 async function generateVietQRCode(
   bookingId: string,
-  amount: number,
-  userId: string
+  amount: number
 ): Promise<{ qrText: string; paymentReference: string }> {
   try {
-    // Get user info for the payment description
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { firstName: true, lastName: true, email: true },
-    });
-
     // Create unique payment reference that can be matched in webhook
     const timestamp = Date.now();
     const shortBookingId = bookingId.substring(0, 8).toUpperCase();
@@ -481,7 +506,7 @@ export async function cancelExpiredBooking(bookingId: string): Promise<void> {
           changedFields: {
             status: { from: booking.status, to: BookingStatus.CANCELLED },
           },
-          changedBy: booking.userId,
+          changedBy: booking.userId || '',
           changeReason: 'Automatically cancelled due to payment timeout',
         },
       });
@@ -609,11 +634,20 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
             paymentStatus: { from: PaymentStatus.PENDING, to: PaymentStatus.COMPLETED },
             status: { from: BookingStatus.PENDING, to: BookingStatus.CONFIRMED },
           },
-          changedBy: booking.userId,
+          changedBy: booking.userId || '',
           changeReason: `Payment completed via SePay. Amount: ${receivedAmount}VND, Reference: ${paymentReference}`,
         },
       });
     });
+
+    // Generate tickets and send via email (do not include in response)
+    try {
+      await generateTicketsForBooking(booking.id);
+      console.log(`Tickets generated and emailed for booking ${booking.id}`);
+    } catch (ticketError) {
+      console.error(`Error generating tickets for booking ${booking.id}:`, ticketError);
+      // Log error but don't fail webhook processing
+    }
 
     console.log(`Payment completed successfully for booking ${booking.id}`);
     return sendSuccess(res, 'payment.webhookReceived', { bookingId: booking.id }, language);
@@ -622,8 +656,6 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
     return sendServerError(res, 'common.serverError', null, language);
   }
 };
-
-// ... (rest of the functions remain the same: getBookingDetails, getUserBookings, cancelBooking, etc.)
 
 /**
  * Cancel booking
@@ -1534,7 +1566,7 @@ export const resendPaymentQR = async (req: Request, res: Response): Promise<void
     const config = await getBookingConfig();
 
     // Generate new QR code
-    const qrCodeData = await generateVietQRCode(booking.id, booking.finalPrice, booking.userId);
+    const qrCodeData = await generateVietQRCode(booking.id, booking.finalPrice);
 
     // Calculate payment expiration time
     const paymentExpiration = new Date();
@@ -1889,9 +1921,9 @@ export const exportBookingData = async (req: Request, res: Response): Promise<vo
       return {
         bookingId: booking.id,
         bookingDate: booking.createdAt.toISOString(),
-        customer: booking.user.firstName + ' ' + booking.user.lastName,
-        email: booking.user.email,
-        phone: booking.user.phoneNumber,
+        customer: booking.user ? booking.user.firstName + ' ' + booking.user.lastName : booking.guestName,
+        email: booking.user ? booking.user.email : booking.guestEmail,
+        phone: booking.user ? booking.user.phoneNumber : booking.guestPhone,
         route: route ? `${route.sourceProvince.name} → ${route.destinationProvince.name}` : 'N/A',
         departureTime: trip ? trip.departureTime.toISOString() : 'N/A',
         seats: seats.join(', '),
