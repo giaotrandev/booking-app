@@ -261,7 +261,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
         phoneNumber: user.phoneNumber,
         birthday: user.birthday,
         address: user.address,
-        accessToken,
+        // accessToken,
         // refreshToken,
       },
       language
@@ -693,59 +693,34 @@ export const googleAuthRoutes = {
   handleGoogleCallback: async (req: Request, res: Response, next: NextFunction) => {
     const language = (req.query.state as string) || process.env.DEFAULT_LANGUAGE || 'en';
 
-    const requestPath = req.path; // Chỉ lấy path, ví dụ: /auth/google/callback
-    const fullUrl = req.originalUrl; // Lấy toàn bộ URL, bao gồm query string
+    const requestPath = req.path;
+    const fullUrl = req.originalUrl;
 
     console.log('NODE_ENV:', process.env.NODE_ENV);
     console.log('Full URL:', fullUrl);
 
     passport.authenticate('google', async (err: Error | null, user: any, info: any) => {
-      // Create a universal error response script
-      console.log('User: ', {
-        user: user,
-        info: info,
-      });
-      const nonce = TokenHandler.generateRandomToken(16);
-      res.setHeader('Content-Security-Policy', `script-src 'self' 'nonce-${nonce}'`);
-      const createErrorResponseScript = (errorMessage: string) => `
-        <html>
-        <head>
-          <script nonce="${nonce}">
-            // try {
-            //   window.opener.postMessage({
-            //     success: false,
-            //     message: '${errorMessage}',
-            //     type: 'AUTH_ERROR'
-            //   }, '*');
-            // } catch (e) {
-            //   console.error('Error sending message to opener', e);
-            // }
-            
-            // Always attempt to close
-            window.close();
-          </script>
-        </head>
-        <body>
-          <h1>Authentication Error</h1>
-          <p>${errorMessage}</p>
-        </body>
-        </html>
-      `;
+      // Error response as JSON
+      const createErrorResponse = (status: number, message: string) => {
+        return res.status(status).json({
+          success: false,
+          message,
+          type: 'AUTH_ERROR',
+        });
+      };
 
-      // Various error scenarios
+      // Handle errors
       if (err) {
         console.error('Google OAuth Authentication Error:', err);
-        return res.status(400).send(createErrorResponseScript('Authentication failed'));
+        return createErrorResponse(400, 'Authentication failed');
       }
 
-      // Policy rejection or user cancellation
       if (info && info.message === 'User cancelled login') {
-        return res.status(403).send(createErrorResponseScript('Login cancelled by user'));
+        return createErrorResponse(403, 'Login cancelled by user');
       }
 
-      // No user found
       if (!user) {
-        return res.status(401).send(createErrorResponseScript('No user account found'));
+        return createErrorResponse(401, 'No user account found');
       }
 
       try {
@@ -753,20 +728,18 @@ export const googleAuthRoutes = {
         const ACCESS_TOKEN_EXPIRATION = process.env.ACCESS_TOKEN_EXPIRATION || '1d';
         const REFRESH_TOKEN_EXPIRATION = process.env.REFRESH_TOKEN_EXPIRATION || '30d';
 
-        // Convert time strings to milliseconds
         const accessTokenExpirationMs = ms(ACCESS_TOKEN_EXPIRATION as ms.StringValue);
         const refreshTokenExpirationMs = ms(REFRESH_TOKEN_EXPIRATION as ms.StringValue);
 
-        // Find old login sessions to delete
+        // Find and delete old sessions
         const oldSessions = await prisma.loginSession.findMany({
           where: {
             userId: user.id,
-            lastActivityAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // 30 days
+            lastActivityAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
           },
           select: { id: true },
         });
 
-        // Delete refresh tokens first (child records)
         if (oldSessions.length > 0) {
           await prisma.refreshToken.deleteMany({
             where: {
@@ -774,7 +747,6 @@ export const googleAuthRoutes = {
             },
           });
 
-          // Then delete login sessions (parent records)
           await prisma.loginSession.deleteMany({
             where: {
               id: { in: oldSessions.map((session) => session.id) },
@@ -792,14 +764,14 @@ export const googleAuthRoutes = {
           },
         });
 
-        // Create access token
+        // Create access token (vẫn tạo nhưng không gửi về frontend)
         const accessToken = TokenHandler.generateAccessToken({
           userId: user.id,
           role: user.role.name,
           sessionId: session.id,
         });
 
-        // Prepare cookie options with environment-based configuration
+        // Cookie options
         const cookieOptions = {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
@@ -808,7 +780,6 @@ export const googleAuthRoutes = {
           path: '/',
         };
 
-        // Conditional cookie name based on environment
         const accessTokenCookieName = 'at';
         const refreshTokenCookieName = 'rt';
 
@@ -820,13 +791,12 @@ export const googleAuthRoutes = {
           }),
         });
 
-        // Generate refresh token
+        // Generate and store refresh token
         const refreshTokenString = TokenHandler.generateRefreshToken({
           userId: user.id,
           sessionId: session.id,
         });
 
-        // Store refresh token in database
         await prisma.refreshToken.create({
           data: {
             token: refreshTokenString,
@@ -845,34 +815,31 @@ export const googleAuthRoutes = {
           }),
         });
 
-        const createSuccessResponseScript = () => `
-          <html>
-          <head>
-            <script nonce="${nonce}">
-              // window.opener.postMessage({
-              //   success: true,
-              //   token: '${accessToken}',
-              //   user: {
-              //     id: '${user.id}',
-              //     name: '${user.name}',
-              //     email: '${user.email}'
-              //   }
-              // }, '*');
-              
-              // Đóng cửa sổ sau khi gửi message
-              // window.close();
-            </script>
-          </head>
-          <body>Đang xử lý...</body>
-          </html>
-        `;
-
-        console.log('Google OAuth login completed successfully for user:', user.id);
-
-        return res.status(200).send(createSuccessResponseScript());
+        return sendSuccess(
+          res,
+          'auth.loginSuccess',
+          {
+            type: 'GOOGLE_AUTH_SUCCESS',
+            user: {
+              id: user.id,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              role: user.role.name,
+              permissions: user.role.permissions.map((p: any) => p.code),
+              gender: user.gender,
+              phoneNumber: user.phoneNumber,
+              birthday: user.birthday,
+              address: user.address,
+              // accessToken,
+              // refreshToken,
+            },
+          },
+          language
+        );
       } catch (processingError) {
         console.error('Error processing Google OAuth login:', processingError);
-        return res.status(500).send(createErrorResponseScript('Internal server error'));
+        return createErrorResponse(500, 'Internal server error');
       }
     })(req, res, next);
   },
