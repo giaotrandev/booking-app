@@ -853,7 +853,7 @@ export const googleAuthRoutes = {
               // }, '*');
               
               // Đóng cửa sổ sau khi gửi message
-              window.close();
+              // window.close();
             </script>
           </head>
           <body>Đang xử lý...</body>
