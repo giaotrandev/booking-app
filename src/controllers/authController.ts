@@ -694,6 +694,10 @@ export const googleAuthRoutes = {
 
     passport.authenticate('google', async (err: Error | null, user: any, info: any) => {
       // Create a universal error response script
+      console.log('User: ', {
+        user: user,
+        info: info,
+      });
       const nonce = TokenHandler.generateRandomToken(16);
       res.setHeader('Content-Security-Policy', `script-src 'self' 'nonce-${nonce}'`);
       const createErrorResponseScript = (errorMessage: string) => `
@@ -856,7 +860,7 @@ export const googleAuthRoutes = {
           </html>
         `;
 
-        console.log('Google OAuth login successful:', res);
+        console.log('Google OAuth login completed successfully for user:', user.id);
 
         return res.status(200).send(createSuccessResponseScript());
       } catch (processingError) {
