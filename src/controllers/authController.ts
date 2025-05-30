@@ -202,9 +202,9 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     };
 
     // Conditional cookie name based on environment
-    const accessTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-at' : 'at';
+    const accessTokenCookieName = 'at';
 
-    const refreshTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-rt' : 'rt';
+    const refreshTokenCookieName = 'rt';
 
     // Set access token cookie
     res.cookie(accessTokenCookieName, accessToken, {
@@ -932,8 +932,8 @@ export const logoutUser = async (req: Request, res: Response): Promise<void> => 
 
   try {
     // Extract access token from cookies
-    const accessTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-at' : 'at';
-    const refreshTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-rt' : 'rt';
+    const accessTokenCookieName = 'at';
+    const refreshTokenCookieName = 'rt';
 
     const accessToken = req.cookies[accessTokenCookieName];
     const refreshToken = req.cookies[refreshTokenCookieName];
@@ -1011,8 +1011,8 @@ export const logoutAllDevices = async (req: Request, res: Response): Promise<voi
 
   try {
     // Extract access token from cookies
-    const accessTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-at' : 'at';
-    const refreshTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-rt' : 'rt';
+    const accessTokenCookieName = 'at';
+    const refreshTokenCookieName = 'rt';
 
     const accessToken = req.cookies[accessTokenCookieName];
 
