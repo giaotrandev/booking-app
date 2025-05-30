@@ -696,7 +696,7 @@ export const googleAuthRoutes = {
     const requestPath = req.path; // Chỉ lấy path, ví dụ: /auth/google/callback
     const fullUrl = req.originalUrl; // Lấy toàn bộ URL, bao gồm query string
 
-    console.log('Request Path:', requestPath);
+    console.log('NODE_ENV:', process.env.NODE_ENV);
     console.log('Full URL:', fullUrl);
 
     passport.authenticate('google', async (err: Error | null, user: any, info: any) => {
@@ -809,8 +809,8 @@ export const googleAuthRoutes = {
         };
 
         // Conditional cookie name based on environment
-        const accessTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-at' : 'at';
-        const refreshTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-rt' : 'rt';
+        const accessTokenCookieName = 'at';
+        const refreshTokenCookieName = 'rt';
 
         // Set access token cookie
         res.cookie(accessTokenCookieName, accessToken, {
