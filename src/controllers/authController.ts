@@ -575,7 +575,8 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      callbackURL: process.env.GOOGLE_CALLBACK_URL!,
+      // callbackURL: process.env.GOOGLE_CALLBACK_URL!,
+      callbackURL: `${process.env.FRONTEND_URL}/api/callback-google`,
       passReqToCallback: true,
       scope: ['profile', 'email'],
     },
