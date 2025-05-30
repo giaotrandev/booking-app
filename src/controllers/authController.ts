@@ -691,7 +691,6 @@ export const googleAuthRoutes = {
   // Google OAuth Callback
   handleGoogleCallback: async (req: Request, res: Response, next: NextFunction) => {
     const language = (req.query.state as string) || process.env.DEFAULT_LANGUAGE || 'en';
-    console.log('Test');
 
     passport.authenticate('google', async (err: Error | null, user: any, info: any) => {
       // Create a universal error response script
