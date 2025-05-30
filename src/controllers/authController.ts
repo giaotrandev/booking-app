@@ -693,6 +693,12 @@ export const googleAuthRoutes = {
   handleGoogleCallback: async (req: Request, res: Response, next: NextFunction) => {
     const language = (req.query.state as string) || process.env.DEFAULT_LANGUAGE || 'en';
 
+    const requestPath = req.path; // Chỉ lấy path, ví dụ: /auth/google/callback
+    const fullUrl = req.originalUrl; // Lấy toàn bộ URL, bao gồm query string
+
+    console.log('Request Path:', requestPath);
+    console.log('Full URL:', fullUrl);
+
     passport.authenticate('google', async (err: Error | null, user: any, info: any) => {
       // Create a universal error response script
       console.log('User: ', {
