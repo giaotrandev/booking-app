@@ -9,8 +9,10 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
 
   try {
-    const accessTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-at' : 'at';
-    const refreshTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-rt' : 'rt';
+    // const accessTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-at' : 'at';
+    // const refreshTokenCookieName = process.env.NODE_ENV === 'production' ? '__Host-rt' : 'rt';
+    const accessTokenCookieName = 'at';
+    const refreshTokenCookieName = 'rt';
 
     const authHeader = req.headers['authorization'];
     const headerToken = authHeader && authHeader.split(' ')[1];
