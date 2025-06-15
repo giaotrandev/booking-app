@@ -45,17 +45,17 @@ export const generateAccessToken = (payload: TokenPayload, expiresIn?: string) =
     payload,
     process.env.ACCESS_TOKEN_SECRET! as Secret,
     {
-      expiresIn: expiresIn || process.env.ACCESS_TOKEN_EXPIRATION || '1d',
+      expiresIn: expiresIn || '1d',
     } as SignOptions
   );
 };
 
-export const generateRefreshToken = (payload: Pick<TokenPayload, 'userId' | 'sessionId'>) => {
+export const generateRefreshToken = (payload: Pick<TokenPayload, 'userId' | 'sessionId'>, expiresIn?: string) => {
   return jwt.sign(
     payload,
     process.env.REFRESH_TOKEN_SECRET! as Secret,
     {
-      expiresIn: process.env.REFRESH_TOKEN_EXPIRATION || '30d',
+      expiresIn: expiresIn || '30d',
     } as SignOptions
   );
 };

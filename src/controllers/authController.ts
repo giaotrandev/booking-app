@@ -168,12 +168,27 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     const refreshTokenExpirationMs = ms(REFRESH_TOKEN_EXPIRATION as ms.StringValue);
 
     // Remove old login sessions
-    await prisma.loginSession.deleteMany({
+    const oldSessions = await prisma.loginSession.findMany({
       where: {
         userId: user.id,
-        lastActivityAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // 30 days
+        lastActivityAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
       },
+      select: { id: true },
     });
+
+    if (oldSessions.length > 0) {
+      await prisma.refreshToken.deleteMany({
+        where: {
+          sessionId: { in: oldSessions.map((session) => session.id) },
+        },
+      });
+
+      await prisma.loginSession.deleteMany({
+        where: {
+          id: { in: oldSessions.map((session) => session.id) },
+        },
+      });
+    }
 
     // Create new login session
     const session = await prisma.loginSession.create({
@@ -186,11 +201,14 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     });
 
     // Create access token
-    const accessToken = TokenHandler.generateAccessToken({
-      userId: user.id,
-      role: user.role.name,
-      sessionId: session.id,
-    });
+    const accessToken = TokenHandler.generateAccessToken(
+      {
+        userId: user.id,
+        role: user.role.name,
+        sessionId: session.id,
+      },
+      ACCESS_TOKEN_EXPIRATION
+    );
 
     // Prepare cookie options with environment-based configuration
     const cookieOptions = {
@@ -219,10 +237,13 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
 
     // Handle remember me functionality
     if (rememberMe) {
-      const refreshTokenString = TokenHandler.generateRefreshToken({
-        userId: user.id,
-        sessionId: session.id,
-      });
+      const refreshTokenString = TokenHandler.generateRefreshToken(
+        {
+          userId: user.id,
+          sessionId: session.id,
+        },
+        REFRESH_TOKEN_EXPIRATION
+      );
 
       // Store refresh token in database
       await prisma.refreshToken.create({
@@ -295,17 +316,26 @@ export const refreshAccessToken = async (req: Request, res: Response): Promise<v
       include: { session: { include: { user: { include: { role: true } } } } },
     });
 
+    // Parse token expiration from environment variables
+    const ACCESS_TOKEN_EXPIRATION = process.env.ACCESS_TOKEN_EXPIRATION || '1d';
+
+    // Convert time strings to milliseconds
+    const accessTokenExpirationMs = ms(ACCESS_TOKEN_EXPIRATION as ms.StringValue);
+
     if (!storedToken) {
       sendUnauthorized(res, 'auth.invalidRefreshToken', null, language);
       return;
     }
 
     // Tạo access token mới
-    const accessToken = TokenHandler.generateAccessToken({
-      userId: storedToken.session.userId,
-      role: storedToken.session.user.role.name,
-      sessionId: storedToken.sessionId,
-    });
+    const accessToken = TokenHandler.generateAccessToken(
+      {
+        userId: storedToken.session.userId,
+        role: storedToken.session.user.role.name,
+        sessionId: storedToken.sessionId,
+      },
+      ACCESS_TOKEN_EXPIRATION
+    );
 
     // Cập nhật hoạt động của phiên
     await prisma.loginSession.update({
@@ -575,14 +605,12 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      // callbackURL: process.env.GOOGLE_CALLBACK_URL!,
       callbackURL: `${process.env.FRONTEND_URL}/api/callback-google`,
       passReqToCallback: true,
       scope: ['profile', 'email'],
     },
     async (req, accessToken, refreshToken, profile, done) => {
       try {
-        // Extract necessary information from Google profile
         const email = profile.emails?.[0]?.value;
         const name = profile.displayName;
         const googleId = profile.id;
@@ -592,11 +620,8 @@ passport.use(
           return done(new Error('No email found in Google profile'));
         }
 
-        // Find existing user
         const existingUser = await prisma.user.findUnique({
-          where: {
-            email: email,
-          },
+          where: { email },
           include: {
             role: {
               include: {
@@ -608,23 +633,13 @@ passport.use(
 
         let user;
         if (existingUser) {
-          // If user exists and already has a password, don't overwrite
-          if (existingUser.password && !existingUser.googleId) {
-            // User has a password but hasn't linked Google account
-            return done(null, false, {
-              message: 'Account already exists with a different login method',
-            });
-          }
-
-          // Update existing user with Google ID if not already set
           if (!existingUser.googleId) {
+            // Link Google account với tài khoản hiện tại
             user = await prisma.user.update({
               where: { email },
               data: {
                 googleId,
-                // Only update these if they're not already set
                 ...(existingUser.avatar ? {} : { avatar }),
-                ...(existingUser.lastName === 'User' ? { name } : {}),
                 isEmailVerified: true,
                 status: 'AVAILABLE',
               },
@@ -636,28 +651,30 @@ passport.use(
                 },
               },
             });
+
+            console.log(`✅ Linked Google account for existing user: ${email}`);
           } else {
+            // Đã có Google ID rồi
             user = existingUser;
+            console.log(`✅ User already linked: ${email}`);
           }
         } else {
-          // Create new user
           user = await prisma.user.create({
             data: {
               email,
               firstName: name.split(' ')[0],
-              lastName: name.split(' ').slice(1).join(' '),
+              lastName: name.split(' ').slice(1).join(' ') || 'User',
               googleId,
               isEmailVerified: true,
-              // Only set a random password if no existing password
               password: await TokenHandler.hashPassword(TokenHandler.generateRandomToken()),
               role: {
                 connect: { name: 'USER' },
               },
               status: 'AVAILABLE',
-              birthday: new Date(), // Default value for required field
-              gender: 'MALE', // Default value for required field
-              phoneNumber: '', // Default value for required field
-              address: '', // Default value for required field
+              birthday: new Date(),
+              gender: 'MALE',
+              phoneNumber: '',
+              address: '',
               avatar,
             },
             include: {
@@ -668,10 +685,13 @@ passport.use(
               },
             },
           });
+
+          console.log(`✅ Created new Google user: ${email}`);
         }
 
         return done(null, user);
       } catch (error) {
+        console.error('Google Strategy Error:', error);
         return done(error);
       }
     }
@@ -720,6 +740,7 @@ export const googleAuthRoutes = {
       }
 
       if (!user) {
+        console.error('No user found in Google OAuth callback');
         return createErrorResponse(401, 'No user account found');
       }
 
@@ -765,11 +786,14 @@ export const googleAuthRoutes = {
         });
 
         // Create access token (vẫn tạo nhưng không gửi về frontend)
-        const accessToken = TokenHandler.generateAccessToken({
-          userId: user.id,
-          role: user.role.name,
-          sessionId: session.id,
-        });
+        const accessToken = TokenHandler.generateAccessToken(
+          {
+            userId: user.id,
+            role: user.role.name,
+            sessionId: session.id,
+          },
+          ACCESS_TOKEN_EXPIRATION
+        );
 
         // Cookie options
         const cookieOptions = {
@@ -792,10 +816,13 @@ export const googleAuthRoutes = {
         });
 
         // Generate and store refresh token
-        const refreshTokenString = TokenHandler.generateRefreshToken({
-          userId: user.id,
-          sessionId: session.id,
-        });
+        const refreshTokenString = TokenHandler.generateRefreshToken(
+          {
+            userId: user.id,
+            sessionId: session.id,
+          },
+          REFRESH_TOKEN_EXPIRATION
+        );
 
         await prisma.refreshToken.create({
           data: {
