@@ -9,6 +9,7 @@ export enum QueueType {
   SCHEDULED_POSTS = 'scheduled-posts',
   IMAGE_PROCESSING = 'image-processing',
   BOOKING_CANCELLATION = 'booking-cancellation',
+  SEAT_STATUS_CHECK = 'seat-status-check',
 }
 
 /**
@@ -17,7 +18,7 @@ export enum QueueType {
  * @param defaultValue - Default value if env var not set
  * @returns Time in milliseconds
  */
-function getTimeFromEnv(envVar: string, defaultValue: string): number {
+export function getTimeFromEnv(envVar: string, defaultValue: string): number {
   const timeString = process.env[envVar] || defaultValue;
   try {
     return ms(timeString as ms.StringValue);

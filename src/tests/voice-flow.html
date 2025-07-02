@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WoodsOcean - Trợ lý SAP B1 thông minh</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
+        rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Be Vietnam Pro", 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #2c3e50;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header - Improved */
+        header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            color: #2c3e50;
+            padding: 0.75rem 0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            transition: transform 0.3s ease, background 0.3s ease;
+        }
+
+        header.hidden {
+            transform: translateY(-100%);
+        }
+
+        header.scrolled {
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 50px;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            box-shadow: 0 2px 10px rgba(79, 172, 254, 0.3);
+        }
+
+        .company-info h1 {
+            font-size: 1.4rem;
+            font-weight: bold;
+            margin-bottom: 2px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .company-info p {
+            color: #666;
+            font-size: 0.75rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: #2c3e50;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+        }
+
+        .nav-links a:hover {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 10px rgba(79, 172, 254, 0.3);
+        }
+
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            color: #2c3e50;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .mobile-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .mobile-menu.active {
+            display: block;
+        }
+
+        .mobile-menu a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 20px;
+            color: #2c3e50;
+            text-decoration: none;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            transition: background 0.3s ease;
+        }
+
+        .mobile-menu a:hover {
+            background: rgba(79, 172, 254, 0.1);
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%);
+            color: white;
+            padding: 120px 0 80px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 75% 75%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero h2 {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-top: 20px;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .hero p {
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto 30px;
+            opacity: 0.95;
+        }
+
+        .cta-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 12px 25px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(79, 172, 254, 0.6);
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 60px 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            align-items: start;
+        }
+
+        .info-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            height: fit-content;
+        }
+
+        .info-section h3 {
+            color: #667eea;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .guidelines {
+            background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%);
+            padding: 25px;
+            border-radius: 15px;
+            margin: 20px 0;
+            border-left: 5px solid #4facfe;
+        }
+
+        .guidelines h4 {
+            color: #4facfe;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+
+        .guidelines ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .guidelines li {
+            padding: 8px 0;
+            position: relative;
+            padding-left: 25px;
+        }
+
+        .guidelines li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #4facfe;
+            font-weight: bold;
+        }
+
+        .warning {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffe8a1 100%);
+            border: 1px solid #ffd93d;
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+        }
+
+        .warning h4 {
+            color: #e74c3c;
+            margin-bottom: 10px;
+        }
+
+        /* Chatbot Section */
+        .chatbot-section {
+            height: calc(100vh - 200px);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            position: sticky;
+            top: 120px;
+        }
+
+        .chatbot-content {
+            height: 100%;
+            background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%);
+            position: relative;
+        }
+
+        /* Floating Chatbot for Mobile */
+        .floating-chatbot-container {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 999;
+        }
+
+        .floating-chatbot {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(79, 172, 254, 0.4);
+            transition: all 0.3s ease;
+            color: white;
+            font-size: 24px;
+            position: relative;
+        }
+
+        .floating-chatbot::after {
+            content: '';
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 20px;
+            height: 20px;
+            background: #00ff88;
+            border-radius: 50%;
+            border: 3px solid white;
+            animation: pulse 2s infinite;
+        }
+
+        .floating-chatbot:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 25px rgba(79, 172, 254, 0.6);
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(0, 255, 136, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(0, 255, 136, 0);
+            }
+        }
+
+        /* Mobile Chatbot Modal */
+        .mobile-chatbot-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1001;
+            backdrop-filter: blur(5px);
+        }
+
+        .mobile-chatbot-modal.active {
+            display: flex;
+            align-items: flex-end;
+        }
+
+        .mobile-chatbot-content {
+            /* background: white; */
+            width: 100%;
+            height: 95dvh;
+            border-radius: 20px 20px 0 0;
+            /* box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.2); */
+            display: flex;
+            flex-direction: column;
+            animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            touch-action: pan-y;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(100%);
+            }
+
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        .mobile-chatbot-header {
+            /* background: #397DFF; */
+            background: transparent;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-radius: 20px 20px 0 0;
+            position: relative;
+        }
+
+        .mobile-chatbot-header::before {
+            content: '';
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 2px;
+        }
+
+        .mobile-chatbot-header h3 {
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .mobile-close-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s ease;
+            margin-top: 8px;
+        }
+
+        .mobile-close-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .mobile-chatbot-body {
+            flex: 1;
+            background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%);
+            overflow: hidden;
+        }
+
+        /* Contact Section */
+        .contact-section {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 60px 0;
+            margin-top: 60px;
+            position: relative;
+        }
+
+        .contact-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                radial-gradient(circle at 20% 20%, rgba(79, 172, 254, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(118, 75, 162, 0.1) 0%, transparent 50%);
+        }
+
+        .contact-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .contact-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .contact-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .contact-card h4 {
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .contact-info {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .contact-info a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 0;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .contact-info a:hover {
+            color: #4facfe;
+            transform: translateX(5px);
+        }
+
+        /* Footer */
+        footer {
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            text-align: center;
+            padding: 30px 0;
+        }
+
+        /* Icons */
+        .icon {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .icon-large {
+            width: 48px;
+            height: 48px;
+        }
+
+        .illustration {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            margin: 20px 0;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4facfe;
+            animation: blink 2s infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes blink {
+
+            0%,
+            50% {
+                opacity: 1;
+            }
+
+            51%,
+            100% {
+                opacity: 0.3;
+            }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .mobile-menu-btn {
+                display: block;
+            }
+
+            .hero {
+                padding: 100px 0 60px;
+            }
+
+            .hero h2 {
+                font-size: 2rem;
+            }
+
+            .hero p {
+                font-size: 1rem;
+            }
+
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+
+            .chatbot-section {
+                display: none;
+            }
+
+            .floating-chatbot-container {
+                display: block;
+            }
+
+            .contact-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .info-section {
+                padding: 25px;
+            }
+
+            .company-info {
+                display: none;
+            }
+
+            .logo-section {
+                gap: 8px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 0 15px;
+            }
+
+            .hero {
+                padding: 80px 0 50px;
+            }
+
+            .hero h2 {
+                font-size: 1.6rem;
+            }
+
+            .main-content {
+                padding: 40px 0;
+            }
+
+            .info-section {
+                padding: 20px;
+            }
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        /* Floating shapes */
+        .floating-shapes {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        .shape {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            animation: float-shape 6s ease-in-out infinite;
+        }
+
+        .shape:nth-child(1) {
+            width: 80px;
+            height: 80px;
+            top: 20%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+
+        .shape:nth-child(2) {
+            width: 60px;
+            height: 60px;
+            top: 60%;
+            right: 10%;
+            animation-delay: 2s;
+        }
+
+        .shape:nth-child(3) {
+            width: 40px;
+            height: 40px;
+            top: 80%;
+            left: 60%;
+            animation-delay: 4s;
+        }
+
+        @keyframes float-shape {
+
+            0%,
+            100% {
+                transform: translateY(0px) rotate(0deg);
+            }
+
+            50% {
+                transform: translateY(-20px) rotate(180deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header id="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo">
+                        🏢
+                    </div>
+                    <div class="company-info">
+                        <h1>WoodsOcean</h1>
+                        <p>Chế biến gỗ & Nội thất</p>
+                    </div>
+                </div>
+                <nav class="nav-links">
+                    <a href="#guide">
+                        📖 Hướng dẫn
+                    </a>
+                    <a href="#chatbot">
+                        💬 Trợ lý SAP
+                    </a>
+                    <a href="#contact">
+                        📞 Liên hệ
+                    </a>
+                </nav>
+                <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
+                    ☰
+                </button>
+            </div>
+            <div class="mobile-menu" id="mobileMenu">
+                <a href="#guide" onclick="closeMobileMenu()">📖 Hướng dẫn sử dụng</a>
+                <a href="#chatbot" onclick="closeMobileMenu()">💬 Trợ lý SAP B1</a>
+                <a href="#contact" onclick="closeMobileMenu()">📞 Liên hệ & Hỗ trợ</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Floating Chatbot Container -->
+    <div class="floating-chatbot-container" id="floatingContainer">
+        <button class="floating-chatbot" onclick="toggleMobileChatbot()">
+            💬
+        </button>
+    </div>
+
+    <!-- Mobile Chatbot Modal -->
+    <div class="mobile-chatbot-modal" id="mobileChatbotModal" onclick="handleBackdropClick(event)">
+        <div class="mobile-chatbot-content" id="mobileChatbotContent">
+            <div class="mobile-chatbot-header" id="chatbotHeader">
+                <!-- <h3>🤖 Trợ lý SAP B1 thông minh</h3> -->
+                <!-- <button class="mobile-close-btn" onclick="closeMobileChatbot()">×</button> -->
+            </div>
+            <div class="mobile-chatbot-body" id="mobileVoiceflowChat">
+                <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 20px;">🤖</div>
+                        <p>Đang khởi tạo trợ lý AI...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <section class="hero">
+        <div class="floating-shapes">
+            <div class="shape"></div>
+            <div class="shape"></div>
+            <div class="shape"></div>
+        </div>
+        <div class="container">
+            <div class="hero-content">
+                <h2>Trợ lý SAP Business One thông minh</h2>
+                <p>Hệ thống hỗ trợ AI giúp bạn sử dụng SAP B1 và các giải pháp tích hợp một cách hiệu quả nhất. Được
+                    thiết kế đặc biệt cho ngành chế biến gỗ và sản xuất nội thất của WoodsOcean.</p>
+                <a href="#chatbot" class="cta-button">
+                    <span class="status-indicator"></span>
+                    💬 Bắt đầu trò chuyện
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <main class="container">
+        <div class="main-content">
+            <div class="info-section fade-in" id="guide">
+                <h3>
+                    📖 Hướng dẫn sử dụng
+                </h3>
+                <p>Trợ lý AI này được thiết kế để hỗ trợ bạn trong việc sử dụng SAP Business One và các giải pháp tích
+                    hợp cho ngành gỗ tại WoodsOcean.</p>
+
+                <svg class="illustration" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#4facfe;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#00f2fe;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <rect x="100" y="120" width="200" height="120" rx="10" fill="url(#grad1)" opacity="0.8" />
+                    <rect x="110" y="130" width="180" height="100" rx="5" fill="white" />
+                    <rect x="120" y="140" width="160" height="10" rx="2" fill="#4facfe" opacity="0.7" />
+                    <rect x="120" y="160" width="120" height="8" rx="2" fill="#667eea" opacity="0.5" />
+                    <rect x="120" y="175" width="140" height="8" rx="2" fill="#667eea" opacity="0.5" />
+                    <rect x="120" y="190" width="100" height="8" rx="2" fill="#667eea" opacity="0.5" />
+                    <circle cx="320" cy="100" r="25" fill="#4facfe" opacity="0.3" />
+                    <circle cx="340" cy="80" r="20" fill="#00f2fe" opacity="0.4" />
+                    <circle cx="360" cy="60" r="15" fill="#667eea" opacity="0.5" />
+                    <rect x="50" y="50" width="80" height="15" rx="7" fill="#8B4513" opacity="0.6" />
+                    <rect x="55" y="70" width="70" height="12" rx="6" fill="#A0522D" opacity="0.6" />
+                    <rect x="60" y="85" width="60" height="10" rx="5" fill="#CD853F" opacity="0.6" />
+                </svg>
+
+                <div class="guidelines">
+                    <h4>✅ Những gì trợ lý có thể giúp bạn:</h4>
+                    <ul>
+                        <li>Hướng dẫn sử dụng các module SAP B1 cho ngành gỗ</li>
+                        <li>Quy trình quản lý kho nguyên liệu gỗ và thành phẩm</li>
+                        <li>Quản lý sản xuất nội thất và đồ gỗ</li>
+                        <li>Tích hợp với hệ thống CRM và bán hàng online</li>
+                        <li>Báo cáo doanh thu và phân tích hiệu quả</li>
+                        <li>Xử lý sự cố và troubleshooting</li>
+                        <li>Best practices cho ngành chế biến gỗ</li>
+                        <li>Tích hợp với máy móc cắt gỗ CNC</li>
+                        <li>Quản lý chất lượng và truy xuất nguồn gốc gỗ</li>
+                        <li>Tối ưu hóa quy trình sản xuất nội thất</li>
+                    </ul>
+                </div>
+
+                <div class="warning">
+                    <h4>⚠️ Lưu ý quan trọng:</h4>
+                    <p>Vui lòng chỉ hỏi những câu hỏi liên quan đến SAP B1, quy trình sản xuất gỗ, quản lý nội thất, và
+                        các gi ải pháp tích hợp của WoodsOcean. Tránh hỏi những chủ đề không liên quan như tin tức, giải
+                        trí, hoặc các vấn đề cá nhân.</p>
+                </div>
+
+                <div class="guidelines">
+                    <h4>💡 Mẹo sử dụng hiệu quả:</h4>
+                    <ul>
+                        <li>Mô tả rõ ràng vấn đề bạn đang gặp phải trong SAP</li>
+                        <li>Cung cấp thông tin về module SAP bạn đang sử dụng</li>
+                        <li>Nêu rõ loại sản phẩm gỗ hoặc nội thất bạn đang làm việc</li>
+                        <li>Đính kèm mô tả lỗi cụ thể nếu có</li>
+                        <li>Cho biết bước công việc hiện tại trong quy trình sản xuất</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="chatbot-section" id="chatbot">
+                <div class="chatbot-content" id="voiceflow-chat">
+                    <div style="text-align: center; color: #666; padding: 40px;">
+                        <div style="font-size: 48px; margin-bottom: 20px;">🤖</div>
+                        <p>Đang khởi tạo trợ lý AI...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <section class="contact-section" id="contact">
+        <div class="container">
+            <h3 style="text-align: center; margin-bottom: 40px; font-size: 2rem; position: relative; z-index: 2;">
+                📞 Hỗ trợ & Liên hệ
+            </h3>
+            <div class="contact-grid">
+                <div class="contact-card">
+                    <h4>👥 Hỗ trợ nội bộ WoodsOcean</h4>
+                    <div class="contact-info">
+                        <a href="tel:+84123456789">📞 Hotline: (+84) 123-456-789</a>
+                        <a href="mailto:it-support@woodsocean.com">✉️ it-support@woodsocean.com</a>
+                        <a href="#">💼 Teams: WoodsOcean IT Support</a>
+                        <p>🕒 Thời gian: 8:00 - 17:30 (Thứ 2 - Thứ 6)</p>
+                    </div>
+                </div>
+
+                <div class="contact-card">
+                    <h4>🔧 Hỗ trợ kỹ thuật SAP</h4>
+                    <div class="contact-info">
+                        <a href="tel:+84987654321">📞 SAP Hotline: (+84) 987-654-321</a>
+                        <a href="mailto:sap-support@woodsocean.com">✉️ sap-support@woodsocean.com</a>
+                        <a href="#">🎫 Hệ thống Ticket: support.woodsocean.com</a>
+                        <p>🕒 24/7 cho vấn đề nghiêm trọng</p>
+                    </div>
+                </div>
+
+                <div class="contact-card">
+                    <h4>🌐 Hỗ trợ bên ngoài</h4>
+                    <div class="contact-info">
+                        <a href="tel:+84555123456">📞 Đối tác: (+84) 555-123-456</a>
+                        <a href="mailto:external@sappartner.com">✉️ external@sappartner.com</a>
+                        <a href="https://support.sap.com" target="_blank">🌍 Hỗ trợ chính thức SAP</a>
+                        <p>🕒 Theo giờ hành chính</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 WoodsOcean. Chế biến gỗ & Nội thất cao cấp. Được hỗ trợ bởi SAP Business One.</p>
+        </div>
+    </footer>
+
+    <script>
+        let lastScrollY = window.scrollY;
+        const header = document.getElementById('header');
+        let isMobileChatbotOpen = false;
+        let startY = 0;
+        let currentY = 0;
+        let isDragging = false;
+
+        // Header auto hide/show on scroll
+        window.addEventListener('scroll', () => {
+            const currentScrollY = window.scrollY;
+
+            if (currentScrollY < 50) {
+                header.classList.remove('hidden');
+                header.classList.remove('scrolled');
+            } else {
+                header.classList.add('scrolled');
+
+                if (currentScrollY > lastScrollY && currentScrollY > 100) {
+                    header.classList.add('hidden');
+                } else {
+                    header.classList.remove('hidden');
+                }
+            }
+
+            lastScrollY = currentScrollY;
+        });
+
+        // Mobile menu functions
+        function toggleMobileMenu() {
+            const mobileMenu = document.getElementById('mobileMenu');
+            mobileMenu.classList.toggle('active');
+        }
+
+        function closeMobileMenu() {
+            const mobileMenu = document.getElementById('mobileMenu');
+            mobileMenu.classList.remove('active');
+        }
+
+        // Mobile chatbot functions
+        function toggleMobileChatbot() {
+            const modal = document.getElementById('mobileChatbotModal');
+            isMobileChatbotOpen = !isMobileChatbotOpen;
+
+            if (isMobileChatbotOpen) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+
+                if (!window.mobileVoiceflowLoaded) {
+                    initializeMobileVoiceflow();
+                }
+            } else {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        function closeMobileChatbot() {
+            const modal = document.getElementById('mobileChatbotModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+            isMobileChatbotOpen = false;
+        }
+
+        // Handle backdrop click to close
+        function handleBackdropClick(event) {
+            if (event.target === event.currentTarget) {
+                closeMobileChatbot();
+            }
+        }
+
+        // Touch events for drag to close
+        const chatbotHeader = document.getElementById('chatbotHeader');
+        const chatbotContent = document.getElementById('mobileChatbotContent');
+
+        chatbotHeader.addEventListener('touchstart', (e) => {
+            startY = e.touches[0].clientY;
+            isDragging = true;
+            chatbotContent.style.transition = 'none';
+        });
+
+        chatbotHeader.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+
+            currentY = e.touches[0].clientY;
+            const diffY = Math.max(0, currentY - startY);
+
+            chatbotContent.style.transform = `translateY(${diffY}px)`;
+        });
+
+        chatbotHeader.addEventListener('touchend', () => {
+            if (!isDragging) return;
+
+            const diffY = currentY - startY;
+            chatbotContent.style.transition = 'transform 0.3s ease';
+
+            if (diffY > 100) {
+                closeMobileChatbot();
+            } else {
+                chatbotContent.style.transform = 'translateY(0)';
+            }
+
+            isDragging = false;
+        });
+
+        // Initialize mobile Voiceflow
+        function initializeMobileVoiceflow() {
+            if (window.mobileVoiceflowLoaded) return;
+
+            const script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.src = 'https://cdn.voiceflow.com/widget-next/bundle.mjs';
+            script.onload = () => {
+                if (window.voiceflow) {
+                    window.voiceflow.chat.load({
+                        verify: { projectID: '6853712c2de1b3a509f04ee2' },
+                        url: 'https://general-runtime.voiceflow.com',
+                        versionID: 'production',
+                        voice: {
+                            url: "https://runtime-api.voiceflow.com"
+                        },
+                        render: {
+                            mode: 'embedded',
+                            target: document.querySelector('#mobileVoiceflowChat')
+                        },
+                        launch: {
+                            hide: true
+                        }
+                    });
+                    window.mobileVoiceflowLoaded = true;
+                }
+            };
+            document.head.appendChild(script);
+        }
+
+        // Smooth scrolling for all anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Fade in animation when scrolling
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('fade-in');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.info-section, .contact-card').forEach(el => {
+            observer.observe(el);
+        });
+
+        // Initialize desktop Voiceflow chatbot
+        document.addEventListener('DOMContentLoaded', function () {
+            // Desktop Voiceflow integration
+            (function (d, t) {
+                var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
+                v.onload = function () {
+                    window.voiceflow.chat.load({
+                        verify: { projectID: '6853712c2de1b3a509f04ee2' },
+                        url: 'https://general-runtime.voiceflow.com',
+                        versionID: 'production',
+                        voice: {
+                            url: "https://runtime-api.voiceflow.com"
+                        },
+                        render: {
+                            mode: 'embedded',
+                            target: document.querySelector('#voiceflow-chat')
+                        }
+                    });
+                }
+                v.src = "https://cdn.voiceflow.com/widget-next/bundle.mjs";
+                v.type = "text/javascript";
+                s.parentNode.insertBefore(v, s);
+            })(document, 'script');
+
+            console.log('WoodsOcean SAP Assistant initialized');
+        });
+
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', function (event) {
+            const mobileMenu = document.getElementById('mobileMenu');
+            const menuBtn = document.querySelector('.mobile-menu-btn');
+
+            if (!mobileMenu.contains(event.target) && !menuBtn.contains(event.target)) {
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+
+</html>

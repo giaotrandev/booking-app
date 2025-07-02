@@ -556,10 +556,6 @@
                     <input type="text" id="apiUrl" value="http://localhost:8000">
                 </div>
             </div>
-            <div class="form-group">
-                <label for="token">JWT Token:</label>
-                <input type="text" id="token" placeholder="Enter your JWT token">
-            </div>
             <button id="connectBtn">Connect</button>
             <button id="disconnectBtn" disabled>Disconnect</button>
             <div style="margin-top: 15px;">
@@ -811,7 +807,6 @@
         async function loadSeats() {
             const tripId = document.getElementById('tripId').value;
             const apiUrl = document.getElementById('apiUrl').value;
-            const token = document.getElementById('token').value;
 
             if (!tripId) {
                 addLog('Please enter a Trip ID', 'error');
@@ -823,7 +818,6 @@
                 
                 const response = await fetch(`${apiUrl}/trips/details/${tripId}`, {
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     }
                 });
@@ -940,7 +934,6 @@
         // Calculate booking price
         async function calculatePrice() {
             const apiUrl = document.getElementById('apiUrl').value;
-            const token = document.getElementById('token').value;
             const tripId = document.getElementById('bookingTripId').value;
             const voucherCode = document.getElementById('voucherCode').value;
 
@@ -948,7 +941,6 @@
                 const response = await fetch(`${apiUrl}/bookings/calculate`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -1008,10 +1000,10 @@
         // Create booking
         async function createBooking() {
             const apiUrl = document.getElementById('apiUrl').value;
-            const token = document.getElementById('token').value;
             const tripId = document.getElementById('bookingTripId').value;
             const voucherCode = document.getElementById('voucherCode').value;
             const customerNotes = document.getElementById('customerNotes').value;
+            const userId = document.getElementById('userId').value;
 
             if (selectedSeats.size === 0) {
                 addLog('Please select at least one seat', 'error');
@@ -1027,14 +1019,14 @@
                 const response = await fetch(`${apiUrl}/bookings`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         tripId,
                         seatIds: Array.from(selectedSeats),
                         voucherCode: voucherCode || undefined,
-                        customerNotes: customerNotes || undefined
+                        customerNotes: customerNotes || undefined,
+                        userId: userId || null
                     })
                 });
 
@@ -1054,8 +1046,13 @@
 
                 // Join booking room to receive status updates
                 if (socket) {
-                    socket.emit('joinBookingRoom', currentBooking.id);
-                    addLog(`Joined booking room: ${currentBooking.id}`, 'info');
+                    socket.emit('joinBookingRoom', currentBooking.id, (response) => {
+                        if (response.success) {
+                            addLog(`Joined booking room: ${currentBooking.id}`, 'info');
+                        } else {
+                            addLog(`Error joining booking room: ${response.error}`, 'error');
+                        }
+                    });
                 }
 
                 // Clear selected seats from UI (they're now reserved)
@@ -1389,7 +1386,6 @@
         // Resend QR code
         async function resendQR() {
             const apiUrl = document.getElementById('apiUrl').value;
-            const token = document.getElementById('token').value;
 
             if (!currentBooking) {
                 addLog('No current booking to resend QR for', 'error');
@@ -1404,7 +1400,6 @@
                 const response = await fetch(`${apiUrl}/bookings/${currentBooking.id}/resend-payment`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     }
                 });
@@ -1444,7 +1439,6 @@
         // Cancel booking
         async function cancelBooking() {
             const apiUrl = document.getElementById('apiUrl').value;
-            const token = document.getElementById('token').value;
 
             if (!confirm('Are you sure you want to cancel this booking?')) {
                 return;
@@ -1454,7 +1448,6 @@
                 const response = await fetch(`${apiUrl}/bookings/${currentBooking.id}/cancel`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -1496,12 +1489,6 @@
         // Connect to socket server
         connectBtn.addEventListener('click', () => {
             const serverUrl = document.getElementById('serverUrl').value;
-            const token = document.getElementById('token').value;
-
-            if (!token) {
-                addLog('Please enter a JWT token', 'error');
-                return;
-            }
 
             try {
                 // Disconnect existing socket if any
@@ -1514,7 +1501,7 @@
 
                 // Connect to server
                 socket = io(serverUrl, {
-                    auth: { token },
+                    // withCredentials: true,
                     path: '/socket.io'
                 });
 
@@ -1550,6 +1537,14 @@
                     selectSeatBtn.disabled = true;
                     releaseSeatBtn.disabled = true;
                     addLog('Disconnected from socket server', 'info');
+                });
+
+                socket.on('roomAccessDenied', (data) => {
+                    addLog(`Room access denied: ${data.room} - ${data.reason}`, 'error');
+                });
+
+                socket.on('authenticationError', (data) => {
+                    addLog(`Authentication error for event ${data.event}: ${data.message}`, 'error');
                 });
 
                 // Seat related events
@@ -1636,18 +1631,23 @@
             const tripId = document.getElementById('tripId').value;
             const userId = document.getElementById('userId').value;
 
-            if (!tripId || !userId) {
-                addLog('Please enter both Trip ID and User ID', 'error');
+            if (!tripId) {
+                addLog('Please enter both Trip ID', 'error');
                 return;
             }
 
             if (socket) {
-                socket.emit('joinTripRoom', tripId);
-                addLog(`Joined trip room: ${tripId}`, 'success');
-                joinRoomBtn.disabled = true;
-                leaveRoomBtn.disabled = false;
-                loadSeatsBtn.disabled = false;
-                loadSeats();
+                socket.emit('joinTripRoom', tripId, (response) => {
+                    if (response.success) {
+                        addLog(`Joined trip room: public:trip:${tripId}`, 'success');
+                        joinRoomBtn.disabled = true;
+                        leaveRoomBtn.disabled = false;
+                        loadSeatsBtn.disabled = false;
+                        loadSeats();
+                    } else {
+                        addLog(`Error joining trip room: ${response.error}`, 'error');
+                    }
+                });
             } else {
                 addLog('Not connected to socket server', 'error');
             }
@@ -1658,16 +1658,21 @@
             const tripId = document.getElementById('tripId').value;
 
             if (socket) {
-                socket.emit('leaveTripRoom', tripId);
-                addLog(`Left trip room: ${tripId}`, 'success');
-                joinRoomBtn.disabled = false;
-                leaveRoomBtn.disabled = true;
-                loadSeatsBtn.disabled = true;
-                selectSeatBtn.disabled = true;
-                releaseSeatBtn.disabled = true;
-                seatsContainer.innerHTML = '<div class="loading">Join a trip and load seats to see availability</div>';
-                selectedSeats.clear();
-                updateSelectedSeatsDisplay();
+                socket.emit('leaveTripRoom', tripId, (response) => {
+                    if (response.success) {
+                        addLog(`Left trip room: public:trip:${tripId}`, 'success');
+                        joinRoomBtn.disabled = false;
+                        leaveRoomBtn.disabled = true;
+                        loadSeatsBtn.disabled = true;
+                        selectSeatBtn.disabled = true;
+                        releaseSeatBtn.disabled = true;
+                        seatsContainer.innerHTML = '<div class="loading">Join a trip and load seats to see availability</div>';
+                        selectedSeats.clear();
+                        updateSelectedSeatsDisplay();
+                    } else {
+                        addLog(`Error leaving trip room: ${response.error}`, 'error');
+                    }
+                });
             }
         });
 
@@ -1689,8 +1694,18 @@
                     socket.emit('selectSeat', {
                         tripId,
                         seatId,
-                        userId,
+                        userId: userId || null,
                         sessionId
+                    }, (response) => {
+                        if (response.error) {
+                            addLog(`Error selecting seat ${seatId}: ${response.error}`, 'error');
+                            selectedSeats.delete(seatId);
+                            updateSelectedSeatsDisplay();
+                            loadSeats();
+                        } else {
+                            addLog(`Seat ${seatId} reserved until ${new Date(response.expireAt).toLocaleTimeString()}`, 'success');
+                            releaseSeatBtn.disabled = false;
+                        }
                     });
                 });
                 addLog(`Attempting to reserve ${selectedSeats.size} seat(s)`, 'info');
@@ -1712,7 +1727,14 @@
                     socket.emit('releaseSeat', {
                         tripId,
                         seatId,
-                        userId
+                        userId: userId || null
+                    }, (response) => {
+                        if (response.error) {
+                            addLog(`Error releasing seat ${seatId}: ${response.error}`, 'error');
+                        } else {
+                            addLog(`Seat ${seatId} released`, 'success');
+                            releaseSeatBtn.disabled = true;
+                        }
                     });
                 });
                 addLog(`Releasing ${selectedSeats.size} seat(s)`, 'info');

@@ -9,13 +9,14 @@ const router = express.Router();
 router.post('/webhook/payment', bookingController.handlePaymentWebhook);
 
 // Authenticated user routes
-router.post('/calculate', authenticateToken, bookingController.calculateBookingWithVoucher);
-router.post('/', authenticateToken, bookingController.createBooking);
+router.post('/calculate', bookingController.calculateBookingWithVoucher);
+router.post('/', bookingController.createBooking);
+router.get('/:id/payment/qr-code', bookingController.generatePaymentQR);
+router.get('/:id', bookingController.getBookingDetails); // Keep this after specific routes
 router.get('/my-bookings', authenticateToken, bookingController.getUserBookings);
 router.post('/:id/resend-payment', authenticateToken, bookingController.resendPaymentQR);
 router.post('/:id/cancel', authenticateToken, bookingController.cancelBooking);
 router.get('/:id/history', authenticateToken, bookingController.getBookingHistory);
-router.get('/:id', authenticateToken, bookingController.getBookingDetails); // Keep this after specific routes
 
 // Admin routes (with permission validation)
 router.get('/admin/all', authenticateToken, validatePermissions(['admin']), bookingController.getAllBookings);

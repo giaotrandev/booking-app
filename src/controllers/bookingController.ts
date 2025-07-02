@@ -9,6 +9,7 @@ import { Socket, Server } from 'socket.io';
 import { addJob, QueueType } from '#queues/index';
 import { getSocketIOInstance } from './bookingControllerSocketInterface';
 import { generateTicketsForBooking } from '#services/ticketService';
+import { createRoomName } from '#src/services/socketService';
 
 // Keep track of temporary seat reservations
 interface SeatReservation {
@@ -49,12 +50,12 @@ async function getBookingConfig() {
 function broadcastSeatStatusChange(tripId: string, seatId: string, status: SeatStatus, data?: any) {
   const io = getSocketIOInstance();
   if (io) {
-    io.to(`trip:${tripId}`).emit('seatStatusChanged', {
+    const roomName = createRoomName.publicTrip(tripId);
+    io.to(roomName).emit('seatStatusChanged', {
       seatId,
       status,
       ...data,
     });
-    console.log(`Broadcasted seat status change: ${seatId} -> ${status} to trip:${tripId}`);
   }
 }
 
@@ -63,10 +64,10 @@ function broadcastSeatStatusChange(tripId: string, seatId: string, status: SeatS
  */
 export const createBooking = async (req: Request, res: Response): Promise<void> => {
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
-  const userId = (req.user as { userId: string }).userId;
+  const userId = (req.user as { userId: string })?.userId || undefined;
 
   try {
-    const { tripId, seatIds, voucherCode, customerNotes } = req.body;
+    const { tripId, seatIds, voucherCode, guestName, guestPhone, guestEmail, customerNotes } = req.body;
 
     if (!tripId || !seatIds || !Array.isArray(seatIds) || seatIds.length === 0) {
       sendBadRequest(res, 'booking.missingRequiredFields', null, language);
@@ -127,7 +128,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
 
     // Process voucher if provided
     let voucher = null;
-    if (voucherCode) {
+    if (voucherCode && userId) {
       voucher = await prisma.voucher.findUnique({
         where: {
           code: voucherCode,
@@ -203,11 +204,11 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
         // Create booking
         const booking = await tx.booking.create({
           data: {
-            userId,
+            userId: userId,
             isGuestBooking: !userId,
-            guestName: !userId ? req.body.guestName : undefined,
-            guestEmail: !userId ? req.body.guestEmail : undefined,
-            guestPhone: !userId ? req.body.guestPhone : undefined,
+            guestName: !userId ? guestName : undefined,
+            guestEmail: !userId ? guestEmail : undefined,
+            guestPhone: !userId ? guestPhone : undefined,
             status: BookingStatus.PENDING,
             paymentStatus: PaymentStatus.PENDING,
             totalPrice,
@@ -237,7 +238,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
         }
 
         // Create voucher usage if voucher applied
-        if (voucher) {
+        if (voucher && userId) {
           await tx.voucherUsage.create({
             data: {
               voucherId: voucher.id,
@@ -262,27 +263,52 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
         await tx.bookingHistory.create({
           data: {
             bookingId: booking.id,
-            changedFields: {},
-            changedBy: userId,
+            changedFields: {
+              status: 'PENDING',
+              totalPrice: totalPrice,
+              finalPrice: finalPrice,
+              seats: seatIds,
+            },
+            changedBy: userId || req.ip || req.connection.remoteAddress || 'unknown',
             changeReason: 'Booking created',
           },
         });
 
-        // Calculate payment expiration time
-        const paymentExpiration = new Date();
-        paymentExpiration.setMinutes(paymentExpiration.getMinutes() + config.paymentTimeoutMinutes);
+        // // Calculate payment expiration time
+        // const paymentExpiration = new Date();
+        // paymentExpiration.setMinutes(paymentExpiration.getMinutes() + config.paymentTimeoutMinutes);
 
-        // Generate VietQR payment code
-        const qrCodeData = await generateVietQRCode(booking.id, finalPrice);
+        // // Generate VietQR payment code
+        // const qrCodeData = await generateVietQRCode(booking.id, finalPrice);
 
-        // Update booking with QR code and payment reference
-        return await tx.booking.update({
+        // // Update booking with QR code and payment reference
+        // return await tx.booking.update({
+        //   where: { id: booking.id },
+        //   data: {
+        //     qrCode: qrCodeData.qrText,
+        //     qrCodeExpiresAt: paymentExpiration,
+        //     paymentWebhookReference: qrCodeData.paymentReference,
+        //   },
+        //   include: {
+        //     bookingTrips: {
+        //       include: {
+        //         trip: {
+        //           include: {
+        //             route: true,
+        //           },
+        //         },
+        //         seats: true,
+        //       },
+        //     },
+        //     voucherUsage: {
+        //       include: {
+        //         voucher: true,
+        //       },
+        //     },
+        //   },
+        // });
+        return await tx.booking.findUnique({
           where: { id: booking.id },
-          data: {
-            qrCode: qrCodeData.qrText,
-            qrCodeExpiresAt: paymentExpiration,
-            paymentWebhookReference: qrCodeData.paymentReference,
-          },
           include: {
             bookingTrips: {
               include: {
@@ -311,14 +337,15 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
     for (const seatId of seatIds) {
       broadcastSeatStatusChange(tripId, seatId, SeatStatus.RESERVED, {
         reservedBy: userId,
-        bookingId: result.id,
+        bookingId: result?.id,
       });
     }
 
     const io = getSocketIOInstance();
     if (io && result) {
       // Emit event to booking room
-      io.to(`booking:${result.id}`).emit('bookingCreated', {
+      const roomName = createRoomName.publicBooking(result.id);
+      io.to(roomName).emit('bookingCreated', {
         bookingId: result.id,
         status: result.status,
         totalPrice: result.finalPrice,
@@ -330,20 +357,21 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
       });
 
       // Optional: Create a notification
-      await prisma.notification.create({
-        data: {
-          userId: result.userId || '', // Handle guest bookings
-          type: 'BOOKING_CREATED',
-          category: 'BOOKING',
-          title: 'Booking Successful',
-          message: `Your booking for ${result.bookingTrips[0].trip.route.name} is confirmed`,
-          bookingId: result.id,
-        },
-      });
+      if (userId)
+        await prisma.notification.create({
+          data: {
+            userId: result.userId || '', // Handle guest bookings
+            type: 'BOOKING_CREATED',
+            category: 'BOOKING',
+            title: 'Booking Successful',
+            message: `Your booking for ${result.bookingTrips[0].trip.route.name} is confirmed`,
+            bookingId: result.id,
+          },
+        });
     }
 
     // Schedule automatic cancellation using Redis queue instead of setTimeout
-    await scheduleBookingCancellation(result.id, config.paymentTimeoutMinutes);
+    // await scheduleBookingCancellation(result.id, config.paymentTimeoutMinutes);
 
     sendSuccess(res, 'booking.created', result, language);
   } catch (error) {
@@ -406,6 +434,87 @@ async function generateVietQRCode(
     };
   }
 }
+
+/**
+ * Generate payment QR code when user selects QR payment method
+ */
+export const generatePaymentQR = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+  const { id } = req.params;
+  const userId = (req.user as { userId: string })?.userId;
+
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id },
+    });
+
+    if (!booking) {
+      sendNotFound(res, 'booking.notFound', null, language);
+      return;
+    }
+
+    // Check if user can access this booking
+    if (booking.userId && booking.userId !== userId) {
+      sendBadRequest(res, 'booking.unauthorized', null, language);
+      return;
+    }
+
+    // Only generate QR for PENDING bookings
+    if (booking.status !== BookingStatus.PENDING || booking.paymentStatus !== PaymentStatus.PENDING) {
+      sendBadRequest(res, 'booking.alreadyProcessed', null, language);
+      return;
+    }
+
+    // Get config for payment timeout
+    const config = await getBookingConfig();
+
+    // Calculate payment expiration time
+    const paymentExpiration = new Date();
+    paymentExpiration.setMinutes(paymentExpiration.getMinutes() + config.paymentTimeoutMinutes);
+
+    // Generate VietQR payment code
+    const qrCodeData = await generateVietQRCode(booking.id, booking.finalPrice);
+
+    // Update booking with QR code and payment reference
+    const updatedBooking = await prisma.booking.update({
+      where: { id },
+      data: {
+        qrCode: qrCodeData.qrText,
+        qrCodeExpiresAt: paymentExpiration,
+        paymentWebhookReference: qrCodeData.paymentReference,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Create history record
+    await prisma.bookingHistory.create({
+      data: {
+        bookingId: id,
+        changedFields: {
+          paymentMethod: 'QR_CODE',
+          qrCodeGenerated: true,
+        },
+        changedBy: userId || req.ip || 'unknown',
+        changeReason: 'QR payment method selected',
+      },
+    });
+
+    sendSuccess(
+      res,
+      'booking.qrGenerated',
+      {
+        bookingId: updatedBooking.id,
+        qrCode: qrCodeData.qrText,
+        qrCodeExpiresAt: paymentExpiration,
+        paymentReference: qrCodeData.paymentReference,
+      },
+      language
+    );
+  } catch (error) {
+    console.error('Error generating payment QR:', error);
+    sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
+  }
+};
 
 /**
  * Schedule automatic cancellation for unpaid bookings using Redis queue
@@ -1698,14 +1807,13 @@ export const confirmBookingManually = async (req: Request, res: Response): Promi
  */
 export const calculateBookingWithVoucher = async (req: Request, res: Response): Promise<void> => {
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
-  const userId = (req.user as { userId: string }).userId;
+  const userId = (req.user as { userId: string })?.userId || undefined;
 
   try {
     const { tripId, seatCount, voucherCode } = req.body;
 
     if (!tripId || !seatCount || seatCount <= 0) {
       return sendBadRequest(res, 'booking.missingRequiredFields', null, language);
-      return;
     }
 
     // Get trip details
@@ -1718,14 +1826,13 @@ export const calculateBookingWithVoucher = async (req: Request, res: Response): 
 
     if (!trip) {
       return sendNotFound(res, 'trip.notFound', null, language);
-      return;
     }
 
     // Calculate base price
     const totalPrice = trip.basePrice * seatCount;
 
     // If no voucher, return basic calculation
-    if (!voucherCode) {
+    if (!voucherCode || !userId) {
       return sendSuccess(
         res,
         'booking.calculated',
@@ -1739,7 +1846,6 @@ export const calculateBookingWithVoucher = async (req: Request, res: Response): 
         },
         language
       );
-      return;
     }
 
     // Find and validate voucher
@@ -1755,17 +1861,15 @@ export const calculateBookingWithVoucher = async (req: Request, res: Response): 
 
     if (!voucher) {
       return sendBadRequest(res, 'voucher.invalid', null, language);
-      return;
     }
 
     // Check if voucher usage limit is reached
     if (voucher.usageLimit && voucher.usedCount >= voucher.usageLimit) {
       return sendBadRequest(res, 'voucher.limitReached', null, language);
-      return;
     }
 
     // Check per-user limit
-    if (voucher.perUserLimit) {
+    if (voucher.perUserLimit && userId) {
       const userUsageCount = await prisma.voucherUsage.count({
         where: {
           voucherId: voucher.id,
@@ -1775,7 +1879,6 @@ export const calculateBookingWithVoucher = async (req: Request, res: Response): 
 
       if (userUsageCount >= voucher.perUserLimit) {
         return sendBadRequest(res, 'voucher.userLimitReached', null, language);
-        return;
       }
     }
 
@@ -1786,13 +1889,11 @@ export const calculateBookingWithVoucher = async (req: Request, res: Response): 
       !voucher.applicableRoutes.includes(trip.routeId)
     ) {
       return sendBadRequest(res, 'voucher.notApplicableForRoute', null, language);
-      return;
     }
 
     // Check minimum order value
     if (voucher.minOrderValue && totalPrice < voucher.minOrderValue) {
       return sendBadRequest(res, 'voucher.minOrderNotMet', { minOrder: voucher.minOrderValue }, language);
-      return;
     }
 
     // Calculate discount

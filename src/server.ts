@@ -15,6 +15,7 @@ import seedBusStops from './seeds/busStop';
 import { seedVehicles, seedVehicleTypes } from './seeds/vehicles';
 import seedRoutesAndRouteStops from './seeds/routes';
 import { initializeSocketIO } from '#services/socketService';
+import { seedSeats } from './seeds/seats';
 
 const port = process.env.PORT || 5000;
 
@@ -49,20 +50,18 @@ server.listen(port, () => {
 // seedVehicleTypes();
 // seedVehicles();
 // seedRoutesAndRouteStops();
+// seedSeats();
 
 const initializeServices = async () => {
   try {
-    // Kết nối cơ sở dữ liệu
     await connectDB();
 
-    // Kết nối Redis và đợi kết nối thành công
     const [cacheClient, queueClient] = await Promise.all([initRedisCache(), initRedisQueue()]);
 
     if (!cacheClient || !queueClient) {
       throw new Error('Failed to initialize Redis services');
     }
 
-    // Khởi tạo và đợi các services khác
     await Promise.all([
       new Promise<void>((resolve) => {
         initializeQueues();
@@ -73,7 +72,6 @@ const initializeServices = async () => {
       }),
     ]);
 
-    // Chỉ log khi tất cả đã hoàn thành
     console.log('\n===========================================');
     console.log('🚀 All systems initialized successfully!');
     console.log('===========================================\n');
@@ -88,6 +86,7 @@ initializeServices();
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err: Error) => {
   console.log(`Error: ${err.message}`);
+  console.log('Tào lao');
   prisma.$disconnect(); // Disconnect Prisma
   server.close(() => process.exit(1));
 });

@@ -11,11 +11,11 @@ const router = express.Router();
 // Public routes
 router.get('/search', tripController.searchTrips);
 router.get('/:id/seats/availability', tripController.checkSeatAvailability);
-router.get('/:id', tripController.getTripDetails);
+router.get('/details/:id', tripController.getTripDetails);
 router.get('/', tripController.getTripList);
+router.get('/calendar-view', tripController.getTripsByDateRange);
 
 // Authenticated routes
-router.get('/calendar-view', authenticateToken, tripController.getTripsByDateRange);
 router.get('/:id/history', authenticateToken, tripController.getTripHistory);
 router.get('/:id/seats', authenticateToken, tripController.getTripSeats);
 

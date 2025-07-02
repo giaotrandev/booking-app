@@ -7,6 +7,7 @@ export { QueueType, getQueue, addJob, initializeQueues, setupMemoryMonitoring, g
 import { setupEmailProcessor } from './processors/emailProcessor';
 import { setupScheduledPostsProcessor } from './processors/scheduledPostsProcessor';
 import { setupBookingCancellationProcessor } from './processors/bookingCancellationProcessor';
+import { setupSeatStatusProcessor } from './processors/seatStatusProcessor';
 
 /**
  * Initialize all queue processors
@@ -16,5 +17,6 @@ export function setupQueueProcessors(): void {
   // setupEmailProcessor();
   setupScheduledPostsProcessor();
   setupBookingCancellationProcessor();
+  // setupSeatStatusProcessor();
   console.log('✓ All queue processors initialized');
 }

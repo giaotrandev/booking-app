@@ -4,16 +4,25 @@ import { authenticateToken } from '#src/middlewares/authMiddleware';
 
 const router = express.Router();
 
-// Provinces routes
-router.get('/provinces', authenticateToken, geoController.getAllProvinces);
-router.get('/provinces/:idOrCode', authenticateToken, geoController.getProvinceDetails);
-router.get('/provinces/:provinceIdOrCode/districts', authenticateToken, geoController.getDistrictsByProvince);
+/** Provinces routes */
+// Public routes
+router.get('/provinces', geoController.getAllProvinces);
+router.get('/provinces/:idOrCode', geoController.getProvinceDetails);
+router.get('/provinces/:provinceIdOrCode/districts', geoController.getDistrictsByProvince);
 
-// Districts routes
-router.get('/districts/:districtIdOrCode', authenticateToken, geoController.getDistrictDetails);
-router.get('/districts/:districtIdOrCode/wards', authenticateToken, geoController.getWardsByDistrict);
+// Private routes
 
-// Search route
-router.get('/search', authenticateToken, geoController.searchLocations);
+/** Districts routes */
+// Public routes
+router.get('/districts/:districtIdOrCode', geoController.getDistrictDetails);
+router.get('/districts/:districtIdOrCode/wards', geoController.getWardsByDistrict);
+
+// Private routes
+
+/** Search routes */
+// Public route
+router.get('/search', geoController.searchLocations);
+
+// Private routes
 
 export default router;

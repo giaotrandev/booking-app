@@ -88,6 +88,14 @@ export const apiSpecification: OpenAPIV3.Document = {
       name: 'Trip',
       description: 'Trip management endpoints',
     },
+    {
+      name: 'Booking',
+      description: 'Booking management endpoints',
+    },
+    {
+      name: 'Realtime',
+      description: 'Real-time booking, room management and other endpoints using Socket.IO',
+    },
   ],
   paths: {
     // Authentication
@@ -5653,7 +5661,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
-    '/trips/{id}': {
+    '/trips/details/{id}': {
       get: {
         tags: ['Trip'],
         summary: 'Get trip details',
@@ -6441,6 +6449,1116 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
+    // Booking
+    // Booking endpoints
+    '/bookings/calculate': {
+      post: {
+        tags: ['Booking'],
+        summary: 'Tính toán giá đặt vé với mã giảm giá',
+        description: 'Tính toán chi phí đặt vé dựa trên chuyến đi, số lượng ghế và mã giảm giá (nếu có)',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  tripId: {
+                    type: 'string',
+                    description: 'ID của chuyến đi',
+                    example: '507f1f77bcf86cd799439012',
+                  },
+                  seatCount: {
+                    type: 'number',
+                    description: 'Số lượng ghế muốn đặt',
+                    example: 2,
+                  },
+                  voucherCode: {
+                    type: 'string',
+                    description: 'Mã giảm giá (tùy chọn)',
+                    example: 'SUMMER2025',
+                  },
+                },
+                required: ['tripId', 'seatCount'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Tính toán giá thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'booking.calculated' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        tripId: { type: 'string', example: '507f1f77bcf86cd799439012' },
+                        seatCount: { type: 'number', example: 2 },
+                        basePrice: { type: 'number', example: 100000 },
+                        totalPrice: { type: 'number', example: 200000 },
+                        voucher: {
+                          type: 'object',
+                          properties: {
+                            code: { type: 'string', example: 'SUMMER2025' },
+                            name: { type: 'string', example: 'Summer Discount' },
+                            discountType: { type: 'string', enum: ['PERCENTAGE', 'FIXED'], example: 'PERCENTAGE' },
+                            discountValue: { type: 'number', example: 10 },
+                          },
+                        },
+                        discountAmount: { type: 'number', example: 20000 },
+                        finalPrice: { type: 'number', example: 180000 },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Dữ liệu không hợp lệ hoặc mã giảm giá không hợp lệ',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'voucher.invalid' },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'Chuyến đi không tìm thấy',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'trip.notFound' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/bookings': {
+      post: {
+        tags: ['Booking'],
+        summary: 'Tạo mới một đặt vé',
+        description: 'Tạo đặt vé mới với thông tin chuyến đi, ghế và mã giảm giá (nếu có)',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  tripId: {
+                    type: 'string',
+                    description: 'ID của chuyến đi',
+                    example: '507f1f77bcf86cd799439012',
+                  },
+                  seatIds: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Danh sách ID của các ghế được chọn',
+                    example: ['507f1f77bcf86cd799439013', '507f1f77bcf86cd799439014'],
+                  },
+                  voucherCode: {
+                    type: 'string',
+                    description: 'Mã giảm giá (tùy chọn)',
+                    example: 'SUMMER2025',
+                  },
+                  guestName: {
+                    type: 'string',
+                    description: 'Tên khách hàng (dùng cho đặt vé không đăng nhập)',
+                    example: 'John Doe',
+                  },
+                  guestPhone: {
+                    type: 'string',
+                    description: 'Số điện thoại khách hàng (dùng cho đặt vé không đăng nhập)',
+                    example: '+84123456789',
+                  },
+                  guestEmail: {
+                    type: 'string',
+                    format: 'email',
+                    description: 'Email khách hàng (dùng cho đặt vé không đăng nhập)',
+                    example: 'john.doe@example.com',
+                  },
+                  customerNotes: {
+                    type: 'string',
+                    description: 'Ghi chú của khách hàng',
+                    example: 'Gần cửa sổ',
+                  },
+                },
+                required: ['tripId', 'seatIds'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Đặt vé thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'booking.created' },
+                    data: { $ref: '#/components/schemas/Booking' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Dữ liệu không hợp lệ hoặc ghế không khả dụng',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'booking.seatsNotAvailable' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        seats: {
+                          type: 'array',
+                          items: { type: 'string' },
+                          example: ['A1', 'A2'],
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'Chuyến đi không tìm thấy',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'trip.notFound' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/bookings/my-bookings': {
+      get: {
+        tags: ['Booking'],
+        summary: 'Lấy danh sách đặt vé của người dùng',
+        description: 'Lấy danh sách tất cả đặt vé của người dùng hiện tại với phân trang',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'page',
+            in: 'query',
+            description: 'Số trang',
+            schema: { type: 'integer', example: 1 },
+          },
+          {
+            name: 'pageSize',
+            in: 'query',
+            description: 'Số lượng bản ghi mỗi trang',
+            schema: { type: 'integer', example: 10 },
+          },
+          {
+            name: 'status',
+            in: 'query',
+            description: 'Lọc theo trạng thái đặt vé',
+            schema: { type: 'string', enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'] },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Ngôn ngữ trả về thông báo',
+            schema: { type: 'string', example: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Lấy danh sách đặt vé thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'booking.listRetrieved' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        data: {
+                          type: 'array',
+                          items: { $ref: '#/components/schemas/Booking' },
+                        },
+                        pagination: {
+                          type: 'object',
+                          properties: {
+                            page: { type: 'integer', example: 1 },
+                            pageSize: { type: 'integer', example: 10 },
+                            totalCount: { type: 'integer', example: 50 },
+                            totalPages: { type: 'integer', example: 5 },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Yêu cầu xác thực',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/bookings/{id}/resend-payment': {
+      post: {
+        tags: ['Booking'],
+        summary: 'Gửi lại mã QR thanh toán',
+        description: 'Gửi lại mã QR thanh toán cho một đặt vé đang chờ xử lý',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            description: 'ID của đặt vé',
+            required: true,
+            schema: { type: 'string', example: '507f1f77bcf86cd799439014' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Ngôn ngữ trả về thông báo',
+            schema: { type: 'string', example: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Gửi lại mã QR thanh toán thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'booking.paymentQrResent' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        bookingId: { type: 'string', example: '507f1f77bcf86cd799439014' },
+                        qrCode: {
+                          type: 'string',
+                          example:
+                            '{"type":"VietQR","bankId":"970436","accountNo":"0123456789","amount":180000,"addInfo":"BKG12345678901234","url":"https://img.vietqr.io/image/..."}',
+                        },
+                        qrCodeExpiresAt: { type: 'string', format: 'date-time', example: '2025-07-02T10:00:00Z' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Đặt vé không ở trạng thái chờ xử lý',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'booking.notPending' },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Yêu cầu xác thực hoặc không có quyền',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'Đặt vé không tìm thấy',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'booking.notFound' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/bookings/{id}/cancel': {
+      post: {
+        tags: ['Booking'],
+        summary: 'Hủy đặt vé',
+        description: 'Hủy một đặt vé của người dùng hoặc quản trị viên',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            description: 'ID của đặt vé',
+            required: true,
+            schema: { type: 'string', example: '507f1f77bcf86cd799439014' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Ngôn ngữ trả về thông báo',
+            schema: { type: 'string', example: 'en' },
+          },
+        ],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  reason: {
+                    type: 'string',
+                    description: 'Lý do hủy đặt vé',
+                    example: 'Kế hoạch thay đổi',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Hủy đặt vé thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'booking.cancelled' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Đặt vé đã bị hủy hoặc chuyến đi đã khởi hành',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'booking.alreadyCancelled' },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Yêu cầu xác thực hoặc không có quyền',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'Đặt vé không tìm thấy',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'booking.notFound' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/bookings/{id}/history': {
+      get: {
+        tags: ['Booking'],
+        summary: 'Lấy lịch sử thay đổi của đặt vé',
+        description: 'Lấy lịch sử tất cả các thay đổi của một đặt vé',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            description: 'ID của đặt vé',
+            required: true,
+            schema: { type: 'string', example: '507f1f77bcf86cd799439014' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Ngôn ngữ trả về thông báo',
+            schema: { type: 'string', example: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Lấy lịch sử đặt vé thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'booking.historyRetrieved' },
+                    data: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/BookingHistory' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Yêu cầu xác thực hoặc không có quyền',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'Đặt vé không tìm thấy',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'booking.notFound' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/bookings/{id}': {
+      get: {
+        tags: ['Booking'],
+        summary: 'Lấy chi tiết đặt vé',
+        description: 'Lấy thông tin chi tiết của một đặt vé',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            description: 'ID của đặt vé',
+            required: true,
+            schema: { type: 'string', example: '507f1f77bcf86cd799439014' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Ngôn ngữ trả về thông báo',
+            schema: { type: 'string', example: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Lấy chi tiết đặt vé thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'booking.detailsRetrieved' },
+                    data: { $ref: '#/components/schemas/Booking' },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Yêu cầu xác thực hoặc không có quyền',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'Đặt vé không tìm thấy',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'booking.notFound' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/bookings/webhook/payment': {
+      post: {
+        tags: ['Booking'],
+        summary: 'Xử lý webhook thanh toán từ SePay',
+        description: 'Xử lý thông báo thanh toán từ dịch vụ SePay để xác nhận đặt vé',
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  gateway: { type: 'string', example: 'SePay' },
+                  transactionDate: { type: 'string', format: 'date-time', example: '2025-07-02T09:47:00Z' },
+                  accountNumber: { type: 'string', example: '0123456789' },
+                  code: { type: 'string', example: 'PAYMENT_SUCCESS' },
+                  content: { type: 'string', example: 'BKG12345678901234 John Doe' },
+                  transferType: { type: 'string', example: 'TRANSFER' },
+                  transferAmount: { type: 'string', example: '180000' },
+                  accumulated: { type: 'string', example: '180000' },
+                  referenceCode: { type: 'string', example: 'BKG12345678901234' },
+                  description: { type: 'string', example: 'Payment for booking' },
+                },
+                required: ['content', 'transferAmount'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Webhook được xử lý thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'payment.webhookReceived' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        bookingId: { type: 'string', example: '507f1f77bcf86cd799439014' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Dữ liệu webhook không hợp lệ',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'payment.invalidWebhookPayload' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/bookings/admin/all': {
+      get: {
+        tags: ['Booking'],
+        summary: 'Lấy tất cả đặt vé (quản trị viên)',
+        description: 'Lấy danh sách tất cả đặt vé với các bộ lọc và phân trang (yêu cầu quyền quản trị viên)',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'page',
+            in: 'query',
+            description: 'Số trang',
+            schema: { type: 'integer', example: 1 },
+          },
+          {
+            name: 'pageSize',
+            in: 'query',
+            description: 'Số lượng bản ghi mỗi trang',
+            schema: { type: 'integer', example: 10 },
+          },
+          {
+            name: 'status',
+            in: 'query',
+            description: 'Lọc theo trạng thái đặt vé',
+            schema: { type: 'string', enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'] },
+          },
+          {
+            name: 'paymentStatus',
+            in: 'query',
+            description: 'Lọc theo trạng thái thanh toán',
+            schema: { type: 'string', enum: ['PENDING', 'COMPLETED', 'FAILED'] },
+          },
+          {
+            name: 'userId',
+            in: 'query',
+            description: 'Lọc theo ID người dùng',
+            schema: { type: 'string', example: '507f1f77bcf86cd799439011' },
+          },
+          {
+            name: 'tripId',
+            in: 'query',
+            description: 'Lọc theo ID chuyến đi',
+            schema: { type: 'string', example: '507f1f77bcf86cd799439012' },
+          },
+          {
+            name: 'startDate',
+            in: 'query',
+            description: 'Lọc theo ngày bắt đầu (YYYY-MM-DD)',
+            schema: { type: 'string', format: 'date', example: '2025-07-01' },
+          },
+          {
+            name: 'endDate',
+            in: 'query',
+            description: 'Lọc theo ngày kết thúc (YYYY-MM-DD)',
+            schema: { type: 'string', format: 'date', example: '2025-07-31' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Ngôn ngữ trả về thông báo',
+            schema: { type: 'string', example: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Lấy danh sách đặt vé thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'booking.adminListRetrieved' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        data: {
+                          type: 'array',
+                          items: { $ref: '#/components/schemas/Booking' },
+                        },
+                        pagination: {
+                          type: 'object',
+                          properties: {
+                            page: { type: 'integer', example: 1 },
+                            pageSize: { type: 'integer', example: 10 },
+                            totalCount: { type: 'integer', example: 50 },
+                            totalPages: { type: 'integer', example: 5 },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Yêu cầu xác thực hoặc không có quyền',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/bookings/admin/stats': {
+      get: {
+        tags: ['Booking'],
+        summary: 'Lấy thống kê đặt vé (quản trị viên)',
+        description: 'Lấy thống kê về đặt vé trong một khoảng thời gian (yêu cầu quyền quản trị viên)',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'startDate',
+            in: 'query',
+            description: 'Ngày bắt đầu (YYYY-MM-DD)',
+            schema: { type: 'string', format: 'date', example: '2025-07-01' },
+          },
+          {
+            name: 'endDate',
+            in: 'query',
+            description: 'Ngày kết thúc (YYYY-MM-DD)',
+            schema: { type: 'string', format: 'date', example: '2025-07-31' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Ngôn ngữ trả về thông báo',
+            schema: { type: 'string', example: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Lấy thống kê thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'booking.statsRetrieved' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        totalBookings: { type: 'integer', example: 100 },
+                        completedBookings: { type: 'integer', example: 80 },
+                        cancelledBookings: { type: 'integer', example: 15 },
+                        pendingBookings: { type: 'integer', example: 5 },
+                        revenue: { type: 'number', example: 15000000 },
+                        discounts: { type: 'number', example: 500000 },
+                        topRoutes: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              id: { type: 'string', example: '507f1f77bcf86cd799439015' },
+                              name: { type: 'string', example: 'HCM - Hanoi' },
+                              sourceProvince: { type: 'string', example: 'Ho Chi Minh City' },
+                              destinationProvince: { type: 'string', example: 'Hanoi' },
+                              bookingCount: { type: 'integer', example: 30 },
+                            },
+                          },
+                        },
+                        dailyBookings: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              date: { type: 'string', example: '2025-07-01' },
+                              count: { type: 'integer', example: 10 },
+                              completed: { type: 'integer', example: 8 },
+                              cancelled: { type: 'integer', example: 1 },
+                              pending: { type: 'integer', example: 1 },
+                            },
+                          },
+                        },
+                        timeRange: {
+                          type: 'object',
+                          properties: {
+                            startDate: { type: 'string', format: 'date-time', example: '2025-07-01T00:00:00Z' },
+                            endDate: { type: 'string', format: 'date-time', example: '2025-07-31T23:59:59Z' },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Yêu cầu xác thực hoặc không có quyền',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/bookings/admin/export': {
+      get: {
+        tags: ['Booking'],
+        summary: 'Xuất dữ liệu đặt vé (quản trị viên)',
+        description: 'Xuất dữ liệu đặt vé ra định dạng JSON hoặc CSV (yêu cầu quyền quản trị viên)',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'startDate',
+            in: 'query',
+            description: 'Ngày bắt đầu (YYYY-MM-DD)',
+            schema: { type: 'string', format: 'date', example: '2025-07-01' },
+          },
+          {
+            name: 'endDate',
+            in: 'query',
+            description: 'Ngày kết thúc (YYYY-MM-DD)',
+            schema: { type: 'string', format: 'date', example: '2025-07-31' },
+          },
+          {
+            name: 'format',
+            in: 'query',
+            description: 'Định dạng xuất (json hoặc csv)',
+            schema: { type: 'string', enum: ['json', 'csv'], example: 'json' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Ngôn ngữ trả về thông báo',
+            schema: { type: 'string', example: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Xuất dữ liệu thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'booking.dataExported' },
+                    data: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/BookingExport' },
+                    },
+                  },
+                },
+              },
+              'text/csv': {
+                schema: {
+                  type: 'string',
+                  example:
+                    'bookingId,bookingDate,customer,email,phone,route,departureTime,seats,seatCount,basePrice,discount,finalPrice,status,paymentStatus,voucher\n507f1f77bcf86cd799439014,2025-07-02T09:47:00Z,"John Doe",john.doe@example.com,+84123456789,"HCM → Hanoi",2025-07-03T08:00:00Z,"A1,A2",2,200000,20000,180000,CONFIRMED,COMPLETED,SUMMER2025',
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Yêu cầu xác thực hoặc không có quyền',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/bookings/{id}/admin/confirm': {
+      post: {
+        tags: ['Booking'],
+        summary: 'Xác nhận đặt vé thủ công (quản trị viên)',
+        description: 'Xác nhận thủ công một đặt vé bởi quản trị viên',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            description: 'ID của đặt vé',
+            required: true,
+            schema: { type: 'string', example: '507f1f77bcf86cd799439014' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Ngôn ngữ trả về thông báo',
+            schema: { type: 'string', example: 'en' },
+          },
+        ],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  notes: {
+                    type: 'string',
+                    description: 'Ghi chú cho việc xác nhận thủ công',
+                    example: 'Xác nhận bởi quản trị viên do thanh toán ngoại tuyến',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Xác nhận đặt vé thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'booking.manuallyConfirmed' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Đặt vé không thể xác nhận',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'booking.alreadyConfirmed' },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Yêu cầu xác thực hoặc không có quyền',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'Đặt vé không tìm thấy',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'booking.notFound' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    // Real-time
+    '/socket.io': {
+      get: {
+        tags: ['Realtime'],
+        summary: 'Kết nối Socket.IO',
+        description: 'Khởi tạo kết nối thời gian thực với Socket.IO, hỗ trợ xác thực bằng JWT',
+        parameters: [
+          {
+            name: 'token',
+            in: 'query',
+            description: 'JWT token để xác thực (tùy chọn cho các phòng công cộng)',
+            required: false,
+            schema: {
+              type: 'string',
+              example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+            },
+          },
+        ],
+        responses: {
+          '101': {
+            description: 'Kết nối WebSocket được thiết lập thành công',
+          },
+          '401': {
+            description: 'Không được phép (token không hợp lệ hoặc thiếu cho phòng riêng tư)',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'Authentication required' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: ['Realtime'],
+        summary: 'Sự kiện Socket.IO',
+        description: 'Xử lý các sự kiện thời gian thực cho đặt vé và quản lý phòng',
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                oneOf: [
+                  { $ref: '#/components/schemas/JoinTripRoom' },
+                  { $ref: '#/components/schemas/LeaveTripRoom' },
+                  { $ref: '#/components/schemas/SelectSeat' },
+                  { $ref: '#/components/schemas/ReleaseSeat' },
+                  { $ref: '#/components/schemas/JoinBookingRoom' },
+                  { $ref: '#/components/schemas/LeaveBookingRoom' },
+                  { $ref: '#/components/schemas/SendPrivateMessage' },
+                ],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Sự kiện được xử lý thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  oneOf: [
+                    { $ref: '#/components/schemas/SeatSelectionResponse' },
+                    { $ref: '#/components/schemas/SeatReleaseResponse' },
+                    { $ref: '#/components/schemas/RoomAccessResponse' },
+                    { $ref: '#/components/schemas/SeatStatusChanged' },
+                    { $ref: '#/components/schemas/BookingStatusChanged' },
+                    { $ref: '#/components/schemas/PrivateMessage' },
+                    { $ref: '#/components/schemas/SeatExpirationWarning' },
+                  ],
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Yêu cầu xác thực cho các sự kiện riêng tư',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
   },
   components: {
     securitySchemes: {
@@ -6666,6 +7784,380 @@ export const apiSpecification: OpenAPIV3.Document = {
           seatType: { type: 'string', enum: ['STANDARD', 'PREMIUM', 'VIP'] },
           status: { type: 'string', enum: ['AVAILABLE', 'BOOKED', 'RESERVED'] },
         },
+      },
+      SeatReservation: {
+        type: 'object',
+        properties: {
+          userId: {
+            type: 'string',
+            description: 'ID của người dùng đặt chỗ',
+            example: '507f1f77bcf86cd799439011',
+          },
+          tripId: {
+            type: 'string',
+            description: 'ID của chuyến đi',
+            example: '507f1f77bcf86cd799439012',
+          },
+          seatId: {
+            type: 'string',
+            description: 'ID của ghế',
+            example: '507f1f77bcf86cd799439013',
+          },
+          expireAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian hết hạn của đặt chỗ',
+            example: '2025-07-02T10:00:00Z',
+          },
+          sessionId: {
+            type: 'string',
+            description: 'Mã định danh phiên (tùy chọn)',
+            example: 'session-12345',
+          },
+        },
+        required: ['userId', 'tripId', 'seatId', 'expireAt'],
+      },
+      SeatSelectionResponse: {
+        type: 'object',
+        properties: {
+          seatId: {
+            type: 'string',
+            description: 'ID của ghế được chọn',
+            example: '507f1f77bcf86cd799439013',
+          },
+          expireAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian hết hạn của đặt chỗ ghế',
+            example: '2025-07-02T10:00:00Z',
+          },
+          error: {
+            type: 'string',
+            description: 'Thông báo lỗi nếu thao tác thất bại',
+            example: 'Ghế đã được đặt',
+          },
+        },
+        required: ['seatId'],
+      },
+      SeatReleaseResponse: {
+        type: 'object',
+        properties: {
+          seatId: {
+            type: 'string',
+            description: 'ID của ghế được giải phóng',
+            example: '507f1f77bcf86cd799439013',
+          },
+          error: {
+            type: 'string',
+            description: 'Thông báo lỗi nếu thao tác thất bại',
+            example: 'Không tìm thấy đặt chỗ cho ghế này',
+          },
+        },
+        required: ['seatId'],
+      },
+      SeatStatusChanged: {
+        type: 'object',
+        properties: {
+          seatId: {
+            type: 'string',
+            description: 'ID của ghế',
+            example: '507f1f77bcf86cd799439013',
+          },
+          status: {
+            type: 'string',
+            enum: ['AVAILABLE', 'RESERVED', 'BOOKED', 'BLOCKED'],
+            description: 'Trạng thái hiện tại của ghế',
+            example: 'RESERVED',
+          },
+          seatNumber: {
+            type: 'string',
+            description: 'Số ghế',
+            example: 'A1',
+          },
+          reservedBy: {
+            type: 'string',
+            description: 'ID của người dùng đã đặt ghế',
+            example: '507f1f77bcf86cd799439011',
+          },
+          sessionId: {
+            type: 'string',
+            description: 'Mã định danh phiên',
+            example: 'session-12345',
+          },
+          expireAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian hết hạn của đặt chỗ',
+            example: '2025-07-02T10:00:00Z',
+          },
+          reason: {
+            type: 'string',
+            description: 'Lý do thay đổi trạng thái',
+            example: 'expired',
+          },
+          updatedBy: {
+            type: 'string',
+            description: 'ID của người dùng đã cập nhật trạng thái',
+            example: '507f1f77bcf86cd799439011',
+          },
+        },
+        required: ['seatId', 'status'],
+      },
+      BookingStatusChanged: {
+        type: 'object',
+        properties: {
+          bookingId: {
+            type: 'string',
+            description: 'ID của đặt chỗ',
+            example: '507f1f77bcf86cd799439014',
+          },
+          status: {
+            type: 'string',
+            enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'],
+            description: 'Trạng thái hiện tại của đặt chỗ',
+            example: 'CONFIRMED',
+          },
+          finalPrice: {
+            type: 'number',
+            description: 'Giá cuối cùng của đặt chỗ',
+            example: 150000,
+          },
+          seatNumbers: {
+            type: 'string',
+            description: 'Danh sách số ghế cách nhau bằng dấu phẩy',
+            example: 'A1,A2',
+          },
+          updatedAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian cập nhật trạng thái',
+            example: '2025-07-02T09:47:00Z',
+          },
+        },
+        required: ['bookingId', 'status', 'updatedAt'],
+      },
+      RoomAccessResponse: {
+        type: 'object',
+        properties: {
+          success: {
+            type: 'boolean',
+            description: 'Thành công khi tham gia hoặc rời phòng',
+            example: true,
+          },
+          error: {
+            type: 'string',
+            description: 'Thông báo lỗi nếu thao tác thất bại',
+            example: 'Yêu cầu xác thực',
+          },
+        },
+        required: ['success'],
+      },
+      PrivateMessage: {
+        type: 'object',
+        properties: {
+          userId: {
+            type: 'string',
+            description: 'ID của người dùng gửi tin nhắn',
+            example: '507f1f77bcf86cd799439011',
+          },
+          message: {
+            type: 'string',
+            description: 'Nội dung tin nhắn',
+            example: 'Xin chào, tôi cần hỗ trợ về đặt vé',
+          },
+          timestamp: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian gửi tin nhắn',
+            example: '2025-07-02T09:47:00Z',
+          },
+        },
+        required: ['userId', 'message', 'timestamp'],
+      },
+      ErrorResponse: {
+        type: 'object',
+        properties: {
+          event: {
+            type: 'string',
+            description: 'Tên sự kiện gây ra lỗi',
+            example: 'sendPrivateMessage',
+          },
+          message: {
+            type: 'string',
+            description: 'Thông báo lỗi',
+            example: 'Yêu cầu xác thực cho hành động này',
+          },
+        },
+        required: ['message'],
+      },
+      SeatExpirationWarning: {
+        type: 'object',
+        properties: {
+          seatId: {
+            type: 'string',
+            description: 'ID của ghế',
+            example: '507f1f77bcf86cd799439013',
+          },
+          userId: {
+            type: 'string',
+            description: 'ID của người dùng đã đặt ghế',
+            example: '507f1f77bcf86cd799439011',
+          },
+          expireAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian hết hạn của đặt chỗ',
+            example: '2025-07-02T10:00:00Z',
+          },
+          remainingTime: {
+            type: 'number',
+            description: 'Thời gian còn lại trước khi đặt chỗ hết hạn (giây)',
+            example: 120,
+          },
+        },
+        required: ['seatId', 'userId', 'expireAt', 'remainingTime'],
+      },
+      JoinTripRoom: {
+        type: 'object',
+        properties: {
+          event: {
+            type: 'string',
+            enum: ['joinTripRoom'],
+            example: 'joinTripRoom',
+          },
+          tripId: {
+            type: 'string',
+            description: 'ID của chuyến đi để tham gia',
+            example: '507f1f77bcf86cd799439012',
+          },
+        },
+        required: ['event', 'tripId'],
+      },
+      LeaveTripRoom: {
+        type: 'object',
+        properties: {
+          event: {
+            type: 'string',
+            enum: ['leaveTripRoom'],
+            example: 'leaveTripRoom',
+          },
+          tripId: {
+            type: 'string',
+            description: 'ID của chuyến đi để rời',
+            example: '507f1f77bcf86cd799439012',
+          },
+        },
+        required: ['event', 'tripId'],
+      },
+      SelectSeat: {
+        type: 'object',
+        properties: {
+          event: {
+            type: 'string',
+            enum: ['selectSeat'],
+            example: 'selectSeat',
+          },
+          tripId: {
+            type: 'string',
+            description: 'ID của chuyến đi',
+            example: '507f1f77bcf86cd799439012',
+          },
+          seatId: {
+            type: 'string',
+            description: 'ID của ghế để chọn',
+            example: '507f1f77bcf86cd799439013',
+          },
+          userId: {
+            type: 'string',
+            description: 'ID của người dùng',
+            example: '507f1f77bcf86cd799439011',
+          },
+          sessionId: {
+            type: 'string',
+            description: 'Mã định danh phiên (tùy chọn)',
+            example: 'session-12345',
+          },
+        },
+        required: ['event', 'tripId', 'seatId', 'userId'],
+      },
+      ReleaseSeat: {
+        type: 'object',
+        properties: {
+          event: {
+            type: 'string',
+            enum: ['releaseSeat'],
+            example: 'releaseSeat',
+          },
+          tripId: {
+            type: 'string',
+            description: 'ID của chuyến đi',
+            example: '507f1f77bcf86cd799439012',
+          },
+          seatId: {
+            type: 'string',
+            description: 'ID của ghế để giải phóng',
+            example: '507f1f77bcf86cd799439013',
+          },
+          userId: {
+            type: 'string',
+            description: 'ID của người dùng',
+            example: '507f1f77bcf86cd799439011',
+          },
+        },
+        required: ['event', 'tripId', 'seatId', 'userId'],
+      },
+      JoinBookingRoom: {
+        type: 'object',
+        properties: {
+          event: {
+            type: 'string',
+            enum: ['joinBookingRoom'],
+            example: 'joinBookingRoom',
+          },
+          bookingId: {
+            type: 'string',
+            description: 'ID của đặt chỗ để tham gia',
+            example: '507f1f77bcf86cd799439014',
+          },
+        },
+        required: ['event', 'bookingId'],
+      },
+      LeaveBookingRoom: {
+        type: 'object',
+        properties: {
+          event: {
+            type: 'string',
+            enum: ['leaveBookingRoom'],
+            example: 'leaveBookingRoom',
+          },
+          bookingId: {
+            type: 'string',
+            description: 'ID của đặt chỗ để rời',
+            example: '507f1f77bcf86cd799439014',
+          },
+        },
+        required: ['event', 'bookingId'],
+      },
+      SendPrivateMessage: {
+        type: 'object',
+        properties: {
+          event: {
+            type: 'string',
+            enum: ['sendPrivateMessage'],
+            example: 'sendPrivateMessage',
+          },
+          tripId: {
+            type: 'string',
+            description: 'ID của chuyến đi',
+            example: '507f1f77bcf86cd799439012',
+          },
+          message: {
+            type: 'string',
+            description: 'Nội dung tin nhắn',
+            example: 'Xin chào, tôi cần hỗ trợ về đặt vé',
+          },
+        },
+        required: ['event', 'tripId', 'message'],
       },
       Error: {
         type: 'object',
