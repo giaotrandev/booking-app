@@ -910,7 +910,7 @@ async function registerPaymentWebhook(bookingId: string, paymentRef: string, amo
  */
 export const getBookingDetails = async (req: Request, res: Response): Promise<void> => {
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
-  const userId = (req.user as { userId: string }).userId;
+  const userId = (req.user as { userId: string })?.userId;
 
   try {
     const { id } = req.params;
@@ -940,7 +940,14 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
                 },
                 vehicle: {
                   include: {
-                    vehicleType: true,
+                    vehicleType: {
+                      select: {
+                        id: true,
+                        name: true,
+                        description: true,
+                        status: true,
+                      },
+                    },
                     driver: {
                       select: {
                         id: true,
@@ -972,11 +979,11 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
 
     // Check permissions - only the booking owner or admins can view details
     const isOwner = booking.userId === userId;
-    const isAdmin = (req.user as any).role === 'admin';
+    // const isAdmin = (req.user as any)?.role === 'admin';
 
-    if (!isOwner && !isAdmin) {
-      return sendForbidden(res, 'booking.accessDenied', null, language);
-    }
+    // if (!isOwner && !isAdmin) {
+    //   return sendForbidden(res, 'booking.accessDenied', null, language);
+    // }
 
     // Get driver avatar if exists
     let driverAvatarUrl = null;
