@@ -1,12 +1,12 @@
 import { Request, Response } from 'express';
-import { Request as MulterRequest } from 'express-serve-static-core';
 import fs from 'fs';
+import { TripStatus, SeatStatus, SeatType, Trip } from '@prisma/client';
 import { prisma } from '#config/db';
 import { sendSuccess, sendBadRequest, sendNotFound, sendServerError, sendForbidden } from '#utils/apiResponse';
 import { uploadFileToR2, getSignedUrlForFile, deleteFileFromR2, StorageFolders } from '#services/r2Service';
 import { optimizeImage } from '#services/imageService';
 import safeDeleteFile from '#utils/safeDeleteFile';
-import { TripStatus, SeatStatus, SeatType, Trip } from '@prisma/client';
+import { deepRemoveTimestamps, removeTimestamps } from '#src/helpers/dataHelper';
 
 interface RequestWithFile extends Request {
   file?: Express.Multer.File;
@@ -361,8 +361,7 @@ export const getTripList = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
-/**
- * Get trip details
+/**Get trip details
  */
 export const getTripDetails = async (req: Request, res: Response): Promise<void> => {
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
@@ -411,6 +410,7 @@ export const getTripDetails = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    // Get signed URLs
     let imageUrl = null;
     if (trip.image) {
       imageUrl = await getSignedUrlForFile(trip.image);
@@ -421,16 +421,68 @@ export const getTripDetails = async (req: Request, res: Response): Promise<void>
       driverAvatarUrl = await getSignedUrlForFile(trip.vehicle.driver.avatar);
     }
 
-    const result = {
-      ...trip,
-      imageUrl,
-      vehicle: {
-        ...trip.vehicle,
-        driver: trip.vehicle.driver ? { ...trip.vehicle.driver, avatarUrl: driverAvatarUrl } : null,
-      },
+    // Create price map for easy lookup
+    const priceMap = new Map(trip.stopPrices.map((sp) => [sp.busStopId, sp.price]));
+
+    // Process route stops with price information
+    const processedStops = trip.route.routeStops.map((routeStop) => {
+      const busStop = routeStop.busStop;
+      const ward = busStop.ward;
+      const district = ward.district;
+      const province = district.province;
+
+      return {
+        busStopId: busStop.id,
+        name: busStop.name,
+        latitude: busStop.latitude,
+        longitude: busStop.longitude,
+        wardName: ward.name,
+        districtName: district.name,
+        provinceName: province.name,
+        provinceId: province.id,
+        stopOrder: routeStop.stopOrder,
+        price: priceMap.get(busStop.id) || 0, // Include price from stopPrices
+      };
+    });
+
+    // Separate stops into pickup and dropoff points
+    const routeStops = {
+      pickupPoints: processedStops.filter((stop) => stop.provinceId === trip.route.sourceProvince.id),
+      dropoffPoints: processedStops.filter((stop) => stop.provinceId === trip.route.destinationProvince.id),
     };
 
-    return sendSuccess(res, 'trip.detailsRetrieved', result, language);
+    // Build final result
+    const result = {
+      id: trip.id,
+      image: trip.image,
+      imageUrl,
+      departureTime: trip.departureTime,
+      arrivalTime: trip.arrivalTime,
+      basePrice: trip.basePrice,
+      specialPrice: trip.specialPrice,
+      status: trip.status,
+      route: {
+        id: trip.route.id,
+        sourceProvince: removeTimestamps(trip.route.sourceProvince),
+        destinationProvince: removeTimestamps(trip.route.destinationProvince),
+        routeStops,
+      },
+      vehicle: {
+        ...trip.vehicle,
+        driver: trip.vehicle.driver
+          ? {
+              ...trip.vehicle.driver,
+              avatarUrl: driverAvatarUrl,
+            }
+          : null,
+      },
+      seats: trip.seats.map(removeTimestamps),
+    };
+
+    // Apply deep timestamp removal to the entire result
+    const cleanedResult = deepRemoveTimestamps(result);
+
+    return sendSuccess(res, 'trip.detailsRetrieved', cleanedResult, language);
   } catch (error) {
     console.error('Error retrieving trip details:', error);
     sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
