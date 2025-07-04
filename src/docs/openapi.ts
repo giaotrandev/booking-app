@@ -6449,7 +6449,6 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
-    // Booking
     // Booking endpoints
     '/bookings/calculate': {
       post: {
@@ -6554,7 +6553,8 @@ export const apiSpecification: OpenAPIV3.Document = {
       post: {
         tags: ['Booking'],
         summary: 'Tạo mới một đặt vé',
-        description: 'Tạo đặt vé mới với thông tin chuyến đi, ghế và mã giảm giá (nếu có)',
+        description:
+          'Tạo đặt vé mới với thông tin chuyến đi, ghế và mã giảm giá (nếu có). Hỗ trợ đặt vé cho khách không đăng nhập.',
         security: [{ BearerAuth: [] }],
         requestBody: {
           content: {
@@ -6572,10 +6572,11 @@ export const apiSpecification: OpenAPIV3.Document = {
                     items: { type: 'string' },
                     description: 'Danh sách ID của các ghế được chọn',
                     example: ['507f1f77bcf86cd799439013', '507f1f77bcf86cd799439014'],
+                    minItems: 1,
                   },
                   voucherCode: {
                     type: 'string',
-                    description: 'Mã giảm giá (tùy chọn)',
+                    description: 'Mã giảm giá (yêu cầu xác thực)',
                     example: 'SUMMER2025',
                   },
                   guestName: {
@@ -6594,6 +6595,16 @@ export const apiSpecification: OpenAPIV3.Document = {
                     description: 'Email khách hàng (dùng cho đặt vé không đăng nhập)',
                     example: 'john.doe@example.com',
                   },
+                  pickupId: {
+                    type: 'string',
+                    description: 'Id của bus stop điểm đón',
+                    example: '507f1f77bcf86cd799439014',
+                  },
+                  dropoffId: {
+                    type: 'string',
+                    description: 'Id của bus stop điểm đến',
+                    example: '507f1f77bcf86cd799439015',
+                  },
                   customerNotes: {
                     type: 'string',
                     description: 'Ghi chú của khách hàng',
@@ -6601,6 +6612,16 @@ export const apiSpecification: OpenAPIV3.Document = {
                   },
                 },
                 required: ['tripId', 'seatIds'],
+                anyOf: [
+                  {
+                    required: ['guestName', 'guestPhone', 'guestEmail'],
+                  },
+                  {
+                    not: {
+                      required: ['guestName', 'guestPhone', 'guestEmail'],
+                    },
+                  },
+                ],
               },
             },
           },
@@ -6622,22 +6643,39 @@ export const apiSpecification: OpenAPIV3.Document = {
             },
           },
           '400': {
-            description: 'Dữ liệu không hợp lệ hoặc ghế không khả dụng',
+            description: 'Dữ liệu không hợp lệ, ghế không khả dụng hoặc mã giảm giá không hợp lệ',
             content: {
               'application/json': {
                 schema: {
                   type: 'object',
                   properties: {
                     success: { type: 'boolean', example: false },
-                    message: { type: 'string', example: 'booking.seatsNotAvailable' },
+                    message: {
+                      type: 'string',
+                      enum: [
+                        'booking.missingRequiredFields',
+                        'booking.tooManySeats',
+                        'booking.invalidTripStatus',
+                        'booking.invalidSeats',
+                        'booking.seatsNotAvailable',
+                        'voucher.invalid',
+                        'voucher.limitReached',
+                        'voucher.userLimitReached',
+                        'voucher.notApplicableForRoute',
+                        'voucher.minOrderNotMet',
+                      ],
+                      example: 'booking.seatsNotAvailable',
+                    },
                     data: {
                       type: 'object',
                       properties: {
+                        maxSeats: { type: 'integer', example: 5 },
                         seats: {
                           type: 'array',
                           items: { type: 'string' },
                           example: ['A1', 'A2'],
                         },
+                        minOrder: { type: 'number', example: 100000 },
                       },
                     },
                   },
@@ -6654,6 +6692,95 @@ export const apiSpecification: OpenAPIV3.Document = {
                   properties: {
                     success: { type: 'boolean', example: false },
                     message: { type: 'string', example: 'trip.notFound' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/bookings/{id}/payment/qr-code': {
+      get: {
+        tags: ['Booking'],
+        summary: 'Tạo mã QR thanh toán cho đặt vé',
+        description:
+          'Tạo mã QR thanh toán VietQR cho một đặt vé đang chờ xử lý. Chỉ chủ sở hữu hoặc quản trị viên có thể truy cập.',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            description: 'ID của đặt vé',
+            required: true,
+            schema: { type: 'string', example: '507f1f77bcf86cd799439014' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Ngôn ngữ trả về thông báo',
+            schema: { type: 'string', example: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Tạo mã QR thanh toán thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'booking.qrGenerated' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        bookingId: { type: 'string', example: '507f1f77bcf86cd799439014' },
+                        qrCode: {
+                          type: 'string',
+                          example:
+                            '{"type":"VietQR","bankId":"970436","accountNo":"0123456789","amount":180000,"addInfo":"BKG12345678901234","url":"https://img.vietqr.io/image/..."}',
+                        },
+                        qrCodeExpiresAt: { type: 'string', format: 'date-time', example: '2025-07-02T10:00:00Z' },
+                        paymentReference: { type: 'string', example: 'BKG12345678901234' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Đặt vé không ở trạng thái chờ xử lý',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'booking.alreadyProcessed' },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Yêu cầu xác thực hoặc không có quyền',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'Đặt vé không tìm thấy',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'booking.notFound' },
                   },
                 },
               },

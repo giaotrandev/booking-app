@@ -67,7 +67,8 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
   const userId = (req.user as { userId: string })?.userId || undefined;
 
   try {
-    const { tripId, seatIds, voucherCode, guestName, guestPhone, guestEmail, customerNotes } = req.body;
+    const { tripId, seatIds, voucherCode, guestName, guestPhone, guestEmail, pickupId, dropoffId, customerNotes } =
+      req.body;
 
     if (!tripId || !seatIds || !Array.isArray(seatIds) || seatIds.length === 0) {
       sendBadRequest(res, 'booking.missingRequiredFields', null, language);
@@ -215,6 +216,8 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
             discountAmount: discountAmount > 0 ? discountAmount : null,
             finalPrice,
             customerNotes: customerNotes || null,
+            pickupId: pickupId || null,
+            dropoffId: dropoffId || null,
           },
         });
 

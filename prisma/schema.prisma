@@ -151,6 +151,9 @@ model BusStop {
   routeStops RouteStop[]
   stopPrices TripStopPrice[]
 
+  pickupBookings  Booking[] @relation("PickupBusStop")
+  dropoffBookings Booking[] @relation("DropoffBusStop")
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -545,7 +548,14 @@ model Booking {
   guestEmail     String?
   guestPhone     String?
   isGuestBooking Boolean @default(false)
+  
+  pickupId   String?  @db.ObjectId
+  pickup     BusStop? @relation("PickupBusStop", fields: [pickupId], references: [id])
+  dropoffId  String?  @db.ObjectId
+  dropoff    BusStop? @relation("DropoffBusStop", fields: [dropoffId], references: [id])
 
+  
+  
   status        BookingStatus @default(PENDING)
   paymentStatus PaymentStatus @default(PENDING)
   isDeleted     Boolean       @default(false)
