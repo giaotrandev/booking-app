@@ -339,6 +339,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
     // After transaction completes, broadcast seat status changes
     for (const seatId of seatIds) {
       broadcastSeatStatusChange(tripId, seatId, SeatStatus.RESERVED, {
+        seatNumber: seats.find((s) => s.id === seatId)?.seatNumber,
         reservedBy: userId,
         bookingId: result?.id,
       });
@@ -605,6 +606,7 @@ export async function cancelExpiredBooking(bookingId: string): Promise<void> {
 
           // Broadcast seat status change to connected clients
           broadcastSeatStatusChange(bookingTrip.trip.id, seat.id, SeatStatus.AVAILABLE, {
+            seatNumber: bookingTrip.seats.find((s) => s.id === seat.id)?.seatNumber,
             reason: 'booking_cancelled',
             bookingId: bookingId,
           });
@@ -731,6 +733,7 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
 
           // Broadcast seat status change to connected clients
           broadcastSeatStatusChange(bookingTrip.trip.id, seat.id, SeatStatus.BOOKED, {
+            seatNumber: bookingTrip.seats.find((s) => s.id === seat.id)?.seatNumber,
             bookedBy: booking.userId,
             bookingId: booking.id,
             paidAmount: receivedAmount,
@@ -854,6 +857,7 @@ export const cancelBooking = async (req: Request, res: Response): Promise<void> 
 
           // Broadcast seat status change to connected clients
           broadcastSeatStatusChange(bookingTrip.trip.id, seat.id, SeatStatus.AVAILABLE, {
+            seatNumber: bookingTrip.seats.find((s) => s.id === seat.id)?.seatNumber,
             reason: 'booking_cancelled_by_user',
             cancelledBy: userId,
           });

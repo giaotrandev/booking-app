@@ -20,7 +20,7 @@
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         h1 {
@@ -107,7 +107,7 @@
             color: white;
             border-color: #2e7d32;
             transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
 
         .seat.reserved {
@@ -325,7 +325,7 @@
             height: auto;
             border: 3px solid #fff;
             border-radius: 12px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             margin: 15px 0;
             transition: opacity 0.3s ease;
         }
@@ -447,7 +447,7 @@
             width: 100%;
             height: 100%;
             overflow: auto;
-            background-color: rgba(0,0,0,0.4);
+            background-color: rgba(0, 0, 0, 0.4);
         }
 
         .modal-content {
@@ -458,7 +458,7 @@
             width: 80%;
             max-width: 500px;
             border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
 
         .modal-header {
@@ -597,16 +597,16 @@
                     <span class="legend-seat blocked"></span>Blocked
                 </div>
             </div>
-            
+
             <div id="seatsContainer" class="seats-grid">
                 <div class="loading">Join a trip and load seats to see availability</div>
             </div>
-            
+
             <div>
                 <button id="selectSeatBtn" disabled>Reserve Selected Seat</button>
                 <button id="releaseSeatBtn" disabled>Release Reserved Seat</button>
             </div>
-            
+
             <div id="selectedSeatsInfo" class="selected-seats" style="display: none;">
                 <h3>Selected Seats</h3>
                 <div id="selectedSeatsList"></div>
@@ -641,7 +641,8 @@
             <div style="margin-top: 20px;">
                 <button id="calculatePriceBtn" disabled>Calculate Price</button>
                 <button id="createBookingBtn" disabled>Create Booking</button>
-                <button id="debugBookingBtn" style="background: #6c757d; margin-left: 10px;">Debug Current Booking</button>
+                <button id="debugBookingBtn" style="background: #6c757d; margin-left: 10px;">Debug Current
+                    Booking</button>
             </div>
         </div>
 
@@ -793,12 +794,12 @@
             for (let i = 0; i < tabcontent.length; i++) {
                 tabcontent[i].classList.remove('active');
             }
-            
+
             const tabbuttons = document.getElementsByClassName('tab-button');
             for (let i = 0; i < tabbuttons.length; i++) {
                 tabbuttons[i].classList.remove('active');
             }
-            
+
             document.getElementById(tabName).classList.add('active');
             evt.currentTarget.classList.add('active');
         }
@@ -815,7 +816,7 @@
 
             try {
                 seatsContainer.innerHTML = '<div class="loading">Loading seats...</div>';
-                
+
                 const response = await fetch(`${apiUrl}/trips/details/${tripId}`, {
                     headers: {
                         'Content-Type': 'application/json'
@@ -828,11 +829,11 @@
 
                 const data = await response.json();
                 tripSeats = data.data.seats || [];
-                
+
                 generateSeatsFromAPI();
                 addLog(`Loaded ${tripSeats.length} seats for trip ${tripId}`, 'success');
                 updateBookingForm();
-                
+
             } catch (error) {
                 addLog(`Error loading seats: ${error.message}`, 'error');
                 seatsContainer.innerHTML = '<div class="loading">Error loading seats</div>';
@@ -842,7 +843,7 @@
         // Generate seats from API data
         function generateSeatsFromAPI() {
             seatsContainer.innerHTML = '';
-            
+
             if (tripSeats.length === 0) {
                 seatsContainer.innerHTML = '<div class="loading">No seats available</div>';
                 return;
@@ -875,7 +876,7 @@
         function toggleSeatSelection(seatElement) {
             const seatId = seatElement.dataset.seatId;
             const status = seatElement.dataset.status;
-            
+
             // Prevent selection of non-available seats
             if (status !== 'AVAILABLE') {
                 addLog(`Cannot select ${status.toLowerCase()} seat`, 'error');
@@ -910,7 +911,7 @@
                     <p><strong>Selected:</strong> ${seatNumbers.join(', ')}</p>
                     <p><strong>Count:</strong> ${selectedSeats.size} seat(s)</p>
                 `;
-                
+
                 selectSeatBtn.disabled = false;
                 selectSeatBtn.textContent = `Reserve ${selectedSeats.size} Seat(s)`;
             } else {
@@ -918,7 +919,7 @@
                 selectSeatBtn.disabled = true;
                 selectSeatBtn.textContent = 'Reserve Selected Seat';
             }
-            
+
             releaseSeatBtn.disabled = selectedSeats.size === 0;
         }
 
@@ -926,7 +927,7 @@
         function updateBookingForm() {
             const tripId = document.getElementById('tripId').value;
             document.getElementById('bookingTripId').value = tripId;
-            
+
             calculatePriceBtn.disabled = selectedSeats.size === 0 || !tripId;
             createBookingBtn.disabled = selectedSeats.size === 0 || !tripId;
         }
@@ -990,7 +991,7 @@
 
                 priceDetails.innerHTML = priceHtml;
                 priceCalculation.style.display = 'block';
-                
+
                 addLog(`Price calculated: ${calculation.finalPrice.toLocaleString()} VND`, 'success');
             } catch (error) {
                 addLog(`Error calculating price: ${error.message}`, 'error');
@@ -1013,7 +1014,7 @@
             try {
                 createBookingBtn.disabled = true;
                 createBookingBtn.textContent = 'Creating Booking...';
-                
+
                 addLog('Creating booking...', 'info');
 
                 const response = await fetch(`${apiUrl}/bookings`, {
@@ -1038,7 +1039,7 @@
 
                 currentBooking = result.data;
                 console.log('Booking created:', currentBooking);
-                
+
                 addLog(`✅ Booking created successfully!`, 'success');
                 addLog(`📋 Booking ID: ${currentBooking.id}`, 'info');
                 addLog(`💰 Amount: ${currentBooking.finalPrice?.toLocaleString()} VND`, 'info');
@@ -1073,13 +1074,13 @@
                     addLog('You can try to resend QR code or contact support', 'info');
                     showRetryQROption();
                 }
-                
+
                 // Switch to booking tab to show payment
                 const bookingTabBtn = document.querySelector('.tab-button:nth-child(2)');
                 if (bookingTabBtn) {
                     openTab({ currentTarget: bookingTabBtn }, 'booking-tab');
                 }
-                
+
             } catch (error) {
                 addLog(`❌ Error creating booking: ${error.message}`, 'error');
             } finally {
@@ -1092,16 +1093,16 @@
         function showRetryQROption() {
             qrCodeSection.style.display = 'block';
             qrCodeImage.style.display = 'none'; // Hide image container
-            
+
             // Show booking info without QR
             paymentAmount.textContent = currentBooking.finalPrice?.toLocaleString() || 'N/A';
             paymentReference.textContent = currentBooking.paymentWebhookReference || 'Not set';
             bankAccount.textContent = 'QR code generation failed';
-            
+
             // Hide countdown and show retry message
             paymentCountdown.textContent = 'QR Code Generation Failed';
             paymentCountdown.style.color = '#dc3545';
-            
+
             // Show retry container
             const retryContainer = document.createElement('div');
             retryContainer.innerHTML = `
@@ -1114,13 +1115,13 @@
                     </p>
                 </div>
             `;
-            
+
             // Insert retry container before the existing payment info
             const paymentInfo = qrCodeSection.querySelector('.payment-info');
             if (paymentInfo) {
                 qrCodeSection.insertBefore(retryContainer, paymentInfo);
             }
-            
+
             // Hide webhook simulator until QR is ready
             webhookSimulator.style.display = 'none';
         }
@@ -1143,7 +1144,7 @@
 
             try {
                 addLog('🔍 Processing QR code data...', 'info');
-                
+
                 // Parse QR code data
                 let qrData;
                 try {
@@ -1154,7 +1155,7 @@
                     showRetryQROption();
                     return;
                 }
-                
+
                 // Validate QR data structure
                 if (!qrData.url) {
                     addLog('❌ QR code data missing URL field', 'error');
@@ -1162,15 +1163,15 @@
                     showRetryQROption();
                     return;
                 }
-                
+
                 // Remove any existing retry containers
                 const retryContainers = qrCodeSection.querySelectorAll('div[style*="background: #fff3cd"]');
                 retryContainers.forEach(container => container.remove());
-                
+
                 // Show and configure QR image
                 qrCodeImage.style.display = 'block';
                 qrCodeImage.src = qrData.url;
-                
+
                 qrCodeImage.onload = () => {
                     addLog('✅ QR code image loaded successfully', 'success');
                 };
@@ -1183,29 +1184,29 @@
                 // Update payment info
                 paymentAmount.textContent = currentBooking.finalPrice?.toLocaleString() || 'N/A';
                 paymentReference.textContent = currentBooking.paymentWebhookReference || 'Not set';
-                
+
                 // Display bank account info
                 const accountInfo = `${qrData.accountNo || 'N/A'} - ${qrData.accountName || 'N/A'}`;
                 bankAccount.textContent = accountInfo;
-                
+
                 // Show webhook simulator
                 webhookSimulator.style.display = 'block';
-                
+
                 // Setup webhook simulator with correct data
                 const webhookAmountField = document.getElementById('webhookAmount');
                 const webhookContentField = document.getElementById('webhookContent');
-                
+
                 if (webhookAmountField) webhookAmountField.value = currentBooking.finalPrice || '';
                 if (webhookContentField) webhookContentField.value = `${currentBooking.paymentWebhookReference || ''} Customer Payment`;
-                
+
                 // Start countdown timer
                 startPaymentCountdown();
-                
+
                 addLog(`💳 Payment section displayed successfully`, 'success');
                 addLog(`💰 Amount: ${currentBooking.finalPrice?.toLocaleString()} VND`, 'info');
                 addLog(`📱 Scan QR code with your banking app to complete payment`, 'info');
                 addLog(`⏰ Payment expires at: ${new Date(currentBooking.qrCodeExpiresAt).toLocaleTimeString()}`, 'info');
-                
+
             } catch (error) {
                 addLog(`❌ Error showing payment section: ${error.message}`, 'error');
                 console.error('Error details:', error);
@@ -1226,17 +1227,17 @@
             }
 
             const expiryTime = new Date(currentBooking.qrCodeExpiresAt);
-            
+
             const updateCountdown = () => {
                 const now = new Date();
                 const timeLeft = expiryTime - now;
-                
+
                 if (timeLeft <= 0) {
                     clearInterval(paymentTimer);
                     paymentCountdown.textContent = 'Payment expired ⏰';
                     paymentCountdown.style.color = '#dc3545';
                     addLog('Payment timeout - booking may be cancelled', 'warning');
-                    
+
                     // Disable QR code and show expiry message
                     qrCodeImage.style.opacity = '0.5';
                     const expiredMsg = document.createElement('div');
@@ -1245,11 +1246,11 @@
                     qrCodeSection.appendChild(expiredMsg);
                     return;
                 }
-                
+
                 const minutes = Math.floor(timeLeft / 60000);
                 const seconds = Math.floor((timeLeft % 60000) / 1000);
                 paymentCountdown.textContent = `⏱️ ${minutes}:${seconds.toString().padStart(2, '0')}`;
-                
+
                 // Color coding based on time left
                 if (timeLeft < 120000) { // Less than 2 minutes
                     paymentCountdown.style.color = '#dc3545';
@@ -1259,11 +1260,11 @@
                     paymentCountdown.style.color = '#28a745';
                 }
             };
-            
+
             // Update immediately then every second
             updateCountdown();
             paymentTimer = setInterval(updateCountdown, 1000);
-            
+
             addLog(`Payment countdown started. Expires at ${expiryTime.toLocaleTimeString()}`, 'info');
         }
 
@@ -1311,7 +1312,7 @@
                 }
 
                 addLog(`Webhook simulated successfully: ${data.message || 'Payment processed'}`, 'success');
-                
+
                 // Check if payment was successful
                 if (data.data && data.data.bookingId) {
                     addLog('Payment confirmed by webhook!', 'success');
@@ -1319,7 +1320,7 @@
                         showBookingSuccess();
                     }, 1500);
                 }
-                
+
             } catch (error) {
                 addLog(`Error simulating webhook: ${error.message}`, 'error');
             } finally {
@@ -1334,14 +1335,14 @@
                 clearInterval(paymentTimer);
                 paymentTimer = null;
             }
-            
+
             // Hide payment sections
             qrCodeSection.style.display = 'none';
             webhookSimulator.style.display = 'none';
-            
+
             // Show success section
             bookingSuccess.style.display = 'block';
-            
+
             if (currentBooking) {
                 const seatNumbers = Array.from(selectedSeats).map(seatId => {
                     const seat = tripSeats.find(s => s.id === seatId);
@@ -1364,10 +1365,10 @@
                     </div>
                 `;
             }
-            
+
             addLog('🎉 Payment completed successfully!', 'success');
             addLog('Your booking is now confirmed. Have a great trip!', 'success');
-            
+
             // Auto-reload seats to show updated status
             setTimeout(() => {
                 if (tripSeats.length > 0) {
@@ -1396,7 +1397,7 @@
                 addLog('🔄 Requesting new QR code...', 'info');
                 resendQrBtn.disabled = true;
                 resendQrBtn.textContent = 'Generating QR...';
-                
+
                 const response = await fetch(`${apiUrl}/bookings/${currentBooking.id}/resend-payment`, {
                     method: 'POST',
                     headers: {
@@ -1410,24 +1411,24 @@
                 }
 
                 const data = await response.json();
-                
+
                 // Update current booking with new QR data
                 currentBooking.qrCode = data.data.qrCode;
                 currentBooking.qrCodeExpiresAt = data.data.qrCodeExpiresAt;
-                
+
                 addLog('✅ New QR code generated successfully!', 'success');
-                
+
                 // Clear any existing expired messages
                 const expiredMsgs = qrCodeSection.querySelectorAll('div[style*="color: #dc3545"]');
                 expiredMsgs.forEach(msg => msg.remove());
-                
+
                 // Reset QR code opacity and show updated payment section
                 qrCodeImage.style.opacity = '1';
                 qrCodeImage.style.display = 'block';
-                
+
                 // Show updated payment section
                 showPaymentSection();
-                
+
             } catch (error) {
                 addLog(`❌ Error generating new QR code: ${error.message}`, 'error');
             } finally {
@@ -1460,7 +1461,7 @@
                 }
 
                 addLog('Booking cancelled successfully', 'success');
-                
+
                 // Reset UI
                 if (paymentTimer) {
                     clearInterval(paymentTimer);
@@ -1468,10 +1469,10 @@
                 qrCodeSection.style.display = 'none';
                 webhookSimulator.style.display = 'none';
                 currentBooking = null;
-                
+
                 // Reload seats to see updated status
                 loadSeats();
-                
+
             } catch (error) {
                 addLog(`Error cancelling booking: ${error.message}`, 'error');
             }
@@ -1556,7 +1557,7 @@
                     if (seatElement) {
                         // Remove old status classes
                         seatElement.classList.remove('available', 'reserved', 'booked', 'blocked', 'selected');
-                        
+
                         // Update data attribute
                         seatElement.dataset.status = data.status;
 

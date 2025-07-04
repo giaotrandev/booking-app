@@ -672,8 +672,10 @@ export const initializeSocketConnection = (io: Server): void => {
           console.log(`Seat ${seatId} status updated to RESERVED in database`);
 
           const roomName = createRoomName.publicTrip(tripId);
+
           io.to(roomName).emit('seatStatusChanged', {
             seatId,
+            seatNumber: seat?.seatNumber,
             status: SeatStatus.RESERVED,
             reservedBy: userId,
             sessionId,
@@ -741,6 +743,7 @@ export const initializeSocketConnection = (io: Server): void => {
           const roomName = createRoomName.publicTrip(tripId);
           io.to(roomName).emit('seatStatusChanged', {
             seatId,
+            seatNumber: seat?.seatNumber,
             status: SeatStatus.AVAILABLE,
           });
 
@@ -835,6 +838,7 @@ export const initializeSocketConnection = (io: Server): void => {
             const roomName = createRoomName.publicTrip(reservation.tripId);
             io.to(roomName).emit('seatStatusChanged', {
               seatId: reservation.seatId,
+              seatNumber: seat?.seatNumber,
               status: SeatStatus.AVAILABLE,
               reason: 'expired',
             });
@@ -901,8 +905,8 @@ async function sendCurrentSeatStatuses(socket: Socket, tripId: string): Promise<
     for (const seat of seats) {
       socket.emit('seatStatusChanged', {
         seatId: seat.id,
+        seatNumber: seat?.seatNumber,
         status: seat.status,
-        seatNumber: seat.seatNumber,
       });
     }
 
@@ -911,6 +915,7 @@ async function sendCurrentSeatStatuses(socket: Socket, tripId: string): Promise<
       socket.emit('seatStatusChanged', {
         seatId: reservation.seatId,
         status: SeatStatus.RESERVED,
+        seatNumber: seats.find((s) => s.id === reservation.seatId)?.seatNumber,
         reservedBy: reservation.userId,
         sessionId: reservation.sessionId,
         expireAt: reservation.expireAt.toISOString(),
@@ -956,7 +961,13 @@ export const updateSeatStatus = async (
       data: { status },
     });
 
+    const seat = await prisma.seat.findUnique({
+      where: { id: seatId },
+      select: { seatNumber: true },
+    });
+
     const io = getSocketIOInstance();
+
     if (io) {
       if (status === SeatStatus.BOOKED || status === SeatStatus.BLOCKED) {
         const reservationIndex = reservations.findIndex((r) => r.seatId === seatId);
@@ -968,6 +979,7 @@ export const updateSeatStatus = async (
       const roomName = createRoomName.publicTrip(tripId);
       io.to(roomName).emit('seatStatusChanged', {
         seatId,
+        seatNumber: seat?.seatNumber,
         status,
         updatedBy: userId,
       });
