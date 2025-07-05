@@ -5,6 +5,10 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import compression from 'compression';
+import handlebars from 'handlebars';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
@@ -83,6 +87,23 @@ app.use(languageMiddleware);
 app.use(languageDetector);
 app.use(setupI18n());
 app.use(cookieParser());
+app.use(express.static('./public'));
+
+const renderTemplate = (templatePath: string, data: any) => {
+  const templateContent = fs.readFileSync(templatePath, 'utf8');
+  const template = handlebars.compile(templateContent);
+  return template(data);
+};
+
+// Resole CSP nonce and set Content-Security-Policy header (HTML pages only)
+app.use((req, res, next) => {
+  res.locals.nonce = crypto.randomBytes(16).toString('base64');
+  res.setHeader(
+    'Content-Security-Policy',
+    `script-src 'self' 'nonce-${res.locals.nonce}' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io`
+  );
+  next();
+});
 
 // Routes
 app.get('/', (req: Request, res: Response) => {
@@ -112,6 +133,14 @@ app.get('/api/docs', (req: Request, res: Response) => {
       </body>
     </html>
   `);
+});
+app.get('/socket-test', (req, res) => {
+  const html = renderTemplate('./src/views/socket-test-1.handlebars', {
+    title: 'Socket Reserve/Booking Test',
+    message: 'Chào mừng đến với website!',
+    nonce: res.locals.nonce,
+  });
+  res.send(html);
 });
 
 // Serve OpenAPI JSON

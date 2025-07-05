@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script nonce="{{nonce}}" src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
     <title>Bus Booking Test Client</title>
     <style>
         body {
@@ -392,6 +392,7 @@
             cursor: pointer;
             margin-right: 5px;
             border-radius: 5px 5px 0 0;
+            color: black;
         }
 
         .tab-button.active {
@@ -513,10 +514,10 @@
     </style>
 </head>
 
-<body>
+<body nonce="{{nonce}}">
     <h1>🚌 Bus Booking Test Client</h1>
 
-    <!-- Booking Success Modal -->
+<!-- Booking Success Modal -->
     <div id="bookingSuccessModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -537,9 +538,9 @@
 
     <!-- Tabs -->
     <div class="tabs">
-        <button class="tab-button active" onclick="openTab(event, 'socket-tab')">Socket & Seats</button>
-        <button class="tab-button" onclick="openTab(event, 'booking-tab')">Booking Process</button>
-        <button class="tab-button" onclick="openTab(event, 'logs-tab')">Event Logs</button>
+        <button class="tab-button active" data-tab="socket-tab">Socket & Seats</button>
+        <button class="tab-button" data-tab="booking-tab">Booking Process</button>
+        <button class="tab-button" data-tab="logs-tab">Event Logs</button>
     </div>
 
     <!-- Socket & Seats Tab -->
@@ -641,8 +642,7 @@
             <div style="margin-top: 20px;">
                 <button id="calculatePriceBtn" disabled>Calculate Price</button>
                 <button id="createBookingBtn" disabled>Create Booking</button>
-                <button id="debugBookingBtn" style="background: #6c757d; margin-left: 10px;">Debug Current
-                    Booking</button>
+                <button id="debugBookingBtn" style="background: #6c757d; margin-left: 10px;">Debug Current Booking</button>
             </div>
         </div>
 
@@ -697,8 +697,7 @@
     </div>
 
     <!-- Include Socket.IO client from CDN -->
-    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
-    <script>
+    <script nonce="{{nonce}}">
         // DOM Elements
         const connectBtn = document.getElementById('connectBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
@@ -803,6 +802,13 @@
             document.getElementById(tabName).classList.add('active');
             evt.currentTarget.classList.add('active');
         }
+
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', (event) => {
+                const tabName = button.getAttribute('data-tab');
+                openTab(event, tabName);
+            });
+        });
 
         // Load seats from API
         async function loadSeats() {
@@ -1043,7 +1049,7 @@
                 addLog(`✅ Booking created successfully!`, 'success');
                 addLog(`📋 Booking ID: ${currentBooking.id}`, 'info');
                 addLog(`💰 Amount: ${currentBooking.finalPrice?.toLocaleString()} VND`, 'info');
-                addLog(`🔗 Payment Reference: ${currentBooking.paymentWebhookReference}`, 'info');
+                addLog(`🔗 Payment Reference: ${currentBooking.paymentWebhookReference || 'Not set'}`, 'info');
 
                 // Join booking room to receive status updates
                 if (socket) {
@@ -1061,34 +1067,51 @@
                 updateSelectedSeatsDisplay();
                 updateBookingForm();
 
-                // Check if booking has QR code
-                if (currentBooking.qrCode && currentBooking.qrCodeExpiresAt) {
-                    addLog('✅ QR code generated successfully', 'success');
+                // Fetch QR code for the booking
+                addLog('🔄 Fetching QR code...', 'info');
+                const qrResponse = await fetch(`${apiUrl}/bookings/${currentBooking.id}/payment/qr-code`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!qrResponse.ok) {
+                    const qrErrorData = await qrResponse.json();
+                    throw new Error(qrErrorData.message || `HTTP ${qrResponse.status}: ${qrResponse.statusText}`);
+                }
+
+                const qrResult = await qrResponse.json();
+                console.log('QR code data:', qrResult);
+
+                if (qrResult.success && qrResult.data.qrCode && qrResult.data.qrCodeExpiresAt) {
+                    // Update currentBooking with QR code data
+                    currentBooking.qrCode = qrResult.data.qrCode;
+                    currentBooking.qrCodeExpiresAt = qrResult.data.qrCodeExpiresAt;
+                    currentBooking.paymentWebhookReference = qrResult.data.paymentReference || currentBooking.paymentWebhookReference;
+
+                    addLog('✅ QR code fetched successfully', 'success');
                     showPaymentSection();
-                } else if (currentBooking.qrCodeError) {
-                    addLog('⚠️ QR code generation failed, but booking was created', 'warning');
-                    addLog(`Error: ${currentBooking.qrCodeError}`, 'error');
-                    showRetryQROption();
                 } else {
-                    addLog('⚠️ Booking created but QR code not ready yet', 'warning');
+                    addLog('⚠️ Failed to fetch QR code', 'warning');
                     addLog('You can try to resend QR code or contact support', 'info');
                     showRetryQROption();
                 }
 
                 // Switch to booking tab to show payment
-                const bookingTabBtn = document.querySelector('.tab-button:nth-child(2)');
+                const bookingTabBtn = document.querySelector('.tab-button[data-tab="booking-tab"]');
                 if (bookingTabBtn) {
                     openTab({ currentTarget: bookingTabBtn }, 'booking-tab');
                 }
 
             } catch (error) {
-                addLog(`❌ Error creating booking: ${error.message}`, 'error');
+                addLog(`❌ Error creating booking or fetching QR code: ${error.message}`, 'error');
+                showRetryQROption();
             } finally {
                 createBookingBtn.disabled = false;
                 createBookingBtn.textContent = 'Create Booking';
             }
         }
-
         // Show retry QR option when QR generation fails
         function showRetryQROption() {
             qrCodeSection.style.display = 'block';
