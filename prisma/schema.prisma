@@ -142,6 +142,8 @@ model BusStop {
   wardId String @db.ObjectId
   ward   Ward   @relation(fields: [wardId], references: [id])
 
+  address   String?
+
   latitude  Float?
   longitude Float?
 

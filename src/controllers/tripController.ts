@@ -436,6 +436,8 @@ export const getTripDetails = async (req: Request, res: Response): Promise<void>
         name: busStop.name,
         latitude: busStop.latitude,
         longitude: busStop.longitude,
+        estimatedTime: routeStop.estimatedArrivalTime,
+        address: busStop.address,
         wardName: ward.name,
         districtName: district.name,
         provinceName: province.name,
