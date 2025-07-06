@@ -7,6 +7,7 @@ import { uploadFileToR2, getSignedUrlForFile, deleteFileFromR2, StorageFolders }
 import { optimizeImage } from '#services/imageService';
 import safeDeleteFile from '#utils/safeDeleteFile';
 import { deepRemoveTimestamps, removeTimestamps } from '#src/helpers/dataHelper';
+import { DataQueryParams, queryData } from '#src/utils/dataQuery';
 
 interface RequestWithFile extends Request {
   file?: Express.Multer.File;
@@ -244,120 +245,283 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
 /**
  * Get list of trips with filtering
  */
+function buildTripFilters(query: any) {
+  const filters: any = {
+    // Soft delete filter
+    OR: [{ deletedAt: null }, { deletedAt: { isSet: false } }],
+  };
+
+  // Simple filters
+  if (query.routeId) filters.routeId = query.routeId;
+  if (query.vehicleId) filters.vehicleId = query.vehicleId;
+  if (query.status) filters.status = query.status;
+
+  // Price range filters
+  if (query.minPrice !== undefined || query.maxPrice !== undefined) {
+    filters.basePrice = {};
+    if (query.minPrice !== undefined) filters.basePrice.gte = parseFloat(query.minPrice);
+    if (query.maxPrice !== undefined) filters.basePrice.lte = parseFloat(query.maxPrice);
+  }
+
+  // Date filters với timezone support
+  if (query.startDate || query.endDate || query.exactDate) {
+    filters.departureTime = {};
+
+    if (query.exactDate) {
+      // Frontend gửi lên dạng: "2025-01-15T00:00:00+07:00" hoặc ISO string với timezone
+      // Lọc theo ngày chính xác (từ 0h đến 23h59 của ngày đó theo timezone đã gửi)
+      const inputDate = new Date(query.exactDate);
+
+      // Lấy start of day và end of day theo timezone đã gửi
+      const year = inputDate.getFullYear();
+      const month = inputDate.getMonth();
+      const date = inputDate.getDate();
+      const timezoneOffset = inputDate.getTimezoneOffset();
+
+      // Tạo start of day (0:00:00) với cùng timezone
+      const startOfDay = new Date(inputDate);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      // Tạo end of day (23:59:59.999) với cùng timezone
+      const endOfDay = new Date(inputDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      filters.departureTime.gte = startOfDay;
+      filters.departureTime.lte = endOfDay;
+    } else {
+      // Lọc theo khoảng ngày
+      // Frontend gửi lên với timezone, backend chỉ cần parse
+      if (query.startDate) filters.departureTime.gte = new Date(query.startDate);
+      if (query.endDate) {
+        // Nếu endDate không có giờ cụ thể, set đến cuối ngày
+        const endDate = new Date(query.endDate);
+        // Kiểm tra xem có phải là 00:00:00 không
+        if (endDate.getHours() === 0 && endDate.getMinutes() === 0 && endDate.getSeconds() === 0) {
+          endDate.setHours(23, 59, 59, 999);
+        }
+        filters.departureTime.lte = endDate;
+      }
+    }
+  }
+
+  // Time range filters (giờ khởi hành trong ngày theo timezone)
+  // Sẽ xử lý trong post-processing với timezone awareness
+
+  // Route filters (từ tỉnh nào đến tỉnh nào)
+  if (query.sourceProvinceId || query.destinationProvinceId) {
+    filters.route = {};
+    if (query.sourceProvinceId) filters.route.sourceProvinceId = query.sourceProvinceId;
+    if (query.destinationProvinceId) filters.route.destinationProvinceId = query.destinationProvinceId;
+  }
+
+  // Vehicle type filters
+  if (query.vehicleTypeIds) {
+    const vehicleTypeIds = Array.isArray(query.vehicleTypeIds) ? query.vehicleTypeIds : query.vehicleTypeIds.split(',');
+
+    filters.vehicle = {
+      vehicleTypeId: { in: vehicleTypeIds },
+    };
+  }
+
+  // Bus stop filters (điểm đón/trả)
+  if (query.busStopIds || query.pickupStopIds || query.dropoffStopIds) {
+    const stopIds = [];
+
+    if (query.busStopIds) {
+      stopIds.push(...(Array.isArray(query.busStopIds) ? query.busStopIds : query.busStopIds.split(',')));
+    }
+
+    if (query.pickupStopIds) {
+      stopIds.push(...(Array.isArray(query.pickupStopIds) ? query.pickupStopIds : query.pickupStopIds.split(',')));
+    }
+
+    if (query.dropoffStopIds) {
+      stopIds.push(...(Array.isArray(query.dropoffStopIds) ? query.dropoffStopIds : query.dropoffStopIds.split(',')));
+    }
+
+    if (stopIds.length > 0) {
+      filters.route = {
+        ...filters.route,
+        routeStops: {
+          some: {
+            busStopId: { in: [...new Set(stopIds)] }, // Remove duplicates
+          },
+        },
+      };
+    }
+  }
+
+  // Available seats filter
+  if (query.hasAvailableSeats === 'true') {
+    filters.seats = {
+      some: {
+        status: SeatStatus.AVAILABLE,
+      },
+    };
+  }
+
+  return filters;
+}
+
 export const getTripList = async (req: Request, res: Response): Promise<void> => {
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
 
   try {
-    const routeId = req.query.routeId as string;
-    const vehicleId = req.query.vehicleId as string;
-    const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
-    const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
-    const status = req.query.status as TripStatus;
-    const busStopId = req.query.busStopId as string; // New filter for pickup stop
+    // Parse query parameters
     const page = req.query.page
       ? parseInt(req.query.page as string)
       : parseInt(process.env.PAGINATION_DEFAULT_PAGE as string) || 1;
     const pageSize = req.query.pageSize
       ? parseInt(req.query.pageSize as string)
       : parseInt(process.env.PAGINATION_DEFAULT_LIMIT as string) || 10;
-    const skip = (page - 1) * pageSize;
+    const search = req.query.search as string | undefined;
+    const returnAll = req.query.returnAll === 'true';
 
-    // Build filter object
-    const filter: any = {
-      OR: [{ deletedAt: null }, { deletedAt: { isSet: false } }],
+    // Search fields configuration
+    const searchFields = req.query.searchFields
+      ? (req.query.searchFields as string).split(',').map((field) => field.trim())
+      : ['route.name', 'route.code', 'vehicle.licensePlate']; // Default search fields
+
+    // Parse sort
+    let sort: DataQueryParams['sort'] | undefined;
+    try {
+      if (req.query.sort) {
+        sort = JSON.parse(req.query.sort as string);
+      } else {
+        // Default sort by departure time
+        sort = [{ field: 'departureTime', order: 'asc' }];
+      }
+    } catch (parseError) {
+      return sendBadRequest(res, 'common.invalidQueryParams', { error: 'Invalid sort format' }, language);
+    }
+
+    // Build complex filters
+    const tripFilters = buildTripFilters(req.query);
+
+    // Additional filters from query string
+    let additionalFilters: Record<string, any> = {};
+    try {
+      if (req.query.filters) {
+        additionalFilters = JSON.parse(req.query.filters as string);
+      }
+    } catch (parseError) {
+      return sendBadRequest(res, 'common.invalidQueryParams', { error: 'Invalid filters format' }, language);
+    }
+
+    // Merge filters
+    const filters = {
+      ...tripFilters,
+      ...additionalFilters,
     };
 
-    if (routeId) filter.routeId = routeId;
-    if (vehicleId) filter.vehicleId = vehicleId;
-    if (status) filter.status = status;
+    // Define enum fields
+    const enumFields = {
+      status: Object.values(TripStatus),
+    };
 
-    // Filter by pickup stop
-    if (busStopId) {
-      filter.route = {
-        routeStops: {
-          some: {
-            busStopId,
-          },
-        },
-      };
-    }
+    // Define relations to include
+    const relations = [
+      'route.sourceProvince',
+      'route.destinationProvince',
+      'route.routeStops.busStop.ward.district.province',
+      'vehicle.vehicleType',
+      'stopPrices.busStop',
+      'seats', // For counting available seats
+    ];
 
-    // Handle date range filtering
-    if (startDate || endDate) {
-      filter.departureTime = {};
-      if (startDate) filter.departureTime.gte = startDate;
-      if (endDate) filter.departureTime.lte = endDate;
-    }
+    // Prepare query parameters
+    const queryParams: DataQueryParams = {
+      page,
+      pageSize,
+      search,
+      searchFields,
+      filters,
+      sort,
+      returnAll,
+      relations,
+      enumFields,
+    };
 
-    // Query trips with pagination
-    const [trips, totalCount] = await Promise.all([
-      prisma.trip.findMany({
-        where: filter,
-        include: {
-          route: {
-            include: {
-              sourceProvince: true,
-              destinationProvince: true,
-              routeStops: {
-                include: {
-                  busStop: {
-                    include: {
-                      ward: {
-                        include: {
-                          district: { include: { province: true } },
-                        },
-                      },
-                    },
-                  },
-                },
-                orderBy: { stopOrder: 'asc' },
-              },
-            },
-          },
-          vehicle: { include: { vehicleType: true } },
-          stopPrices: { include: { busStop: true } },
-          _count: {
-            select: {
-              seats: { where: { status: SeatStatus.AVAILABLE } },
-            },
-          },
-        },
-        skip,
-        take: pageSize,
-        orderBy: { departureTime: 'asc' },
-      }),
-      prisma.trip.count({ where: filter }),
-    ]);
+    // Execute query
+    const result = await queryData(prisma.trip, queryParams);
 
-    // Generate image URLs
-    const tripsWithImageUrls = await Promise.all(
-      trips.map(async (trip) => {
+    // Post-processing: Count available seats and generate image URLs
+    const tripsWithAdditionalData = await Promise.all(
+      result.data.map(async (trip: any) => {
+        // Count available seats
+        const availableSeats = trip.seats?.filter((seat: any) => seat.status === SeatStatus.AVAILABLE).length || 0;
+
+        // Generate image URL
         let imageUrl = null;
         if (trip.image) {
           imageUrl = await getSignedUrlForFile(trip.image);
         }
+
+        // Remove seats array from response (we only need the count)
+        const { seats, ...tripWithoutSeats } = trip;
+
         return {
-          ...trip,
+          ...tripWithoutSeats,
           imageUrl,
-          availableSeats: trip._count.seats,
+          availableSeats,
+          totalSeats: seats?.length || 0,
         };
       })
     );
 
-    const totalPages = Math.ceil(totalCount / pageSize);
+    // Filter by departure hour if specified (post-processing với timezone)
+    let filteredTrips = tripsWithAdditionalData;
+    if (req.query.minDepartureHour !== undefined || req.query.maxDepartureHour !== undefined) {
+      const minHour = req.query.minDepartureHour ? parseInt(req.query.minDepartureHour as string) : 0;
+      const maxHour = req.query.maxDepartureHour ? parseInt(req.query.maxDepartureHour as string) : 23;
+
+      // Lấy timezone từ query hoặc default là Asia/Ho_Chi_Minh
+      const timezone = (req.query.timezone as string) || 'Asia/Ho_Chi_Minh';
+
+      filteredTrips = tripsWithAdditionalData.filter((trip: any) => {
+        const departureDate = new Date(trip.departureTime);
+
+        // Lấy giờ theo timezone được chỉ định
+        // Sử dụng toLocaleString để lấy giờ theo timezone
+        const timeString = departureDate.toLocaleString('en-US', {
+          timeZone: timezone,
+          hour12: false,
+          hour: '2-digit',
+        });
+        const departureHour = parseInt(timeString);
+
+        return departureHour >= minHour && departureHour <= maxHour;
+      });
+
+      // Update lại meta count nếu đã filter
+      if (filteredTrips.length !== tripsWithAdditionalData.length) {
+        result.meta.totalCount = filteredTrips.length;
+        result.meta.totalPages = Math.ceil(filteredTrips.length / result.meta.pageSize);
+      }
+    }
 
     return sendSuccess(
       res,
       'trip.listRetrieved',
       {
-        data: tripsWithImageUrls,
-        pagination: { page, pageSize, totalCount, totalPages },
+        data: filteredTrips,
+        meta: result.meta,
       },
       language
     );
   } catch (error) {
     console.error('Error retrieving trip list:', error);
-    sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
+    sendServerError(
+      res,
+      'common.serverError',
+      error instanceof Error
+        ? {
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+          }
+        : null,
+      language
+    );
   }
 };
 

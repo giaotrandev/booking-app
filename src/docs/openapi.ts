@@ -5360,59 +5360,190 @@ export const apiSpecification: OpenAPIV3.Document = {
     '/trips': {
       get: {
         tags: ['Trip'],
-        summary: 'Get list of trips with filtering',
+        summary: 'Get list of trips with advanced filtering',
         description:
-          'Retrieve a paginated list of trips with optional filters such as route, vehicle, date range, and status.',
+          'Retrieve a paginated or full list of trips with flexible filtering options including route, vehicle, price range, date/time, province, bus stops, and seat availability. Supports timezone-aware filtering and custom sorting.',
         parameters: [
           {
             name: 'routeId',
             in: 'query',
-            description: 'Filter by route ID',
+            description: 'Filter trips by route ID',
             schema: { type: 'string' },
           },
           {
             name: 'vehicleId',
             in: 'query',
-            description: 'Filter by vehicle ID',
+            description: 'Filter trips by vehicle ID',
             schema: { type: 'string' },
-          },
-          {
-            name: 'startDate',
-            in: 'query',
-            description: 'Filter by start date (ISO format)',
-            schema: { type: 'string', format: 'date-time' },
-          },
-          {
-            name: 'endDate',
-            in: 'query',
-            description: 'Filter by end date (ISO format)',
-            schema: { type: 'string', format: 'date-time' },
           },
           {
             name: 'status',
             in: 'query',
-            description: 'Filter by trip status',
+            description: 'Filter trips by status',
             schema: {
               type: 'string',
               enum: ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
             },
           },
           {
+            name: 'minPrice',
+            in: 'query',
+            description: 'Filter trips with base price greater than or equal to this value',
+            schema: { type: 'number', format: 'float' },
+          },
+          {
+            name: 'maxPrice',
+            in: 'query',
+            description: 'Filter trips with base price less than or equal to this value',
+            schema: { type: 'number', format: 'float' },
+          },
+          {
+            name: 'startDate',
+            in: 'query',
+            description:
+              'Filter trips with departure time on or after this date (ISO 8601 format, e.g., 2025-01-15T00:00:00+07:00)',
+            schema: { type: 'string', format: 'date-time' },
+          },
+          {
+            name: 'endDate',
+            in: 'query',
+            description:
+              'Filter trips with departure time on or before this date (ISO 8601 format, e.g., 2025-01-15T23:59:59+07:00). If no time is specified, defaults to end of day (23:59:59.999).',
+            schema: { type: 'string', format: 'date-time' },
+          },
+          {
+            name: 'exactDate',
+            in: 'query',
+            description:
+              'Filter trips with departure time on the exact date (from 00:00:00 to 23:59:59 in the specified timezone, e.g., 2025-01-15T00:00:00+07:00)',
+            schema: { type: 'string', format: 'date-time' },
+          },
+          {
+            name: 'sourceProvinceId',
+            in: 'query',
+            description: 'Filter trips by source province ID',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'destinationProvinceId',
+            in: 'query',
+            description: 'Filter trips by destination province ID',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'vehicleTypeIds',
+            in: 'query',
+            description:
+              'Filter trips by vehicle type IDs (comma-separated string or array, e.g., "type1,type2" or vehicleTypeIds[]=type1&vehicleTypeIds[]=type2)',
+            schema: {
+              oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+            },
+          },
+          {
+            name: 'pickupStopIds',
+            in: 'query',
+            description:
+              'Filter trips by pickup bus stop IDs (comma-separated string or array, e.g., "stop1,stop2" or pickupStopIds[]=stop1&pickupStopIds[]=stop2)',
+            schema: {
+              oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+            },
+          },
+          {
+            name: 'dropoffStopIds',
+            in: 'query',
+            description:
+              'Filter trips by dropoff bus stop IDs (comma-separated string or array, e.g., "stop1,stop2" or dropoffStopIds[]=stop1&dropoffStopIds[]=stop2)',
+            schema: {
+              oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+            },
+          },
+          {
+            name: 'busStopIds',
+            in: 'query',
+            description:
+              'Filter trips by bus stop IDs (pickup or dropoff, comma-separated string or array, e.g., "stop1,stop2" or busStopIds[]=stop1&busStopIds[]=stop2)',
+            schema: {
+              oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+            },
+          },
+          {
+            name: 'hasAvailableSeats',
+            in: 'query',
+            description: 'Filter trips that have at least one available seat (true/false)',
+            schema: { type: 'string', enum: ['true', 'false'] },
+          },
+          {
+            name: 'minDepartureHour',
+            in: 'query',
+            description: 'Filter trips by minimum departure hour in the specified timezone (0-23)',
+            schema: { type: 'integer', minimum: 0, maximum: 23 },
+          },
+          {
+            name: 'maxDepartureHour',
+            in: 'query',
+            description: 'Filter trips by maximum departure hour in the specified timezone (0-23)',
+            schema: { type: 'integer', minimum: 0, maximum: 23 },
+          },
+          {
+            name: 'timezone',
+            in: 'query',
+            description:
+              'Timezone for departure hour filtering (IANA format, e.g., Asia/Ho_Chi_Minh). Defaults to Asia/Ho_Chi_Minh if not provided.',
+            schema: { type: 'string', default: 'Asia/Ho_Chi_Minh' },
+          },
+          {
+            name: 'search',
+            in: 'query',
+            description:
+              'Search term to filter trips by specific fields (e.g., route name, route code, vehicle license plate)',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'searchFields',
+            in: 'query',
+            description:
+              'Fields to search in (comma-separated, e.g., "route.name,route.code,vehicle.licensePlate"). Defaults to these fields if not specified.',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'sort',
+            in: 'query',
+            description:
+              'Sort criteria in JSON format (e.g., [{"field":"departureTime","order":"asc"}]). Defaults to sorting by departureTime in ascending order.',
+            schema: { type: 'string' },
+            examples: {
+              singleSort: { value: '[{"field":"departureTime","order":"asc"}]' },
+              multipleSort: { value: '[{"field":"basePrice","order":"desc"},{"field":"departureTime","order":"asc"}]' },
+            },
+          },
+          {
+            name: 'filters',
+            in: 'query',
+            description: 'Additional custom filters in JSON format (e.g., {"customField":{"equals":"value"}})',
+            schema: { type: 'string' },
+          },
+          {
             name: 'page',
             in: 'query',
             description: 'Page number for pagination',
-            schema: { type: 'integer', default: 1 },
+            schema: { type: 'integer', default: 1, minimum: 1 },
           },
           {
             name: 'pageSize',
             in: 'query',
             description: 'Number of items per page',
-            schema: { type: 'integer', default: 10 },
+            schema: { type: 'integer', default: 10, minimum: 1 },
+          },
+          {
+            name: 'returnAll',
+            in: 'query',
+            description: 'Return all results without pagination (true/false)',
+            schema: { type: 'string', enum: ['true', 'false'], default: 'false' },
           },
           {
             name: 'lang',
             in: 'query',
-            description: 'Language for response messages',
+            description: 'Language for response messages (e.g., en, vi)',
             schema: { type: 'string', default: 'en' },
           },
         ],
@@ -5424,24 +5555,32 @@ export const apiSpecification: OpenAPIV3.Document = {
                 schema: {
                   type: 'object',
                   properties: {
-                    message: { type: 'string' },
+                    message: { type: 'string', description: 'Response message' },
                     data: {
                       type: 'array',
-                      items: {
-                        $ref: '#/components/schemas/TripWithDetails',
-                      },
+                      items: { $ref: '#/components/schemas/TripWithDetails' },
                     },
-                    pagination: {
+                    meta: {
                       type: 'object',
                       properties: {
-                        page: { type: 'integer' },
-                        pageSize: { type: 'integer' },
-                        totalCount: { type: 'integer' },
-                        totalPages: { type: 'integer' },
+                        page: { type: 'integer', description: 'Current page number' },
+                        pageSize: { type: 'integer', description: 'Number of items per page' },
+                        totalCount: { type: 'integer', description: 'Total number of trips' },
+                        totalPages: { type: 'integer', description: 'Total number of pages' },
+                        hasNextPage: { type: 'boolean', description: 'Whether there is a next page' },
+                        hasPrevPage: { type: 'boolean', description: 'Whether there is a previous page' },
                       },
                     },
                   },
                 },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid query parameters',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
               },
             },
           },

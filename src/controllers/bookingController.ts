@@ -60,6 +60,20 @@ function broadcastSeatStatusChange(tripId: string, seatId: string, status: SeatS
 }
 
 /**
+ * Broadcast booking status change to all clients in booking room
+ */
+function broadcastBookingStatusChange(bookingId: string, status: BookingStatus, data?: any) {
+  const io = getSocketIOInstance();
+  if (io) {
+    const roomName = createRoomName.publicBooking(bookingId);
+    io.to(roomName).emit('bookingStatusChanged', {
+      status,
+      ...data,
+    });
+  }
+}
+
+/**
  * Create a new booking
  */
 export const createBooking = async (req: Request, res: Response): Promise<void> => {
@@ -721,8 +735,29 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
         },
       });
 
+      // Query lại booking với đầy đủ includes để có route data
+      const bookingWithRoute = await tx.booking.findUnique({
+        where: { id: booking.id },
+        include: {
+          bookingTrips: {
+            include: {
+              trip: {
+                include: {
+                  route: true,
+                },
+              },
+              seats: true,
+            },
+          },
+        },
+      });
+
+      if (!bookingWithRoute) {
+        throw new Error('Booking not found');
+      }
+
       // Update seat status to booked and broadcast changes
-      for (const bookingTrip of booking.bookingTrips) {
+      for (const bookingTrip of bookingWithRoute.bookingTrips) {
         for (const seat of bookingTrip.seats) {
           await tx.seat.update({
             where: { id: seat.id },
@@ -731,14 +766,27 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
             },
           });
 
-          // Broadcast seat status change to connected clients
           broadcastSeatStatusChange(bookingTrip.trip.id, seat.id, SeatStatus.BOOKED, {
-            seatNumber: bookingTrip.seats.find((s) => s.id === seat.id)?.seatNumber,
-            bookedBy: booking.userId,
-            bookingId: booking.id,
+            seatNumber: seat.seatNumber,
+            bookedBy: bookingWithRoute.userId,
+            bookingId: bookingWithRoute.id,
             paidAmount: receivedAmount,
           });
         }
+
+        broadcastBookingStatusChange(bookingTrip.trip.id, BookingStatus.CONFIRMED, {
+          trips: bookingWithRoute.bookingTrips.map((bt) => ({
+            tripId: bt.trip.id,
+            routeName: bt.trip.route.name,
+            departureTime: bt.trip.departureTime,
+            seats: bt.seats.map((s) => ({
+              id: s.id,
+              seatNumber: s.seatNumber,
+              status: SeatStatus.BOOKED,
+            })),
+          })),
+          paidAmount: receivedAmount,
+        });
       }
 
       // Create history record
