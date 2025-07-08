@@ -328,11 +328,11 @@ function buildTripFilters(query: any) {
     if (stopIds.length > 0) {
       filters.route = {
         ...filters.route,
-        routeStops: {
-          some: {
-            busStopId: { in: [...new Set(stopIds)] }, // Remove duplicates
-          },
-        },
+        // routeStops: {
+        //   some: {
+        //     busStopId: { in: [...new Set(stopIds)] }, // Remove duplicates
+        //   },
+        // },
       };
     }
   }
@@ -409,7 +409,7 @@ export const getTripList = async (req: Request, res: Response): Promise<void> =>
     const relations = [
       'route.sourceProvince',
       'route.destinationProvince',
-      'route.routeStops.busStop.ward.district.province',
+      // 'route.routeStops.busStop.ward.district.province',
       'vehicle.vehicleType',
       'stopPrices.busStop',
       'seats', // For counting available seats
