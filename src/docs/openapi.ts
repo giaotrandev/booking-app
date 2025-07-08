@@ -4472,83 +4472,123 @@ export const apiSpecification: OpenAPIV3.Document = {
     '/route-stops': {
       get: {
         tags: ['Route Stop'],
-        summary: 'Lấy danh sách điểm dừng trên tuyến',
-        description: 'Lấy danh sách điểm dừng trên tuyến với phân trang, tìm kiếm và lọc (yêu cầu xác thực)',
+        summary: 'Get list of route stops',
+        description:
+          'Retrieve a paginated list of route stops with optional filtering, sorting, and pagination. Requires admin authentication.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
-            in: 'query',
             name: 'page',
-            schema: { type: 'integer', minimum: 1 },
-            description: 'Số trang',
+            in: 'query',
+            description: 'Page number for pagination',
+            schema: { type: 'integer', minimum: 1, default: 1 },
           },
           {
-            in: 'query',
             name: 'pageSize',
-            schema: { type: 'integer', minimum: 1 },
-            description: 'Kích thước trang',
+            in: 'query',
+            description: 'Number of items per page',
+            schema: { type: 'integer', minimum: 1, default: 10 },
           },
           {
+            name: 'returnAll',
             in: 'query',
-            name: 'search',
-            schema: { type: 'string' },
-            description: 'Từ khóa tìm kiếm',
+            description: 'Return all results without pagination (true/false)',
+            schema: { type: 'string', enum: ['true', 'false'], default: 'false' },
           },
           {
-            in: 'query',
             name: 'sort',
+            in: 'query',
+            description: 'Sort criteria in JSON format (e.g., [{"field":"stopOrder","order":"asc"}])',
             schema: { type: 'string' },
-            description: 'Sắp xếp (JSON string, ví dụ: {"field":"stopOrder","direction":"asc"})',
+            examples: {
+              singleSort: { value: '[{"field":"stopOrder","order":"asc"}]' },
+              multipleSort: { value: '[{"field":"stopOrder","order":"asc"},{"field":"createdAt","order":"desc"}]' },
+            },
           },
           {
-            in: 'query',
             name: 'filters',
+            in: 'query',
+            description: 'Filters in JSON format (e.g., {"status":"ACTIVE","routeId":"route1"})',
             schema: { type: 'string' },
-            description: 'Bộ lọc (JSON string, ví dụ: {"status":"ACTIVE"})',
+            examples: {
+              statusFilter: { value: '{"status":"ACTIVE"}' },
+              routeFilter: { value: '{"routeId":"route1"}' },
+            },
           },
           {
-            in: 'query',
             name: 'lang',
-            schema: { type: 'string' },
-            description: 'Ngôn ngữ phản hồi (mặc định: en)',
+            in: 'query',
+            description: 'Language for response messages (e.g., en, vi)',
+            schema: { type: 'string', default: 'en' },
           },
         ],
         responses: {
           '200': {
-            description: 'Danh sách điểm dừng trên tuyến',
+            description: 'List of route stops retrieved successfully',
             content: {
               'application/json': {
                 schema: {
                   type: 'object',
                   properties: {
+                    message: { type: 'string', description: 'Response message' },
                     data: {
                       type: 'array',
                       items: { $ref: '#/components/schemas/RouteStop' },
                     },
-                    total: { type: 'number' },
-                    page: { type: 'number' },
-                    pageSize: { type: 'number' },
-                    totalPages: { type: 'number' },
+                    meta: {
+                      type: 'object',
+                      properties: {
+                        page: { type: 'integer', description: 'Current page number' },
+                        pageSize: { type: 'integer', description: 'Number of items per page' },
+                        totalCount: { type: 'integer', description: 'Total number of route stops' },
+                        totalPages: { type: 'integer', description: 'Total number of pages' },
+                        hasNextPage: { type: 'boolean', description: 'Whether there is a next page' },
+                        hasPrevPage: { type: 'boolean', description: 'Whether there is a previous page' },
+                      },
+                    },
                   },
                 },
               },
             },
           },
           '400': {
-            description: 'Tham số truy vấn không hợp lệ',
+            description: 'Invalid query parameters',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
           '401': {
-            description: 'Không có quyền truy cập',
+            description: 'Unauthorized - Missing or invalid authentication token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '403': {
+            description: 'Forbidden - User does not have admin privileges',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
           '500': {
-            description: 'Lỗi server',
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
         },
       },
       post: {
         tags: ['Route Stop'],
-        summary: 'Tạo điểm dừng trên tuyến mới',
-        description: 'Tạo một điểm dừng trên tuyến mới (yêu cầu xác thực và quyền phù hợp)',
+        summary: 'Create a new route stop',
+        description: 'Create a new route stop for a specific route and bus stop. Requires admin authentication.',
         security: [{ bearerAuth: [] }],
         requestBody: {
           content: {
@@ -4556,45 +4596,87 @@ export const apiSpecification: OpenAPIV3.Document = {
               schema: {
                 type: 'object',
                 properties: {
-                  routeId: { type: 'string', description: 'ID tuyến đường' },
-                  busStopId: { type: 'string', description: 'ID điểm dừng' },
-                  stopOrder: { type: 'integer', description: 'Thứ tự dừng' },
+                  routeId: { type: 'string', description: 'ID of the route' },
+                  busStopId: { type: 'string', description: 'ID of the bus stop' },
+                  stopOrder: { type: 'integer', description: 'Order of the stop in the route' },
                   estimatedArrivalTime: {
                     type: 'string',
                     format: 'date-time',
-                    description: 'Thời gian đến dự kiến',
+                    description: 'Estimated arrival time (ISO 8601 format, e.g., 2025-01-15T08:00:00+07:00)',
                     nullable: true,
                   },
                   estimatedDepartureTime: {
                     type: 'string',
                     format: 'date-time',
-                    description: 'Thời gian rời dự kiến',
+                    description: 'Estimated departure time (ISO 8601 format, e.g., 2025-01-15T08:15:00+07:00)',
                     nullable: true,
                   },
-                  status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'], description: 'Trạng thái' },
+                  status: {
+                    type: 'string',
+                    enum: ['ACTIVE', 'INACTIVE'],
+                    description: 'Status of the route stop',
+                    default: 'ACTIVE',
+                  },
                 },
-                required: ['routeId', 'busStopId', 'stopOrder', 'status'],
+                required: ['routeId', 'busStopId', 'stopOrder'],
               },
             },
           },
         },
         responses: {
-          '201': {
-            description: 'Tạo điểm dừng trên tuyến thành công',
+          '200': {
+            description: 'Route stop created successfully',
             content: {
               'application/json': {
-                schema: { $ref: '#/components/schemas/RouteStop' },
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', description: 'Response message' },
+                    data: { $ref: '#/components/schemas/RouteStop' },
+                  },
+                },
               },
             },
           },
           '400': {
-            description: 'Dữ liệu không hợp lệ',
+            description: 'Invalid input data or duplicate stop order/bus stop',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
           '401': {
-            description: 'Không có quyền truy cập',
+            description: 'Unauthorized - Missing or invalid authentication token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '403': {
+            description: 'Forbidden - User does not have admin privileges',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '404': {
+            description: 'Route or bus stop not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
           '500': {
-            description: 'Lỗi server',
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
         },
       },
@@ -4602,62 +4684,91 @@ export const apiSpecification: OpenAPIV3.Document = {
     '/route-stops/{id}': {
       get: {
         tags: ['Route Stop'],
-        summary: 'Lấy chi tiết điểm dừng trên tuyến',
-        description: 'Lấy thông tin chi tiết của một điểm dừng trên tuyến theo ID (yêu cầu xác thực)',
+        summary: 'Get route stop details',
+        description: 'Retrieve detailed information about a specific route stop by ID. Requires admin authentication.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
             name: 'id',
             in: 'path',
             required: true,
+            description: 'ID of the route stop',
             schema: { type: 'string' },
-            description: 'ID của điểm dừng trên tuyến',
           },
           {
-            in: 'query',
             name: 'lang',
-            schema: { type: 'string' },
-            description: 'Ngôn ngữ phản hồi (mặc định: en)',
+            in: 'query',
+            description: 'Language for response messages (e.g., en, vi)',
+            schema: { type: 'string', default: 'en' },
           },
         ],
         responses: {
           '200': {
-            description: 'Chi tiết điểm dừng trên tuyến',
+            description: 'Route stop details retrieved successfully',
             content: {
               'application/json': {
-                schema: { $ref: '#/components/schemas/RouteStop' },
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', description: 'Response message' },
+                    data: { $ref: '#/components/schemas/RouteStop' },
+                  },
+                },
               },
             },
           },
           '401': {
-            description: 'Không có quyền truy cập',
+            description: 'Unauthorized - Missing or invalid authentication token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '403': {
+            description: 'Forbidden - User does not have admin privileges',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
           '404': {
-            description: 'Không tìm thấy điểm dừng trên tuyến',
+            description: 'Route stop not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
           '500': {
-            description: 'Lỗi server',
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
         },
       },
       put: {
         tags: ['Route Stop'],
-        summary: 'Cập nhật điểm dừng trên tuyến',
-        description: 'Cập nhật thông tin điểm dừng trên tuyến (yêu cầu xác thực và quyền phù hợp)',
+        summary: 'Update a route stop',
+        description: 'Update an existing route stop by ID. Requires admin authentication.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
             name: 'id',
             in: 'path',
             required: true,
+            description: 'ID of the route stop to update',
             schema: { type: 'string' },
-            description: 'ID của điểm dừng trên tuyến',
           },
           {
-            in: 'query',
             name: 'lang',
-            schema: { type: 'string' },
-            description: 'Ngôn ngữ phản hồi (mặc định: en)',
+            in: 'query',
+            description: 'Language for response messages (e.g., en, vi)',
+            schema: { type: 'string', default: 'en' },
           },
         ],
         requestBody: {
@@ -4666,22 +4777,24 @@ export const apiSpecification: OpenAPIV3.Document = {
               schema: {
                 type: 'object',
                 properties: {
-                  routeId: { type: 'string', description: 'ID tuyến đường' },
-                  busStopId: { type: 'string', description: 'ID điểm dừng' },
-                  stopOrder: { type: 'integer', description: 'Thứ tự dừng' },
+                  stopOrder: { type: 'integer', description: 'Order of the stop in the route' },
                   estimatedArrivalTime: {
                     type: 'string',
                     format: 'date-time',
-                    description: 'Thời gian đến dự kiến',
+                    description: 'Estimated arrival time (ISO 8601 format, e.g., 2025-01-15T08:00:00+07:00)',
                     nullable: true,
                   },
                   estimatedDepartureTime: {
                     type: 'string',
                     format: 'date-time',
-                    description: 'Thời gian rời dự kiến',
+                    description: 'Estimated departure time (ISO 8601 format, e.g., 2025-01-15T08:15:00+07:00)',
                     nullable: true,
                   },
-                  status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'], description: 'Trạng thái' },
+                  status: {
+                    type: 'string',
+                    enum: ['ACTIVE', 'INACTIVE'],
+                    description: 'Status of the route stop',
+                  },
                 },
               },
             },
@@ -4689,70 +4802,637 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
         responses: {
           '200': {
-            description: 'Cập nhật điểm dừng trên tuyến thành công',
+            description: 'Route stop updated successfully',
             content: {
               'application/json': {
-                schema: { $ref: '#/components/schemas/RouteStop' },
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', description: 'Response message' },
+                    data: { $ref: '#/components/schemas/RouteStop' },
+                  },
+                },
               },
             },
           },
           '400': {
-            description: 'Dữ liệu không hợp lệ',
+            description: 'Invalid input data or duplicate stop order',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
           '401': {
-            description: 'Không có quyền truy cập',
+            description: 'Unauthorized - Missing or invalid authentication token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '403': {
+            description: 'Forbidden - User does not have admin privileges',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
           '404': {
-            description: 'Không tìm thấy điểm dừng trên tuyến',
+            description: 'Route stop not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
           '500': {
-            description: 'Lỗi server',
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
         },
       },
       delete: {
         tags: ['Route Stop'],
-        summary: 'Xóa mềm điểm dừng trên tuyến',
-        description: 'Xóa mềm điểm dừng trên tuyến bằng cách đánh dấu isDeleted (yêu cầu xác thực và quyền phù hợp)',
+        summary: 'Soft delete a route stop',
+        description:
+          'Soft delete a route stop by marking it as deleted (isDeleted: true, status: INACTIVE). Requires admin authentication.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
             name: 'id',
             in: 'path',
             required: true,
+            description: 'ID of the route stop to delete',
             schema: { type: 'string' },
-            description: 'ID của điểm dừng trên tuyến',
           },
           {
-            in: 'query',
             name: 'lang',
-            schema: { type: 'string' },
-            description: 'Ngôn ngữ phản hồi (mặc định: en)',
+            in: 'query',
+            description: 'Language for response messages (e.g., en, vi)',
+            schema: { type: 'string', default: 'en' },
           },
         ],
         responses: {
           '200': {
-            description: 'Xóa mềm điểm dừng trên tuyến thành công',
+            description: 'Route stop soft deleted successfully',
             content: {
               'application/json': {
                 schema: {
                   type: 'object',
                   properties: {
-                    id: { type: 'string' },
-                    isDeleted: { type: 'boolean' },
+                    message: { type: 'string', description: 'Response message' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', description: 'ID of the deleted route stop' },
+                        isDeleted: { type: 'boolean', description: 'Deletion status' },
+                        status: {
+                          type: 'string',
+                          enum: ['ACTIVE', 'INACTIVE'],
+                          description: 'Status of the route stop',
+                        },
+                      },
+                    },
                   },
                 },
               },
             },
           },
           '401': {
-            description: 'Không có quyền truy cập',
+            description: 'Unauthorized - Missing or invalid authentication token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '403': {
+            description: 'Forbidden - User does not have admin privileges',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
           '404': {
-            description: 'Không tìm thấy điểm dừng trên tuyến',
+            description: 'Route stop not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
           '500': {
-            description: 'Lỗi server',
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/route-stops/{id}/restore': {
+      put: {
+        tags: ['Route Stop'],
+        summary: 'Restore a deleted route stop',
+        description:
+          'Restore a soft-deleted route stop by setting isDeleted to false and status to ACTIVE. Requires admin authentication.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'ID of the route stop to restore',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages (e.g., en, vi)',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Route stop restored successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', description: 'Response message' },
+                    data: { $ref: '#/components/schemas/RouteStop' },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Unauthorized - Missing or invalid authentication token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '403': {
+            description: 'Forbidden - User does not have admin privileges',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '404': {
+            description: 'Route stop not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/route-stops/route/{routeId}': {
+      get: {
+        tags: ['Route Stop'],
+        summary: 'Get all stops for a specific route',
+        description: 'Retrieve all route stops for a specific route, including bus stop details. Public access.',
+        parameters: [
+          {
+            name: 'routeId',
+            in: 'path',
+            required: true,
+            description: 'ID of the route',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages (e.g., en, vi)',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Route stops retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', description: 'Response message' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        route: { $ref: '#/components/schemas/Route' },
+                        stops: {
+                          type: 'array',
+                          items: { $ref: '#/components/schemas/RouteStop' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'Route not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/route-stops/route/trip-filter/{routeId}': {
+      get: {
+        tags: ['Route Stop'],
+        summary: 'Get route stops with pickup and dropoff points separated',
+        description:
+          'Retrieve all route stops for a specific route, separated into pickup and dropoff points based on source and destination provinces. Public access.',
+        parameters: [
+          {
+            name: 'routeId',
+            in: 'path',
+            required: true,
+            description: 'ID of the route',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages (e.g., en, vi)',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Route stops retrieved successfully with pickup and dropoff points separated',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', description: 'Response message' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        pickupPoints: {
+                          type: 'array',
+                          items: { $ref: '#/components/schemas/RouteStop' },
+                          description: 'List of pickup points (stops in source province)',
+                        },
+                        dropoffPoints: {
+                          type: 'array',
+                          items: { $ref: '#/components/schemas/RouteStop' },
+                          description: 'List of dropoff points (stops in destination province)',
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Missing route ID',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '404': {
+            description: 'Route not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/route-stops/bus-stop/{busStopId}': {
+      get: {
+        tags: ['Route Stop'],
+        summary: 'Get all routes that stop at a specific bus stop',
+        description:
+          'Retrieve all route stops associated with a specific bus stop, including route details. Public access.',
+        parameters: [
+          {
+            name: 'busStopId',
+            in: 'path',
+            required: true,
+            description: 'ID of the bus stop',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages (e.g., en, vi)',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Route stops retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', description: 'Response message' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        busStop: { $ref: '#/components/schemas/BusStop' },
+                        routeStops: {
+                          type: 'array',
+                          items: { $ref: '#/components/schemas/RouteStop' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'Bus stop not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/route-stops/bulk': {
+      post: {
+        tags: ['Route Stop'],
+        summary: 'Bulk create route stops',
+        description:
+          'Create multiple route stops for a specific route in a single request. Requires admin authentication.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  routeId: { type: 'string', description: 'ID of the route' },
+                  stops: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        busStopId: { type: 'string', description: 'ID of the bus stop' },
+                        stopOrder: { type: 'integer', description: 'Order of the stop in the route' },
+                        estimatedArrivalTime: {
+                          type: 'string',
+                          format: 'date-time',
+                          description: 'Estimated arrival time (ISO 8601 format, e.g., 2025-01-15T08:00:00+07:00)',
+                          nullable: true,
+                        },
+                        estimatedDepartureTime: {
+                          type: 'string',
+                          format: 'date-time',
+                          description: 'Estimated departure time (ISO 8601 format, e.g., 2025-01-15T08:15:00+07:00)',
+                          nullable: true,
+                        },
+                      },
+                      required: ['busStopId', 'stopOrder'],
+                    },
+                  },
+                },
+                required: ['routeId', 'stops'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Route stops created successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', description: 'Response message' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        route: { $ref: '#/components/schemas/Route' },
+                        createdStops: {
+                          type: 'array',
+                          items: { $ref: '#/components/schemas/RouteStop' },
+                        },
+                        count: { type: 'integer', description: 'Number of created stops' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid input data, duplicate stop order, or bus stop already in route',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '401': {
+            description: 'Unauthorized - Missing or invalid authentication token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '403': {
+            description: 'Forbidden - User does not have admin privileges',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '404': {
+            description: 'Route or bus stop not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/route-stops/reorder/{routeId}': {
+      put: {
+        tags: ['Route Stop'],
+        summary: 'Reorder route stops',
+        description: 'Reorder the stop order of route stops for a specific route. Requires admin authentication.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'routeId',
+            in: 'path',
+            required: true,
+            description: 'ID of the route',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages (e.g., en, vi)',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  stopOrders: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', description: 'ID of the route stop' },
+                        stopOrder: { type: 'integer', description: 'New order of the stop' },
+                      },
+                      required: ['id', 'stopOrder'],
+                    },
+                  },
+                },
+                required: ['stopOrders'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Route stops reordered successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', description: 'Response message' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        route: { $ref: '#/components/schemas/Route' },
+                        stops: {
+                          type: 'array',
+                          items: { $ref: '#/components/schemas/RouteStop' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid input data, duplicate stop order, or mismatch in stop count',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '401': {
+            description: 'Unauthorized - Missing or invalid authentication token',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '403': {
+            description: 'Forbidden - User does not have admin privileges',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '404': {
+            description: 'Route or route stop not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
           },
         },
       },

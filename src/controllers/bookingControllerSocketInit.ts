@@ -632,14 +632,15 @@ export const initializeSocketConnection = (io: Server): void => {
             return;
           }
 
-          const userReservations = reservations.filter((r) => r.userId === userId && r.tripId === tripId);
-          if (userReservations.length >= config.maxSeatsPerBooking) {
-            callback({
-              seatId,
-              error: `Maximum of ${config.maxSeatsPerBooking} seats per booking exceeded`,
-            });
-            return;
-          }
+          // Check if user has reached maximum seats
+          // const userReservations = reservations.filter((r) => r.userId === userId && r.tripId === tripId);
+          // if (userReservations.length >= config.maxSeatsPerBooking) {
+          //   callback({
+          //     seatId,
+          //     error: `Maximum of ${config.maxSeatsPerBooking} seats per booking exceeded`,
+          //   });
+          //   return;
+          // }
 
           const existingReservation = reservations.find(
             (r) => r.seatId === seatId && r.userId === userId && r.tripId === tripId

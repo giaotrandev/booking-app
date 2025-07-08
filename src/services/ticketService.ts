@@ -112,7 +112,7 @@ export async function generateTicketsForBooking(bookingId: string) {
     },
   });
   for (const ticket of tickets) {
-    const templatePath = path.join(process.cwd(), 'templates', 'ticket.hbs');
+    const templatePath = './src/templates/ticket.hbs';
     const templateContent = fs.readFileSync(templatePath, 'utf-8');
     const template = handlebars.compile(templateContent);
 

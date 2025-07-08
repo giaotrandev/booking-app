@@ -388,8 +388,9 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
         });
     }
 
-    // Schedule automatic cancellation using Redis queue instead of setTimeout
-    // await scheduleBookingCancellation(result.id, config.paymentTimeoutMinutes);
+    if (result)
+      // Schedule automatic cancellation using Redis queue instead of setTimeout
+      await scheduleBookingCancellation(result.id, config.paymentTimeoutMinutes);
 
     sendSuccess(res, 'booking.created', result, language);
   } catch (error) {
@@ -765,6 +766,8 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
               status: SeatStatus.BOOKED,
             },
           });
+
+          console.log('Tào lao vậy: ', bookingWithRoute);
 
           broadcastSeatStatusChange(bookingTrip.trip.id, seat.id, SeatStatus.BOOKED, {
             seatNumber: seat.seatNumber,

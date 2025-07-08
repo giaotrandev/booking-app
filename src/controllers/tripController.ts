@@ -504,7 +504,7 @@ export const getTripList = async (req: Request, res: Response): Promise<void> =>
       res,
       'trip.listRetrieved',
       {
-        data: filteredTrips,
+        data: deepRemoveTimestamps(filteredTrips),
         meta: result.meta,
       },
       language

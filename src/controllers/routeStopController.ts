@@ -3,6 +3,7 @@ import { prisma } from '#config/db';
 import { queryData, DataQueryParams } from '#utils/dataQuery';
 import { sendSuccess, sendBadRequest, sendNotFound, sendServerError } from '#utils/apiResponse';
 import { CommonStatus } from '@prisma/client';
+import { deepRemoveTimestamps } from '#src/helpers/dataHelper';
 
 /**
  * Get list of route stops
@@ -57,6 +58,117 @@ export const getRouteStopList = async (req: Request, res: Response): Promise<voi
     return sendSuccess(res, 'routeStop.listRetrieved', result, language);
   } catch (error) {
     console.error('Error retrieving route stop list:', error);
+    return sendServerError(
+      res,
+      'common.serverError',
+      error instanceof Error
+        ? {
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+          }
+        : null,
+      language
+    );
+  }
+};
+
+/**
+ * Get route stops by routeId with pickup and dropoff points separated
+ */
+export const getRouteStopsByRouteForTripFilter = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+  const { routeId } = req.params;
+
+  if (!routeId) {
+    return sendBadRequest(res, 'common.missingRouteId', { error: 'Route ID is required' }, language);
+  }
+
+  try {
+    // First get the route to access source and destination province IDs
+    const route = await prisma.route.findUnique({
+      where: { id: routeId },
+      select: {
+        id: true,
+        sourceProvinceId: true,
+        destinationProvinceId: true,
+      },
+    });
+
+    if (!route) {
+      return sendNotFound(res, 'route.notFound', null, language);
+    }
+
+    // Get all route stops for this route with necessary relations
+    const routeStops = await prisma.routeStop.findMany({
+      where: {
+        routeId: routeId,
+        isDeleted: false,
+      },
+      include: {
+        busStop: {
+          include: {
+            ward: {
+              include: {
+                district: {
+                  include: {
+                    province: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        stopOrder: 'asc',
+      },
+    });
+
+    // Separate into pickup and dropoff points
+    const pickupPoints: any[] = [];
+    const dropoffPoints: any[] = [];
+
+    routeStops.forEach((routeStop) => {
+      const provinceId = routeStop.busStop.ward?.district?.province?.id;
+
+      const stopData = {
+        id: routeStop.id,
+        stopOrder: routeStop.stopOrder,
+        status: routeStop.status,
+        busStop: {
+          id: routeStop.busStop.id,
+          name: routeStop.busStop.name,
+          wardId: routeStop.busStop.wardId,
+          address: routeStop.busStop.address,
+          latitude: routeStop.busStop.latitude,
+          longitude: routeStop.busStop.longitude,
+          status: routeStop.busStop.status,
+          isDeleted: routeStop.busStop.isDeleted,
+          createdAt: routeStop.busStop.createdAt,
+          updatedAt: routeStop.busStop.updatedAt,
+          deletedAt: routeStop.busStop.deletedAt,
+        },
+      };
+
+      // Check if busStop's province matches source province (pickup)
+      if (provinceId === route.sourceProvinceId) {
+        pickupPoints.push(stopData);
+      }
+
+      // Check if busStop's province matches destination province (dropoff)
+      if (provinceId === route.destinationProvinceId) {
+        dropoffPoints.push(stopData);
+      }
+    });
+
+    const result = deepRemoveTimestamps({
+      pickupPoints,
+      dropoffPoints,
+    });
+
+    return sendSuccess(res, 'routeStop.pointsRetrieved', result, language);
+  } catch (error) {
+    console.error('Error retrieving route stops by route ID:', error);
     return sendServerError(
       res,
       'common.serverError',

@@ -550,11 +550,11 @@
             <div class="form-row">
                 <div class="form-group">
                     <label for="serverUrl">Socket Server URL:</label>
-                    <input type="text" id="serverUrl" value="https://booking-app-s5m3.onrender.com/">
+                    <input type="text" id="serverUrl" value="http://localhost:5000/">
                 </div>
                 <div class="form-group">
                     <label for="apiUrl">API Base URL:</label>
-                    <input type="text" id="apiUrl" value="https://booking-app-s5m3.onrender.com/api">
+                    <input type="text" id="apiUrl" value="http://localhost:5000/api">
                 </div>
             </div>
             <button id="connectBtn">Connect</button>
@@ -629,9 +629,25 @@
                     <input type="text" id="voucherCode" placeholder="Enter voucher code">
                 </div>
             </div>
-            <div class="form-group">
-                <label for="customerNotes">Customer Notes (Optional):</label>
-                <textarea id="customerNotes" rows="3" placeholder="Any special requirements..."></textarea>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="guestName">Name:</label>
+                    <input type="text" id="guestName" placeholder="Enter your name">
+                </div>
+                <div class="form-group">
+                    <label for="guestPhone">Phone number (Required):</label>
+                    <input type="text" id="guestPhone" placeholder="Enter phone number">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="guestEmail">Customer email:</label>
+                    <input type="email" id="guestEmail" placeholder="Enter email">
+                </div>
+                <div class="form-group">
+                    <label for="customerNotes">Customer Notes (Optional):</label>
+                    <textarea id="customerNotes" rows="3" placeholder="Any special requirements..."></textarea>
+                </div>
             </div>
 
             <div id="priceCalculation" class="price-calculation" style="display: none;">
@@ -1008,9 +1024,25 @@
         async function createBooking() {
             const apiUrl = document.getElementById('apiUrl').value;
             const tripId = document.getElementById('bookingTripId').value;
+            const guest = {
+                name: document.getElementById('guestName').value,
+                phone: document.getElementById('guestPhone').value,
+                email: document.getElementById('guestEmail').value
+            };
             const voucherCode = document.getElementById('voucherCode').value;
             const customerNotes = document.getElementById('customerNotes').value;
             const userId = document.getElementById('userId').value;
+
+            console.log('Creating booking with data:', {
+                        tripId,
+                        seatIds: Array.from(selectedSeats),
+                        guestName: guest.name,
+                        guestPhone: guest.phone,
+                        guestEmail: guest.email,
+                        voucherCode: voucherCode || undefined,
+                        customerNotes: customerNotes || undefined,
+                        userId: userId || null
+                    });
 
             if (selectedSeats.size === 0) {
                 addLog('Please select at least one seat', 'error');
@@ -1031,6 +1063,9 @@
                     body: JSON.stringify({
                         tripId,
                         seatIds: Array.from(selectedSeats),
+                        guestName: guest.name,
+                        guestPhone: guest.phone,
+                        guestEmail: guest.email,
                         voucherCode: voucherCode || undefined,
                         customerNotes: customerNotes || undefined,
                         userId: userId || null

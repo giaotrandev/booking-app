@@ -12,14 +12,14 @@ const router = express.Router();
  * @desc Get all route stops
  * @access Admin
  */
-router.get('/', authenticateToken, RouteStopController.getRouteStopList);
+router.get('/', RouteStopController.getRouteStopList);
 
 /**
  * @route GET /api/route-stops/:id
  * @desc Get route stop by ID
  * @access Admin
  */
-router.get('/:id', authenticateToken, RouteStopController.getRouteStopDetails);
+router.get('/:id', RouteStopController.getRouteStopDetails);
 
 /**
  * @route GET /api/route-stops/route/:routeId
@@ -27,6 +27,13 @@ router.get('/:id', authenticateToken, RouteStopController.getRouteStopDetails);
  * @access Public
  */
 router.get('/route/:routeId', RouteStopController.getRouteStopsByRoute);
+
+/**
+ * @route GET /api/route-stops/route/trip-filter/:routeId
+ * @desc Get all stops for a specific route with pickup and dropoff points separated
+ * @access Public
+ */
+router.get('/route/trip-filter/:routeId', RouteStopController.getRouteStopsByRouteForTripFilter);
 
 /**
  * @route GET /api/route-stops/bus-stop/:busStopId
