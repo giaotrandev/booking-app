@@ -24,6 +24,7 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
 
     // Validate input
     if (!routeId || !vehicleId || !departureTime || !arrivalTime || !basePrice) {
+      console.log('Dô này hong: ');
       if (req.file && fs.existsSync(req.file.path)) {
         await safeDeleteFile(req.file.path);
       }
@@ -103,6 +104,9 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
     // Handle file upload if present
     if (req.file) {
       try {
+        if (!fs.existsSync(req.file.path)) {
+          throw new Error(`Uploaded file not found: ${req.file.path}`);
+        }
         const optimizedImagePath = await optimizeImage(req.file.path, {
           width: 800,
           height: 600,
@@ -246,7 +250,7 @@ function buildTripFilters(query: any) {
   }
 
   // Date filters với timezone support
-  if (query.startDate || query.endDate || query.exactDate) {
+  if (query.departureDate || query.arrivalDate || query.exactDate) {
     filters.departureTime = {};
 
     if (query.exactDate) {
@@ -273,15 +277,15 @@ function buildTripFilters(query: any) {
     } else {
       // Lọc theo khoảng ngày
       // Frontend gửi lên với timezone, backend chỉ cần parse
-      if (query.startDate) filters.departureTime.gte = new Date(query.startDate);
-      if (query.endDate) {
-        // Nếu endDate không có giờ cụ thể, set đến cuối ngày
-        const endDate = new Date(query.endDate);
+      if (query.departureDate) filters.departureTime.gte = new Date(query.departureDate);
+      if (query.arrivalDate) {
+        // Nếu arrivalDate không có giờ cụ thể, set đến cuối ngày
+        const arrivalDate = new Date(query.arrivalDate);
         // Kiểm tra xem có phải là 00:00:00 không
-        if (endDate.getHours() === 0 && endDate.getMinutes() === 0 && endDate.getSeconds() === 0) {
-          endDate.setHours(23, 59, 59, 999);
+        if (arrivalDate.getHours() === 0 && arrivalDate.getMinutes() === 0 && arrivalDate.getSeconds() === 0) {
+          arrivalDate.setHours(23, 59, 59, 999);
         }
-        filters.departureTime.lte = endDate;
+        filters.departureTime.lte = arrivalDate;
       }
     }
   }
@@ -446,7 +450,9 @@ export const getTripList = async (req: Request, res: Response): Promise<void> =>
           ...tripWithoutSeats,
           imageUrl,
           availableSeats,
-          totalSeats: seats?.length || 0,
+          _count: {
+            seats: seats?.length || 0,
+          },
         };
       })
     );
@@ -486,8 +492,11 @@ export const getTripList = async (req: Request, res: Response): Promise<void> =>
       res,
       'trip.listRetrieved',
       {
-        data: deepRemoveTimestamps(filteredTrips),
-        meta: result.meta,
+        outboundTrips: {
+          data: deepRemoveTimestamps(filteredTrips),
+          pagination: result.meta,
+        },
+        returnTrips: {},
       },
       language
     );

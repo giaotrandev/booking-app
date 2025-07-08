@@ -122,8 +122,16 @@ export async function queryData<T>(
   } = {}
 ) {
   // Thiết lập giá trị mặc định
-  const page = params.returnAll ? 1 : parseInt(process.env.PAGINATION_DEFAULT_PAGE as string) || 1;
-  const pageSize = params.returnAll ? undefined : parseInt(process.env.PAGINATION_DEFAULT_LIMIT as string) || 10;
+  const page = params.returnAll
+    ? 1
+    : params.page
+      ? params.page
+      : parseInt(process.env.PAGINATION_DEFAULT_PAGE as string) || 1;
+  const pageSize = params.returnAll
+    ? undefined
+    : params.pageSize
+      ? params.pageSize
+      : parseInt(process.env.PAGINATION_DEFAULT_LIMIT as string) || 10;
   const skip = params.returnAll ? undefined : (page - 1) * (pageSize || 10);
 
   // Xây dựng điều kiện tìm kiếm

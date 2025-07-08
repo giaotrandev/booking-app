@@ -6078,14 +6078,14 @@ export const apiSpecification: OpenAPIV3.Document = {
             schema: { type: 'number', format: 'float' },
           },
           {
-            name: 'startDate',
+            name: 'departureDate',
             in: 'query',
             description:
               'Filter trips with departure time on or after this date (ISO 8601 format, e.g., 2025-01-15T00:00:00+07:00)',
             schema: { type: 'string', format: 'date-time' },
           },
           {
-            name: 'endDate',
+            name: 'arrivalDate',
             in: 'query',
             description:
               'Filter trips with departure time on or before this date (ISO 8601 format, e.g., 2025-01-15T23:59:59+07:00). If no time is specified, defaults to end of day (23:59:59.999).',
