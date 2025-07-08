@@ -1,5 +1,5 @@
 import { prisma } from '#config/db';
-import { uploadFileToR2, StorageFolders } from '#services/r2Service';
+import { uploadFileToR2, StorageFolders, getSignedUrlForFile } from '#services/r2Service';
 import { optimizeImage } from '#services/imageService';
 import { generateUniqueTicketNumber, generateQRCodeImage } from '#utils/ticketHandler';
 import * as path from 'path';
@@ -106,7 +106,7 @@ export async function generateTicketsForBooking(bookingId: string) {
   const tickets = await prisma.ticket.findMany({
     where: { bookingId },
     include: {
-      booking: { include: { user: true } },
+      booking: { include: { user: true, pickup: true, dropoff: true } },
       bookingTrip: { include: { trip: { include: { route: true } } } },
       seat: true,
     },
@@ -123,7 +123,9 @@ export async function generateTicketsForBooking(bookingId: string) {
       routeName: ticket.bookingTrip.trip.route.name,
       departureTime: new Date(ticket.bookingTrip.trip.departureTime).toLocaleString(),
       seatNumbers: ticket.seat.seatNumber || 'N/A',
-      qrCodePath: ticket.qrCodeImage,
+      pickupName: ticket.booking.pickup?.name || 'N/A',
+      dropoffName: ticket.booking.dropoff?.name || 'N/A',
+      qrCodePath: ticket.qrCodeImage ? await getSignedUrlForFile(ticket.qrCodeImage) : null,
     };
 
     const guestEmail = ticket.booking.guestEmail || (ticket.booking.user ? ticket.booking.user.email : null);

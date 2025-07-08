@@ -45,9 +45,6 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
           }
         }
       } catch (error) {
-        if (req.file && fs.existsSync(req.file.path)) {
-          await safeDeleteFile(req.file.path);
-        }
         sendBadRequest(res, 'trip.invalidStopPrices', null, language);
         return;
       }
@@ -60,9 +57,6 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
     });
 
     if (!route) {
-      if (req.file && fs.existsSync(req.file.path)) {
-        await safeDeleteFile(req.file.path);
-      }
       return sendNotFound(res, 'route.notFound', null, language);
     }
 
@@ -71,9 +65,6 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
       const routeStopIds = route.routeStops.map((rs) => rs.busStopId);
       for (const stopPrice of parsedStopPrices) {
         if (!routeStopIds.includes(stopPrice.busStopId)) {
-          if (req.file && fs.existsSync(req.file.path)) {
-            await safeDeleteFile(req.file.path);
-          }
           sendBadRequest(res, 'trip.invalidBusStopForRoute', null, language);
           return;
         }
@@ -87,18 +78,12 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
     });
 
     if (!vehicle) {
-      if (req.file && fs.existsSync(req.file.path)) {
-        await safeDeleteFile(req.file.path);
-      }
       return sendNotFound(res, 'vehicle.notFound', null, language);
     }
 
     // Validate seat configuration
     const seatConfig = vehicle.vehicleType.seatConfiguration as any;
     if (!seatConfig?.decks || !Array.isArray(seatConfig.decks)) {
-      if (req.file && fs.existsSync(req.file.path)) {
-        await safeDeleteFile(req.file.path);
-      }
       sendBadRequest(res, 'vehicle.invalidSeatConfiguration', null, language);
       return;
     }
@@ -109,9 +94,6 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
 
     // Validate dates
     if (parsedDepartureTime >= parsedArrivalTime) {
-      if (req.file && fs.existsSync(req.file.path)) {
-        await safeDeleteFile(req.file.path);
-      }
       sendBadRequest(res, 'trip.invalidTimeRange', null, language);
       return;
     }
@@ -184,7 +166,7 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
               throw new Error(`Invalid seats for row ${row.rowId} in deck ${deck.deckId}`);
             }
             for (const seat of row.seats) {
-              if (seat.exists && seat.number && seat.type !== 'DRIVER') {
+              if (seat.number && seat.type !== 'DRIVER') {
                 seatsToCreate.push({
                   tripId: trip.id,
                   seatNumber: seat.number,
