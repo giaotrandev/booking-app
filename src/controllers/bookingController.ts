@@ -777,7 +777,7 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
           });
         }
 
-        broadcastBookingStatusChange(bookingTrip.trip.id, BookingStatus.CONFIRMED, {
+        broadcastBookingStatusChange(bookingTrip.bookingId, BookingStatus.CONFIRMED, {
           trips: bookingWithRoute.bookingTrips.map((bt) => ({
             tripId: bt.trip.id,
             routeName: bt.trip.route.name,
