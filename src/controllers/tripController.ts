@@ -6,7 +6,13 @@ import { sendSuccess, sendBadRequest, sendNotFound, sendServerError, sendForbidd
 import { uploadFileToR2, getSignedUrlForFile, deleteFileFromR2, StorageFolders } from '#services/r2Service';
 import { optimizeImage } from '#services/imageService';
 import safeDeleteFile from '#utils/safeDeleteFile';
-import { deepRemoveTimestamps, removeTimestamps } from '#src/helpers/dataHelper';
+import {
+  deepRemoveTimestamps,
+  isHourInTimeRanges,
+  parseTimeRanges,
+  removeTimestamps,
+  TimeRange,
+} from '#src/helpers/dataHelper';
 import { DataQueryParams, queryData } from '#src/utils/dataQuery';
 
 interface RequestWithFile extends Request {
@@ -381,6 +387,54 @@ export const getTripList = async (req: Request, res: Response): Promise<void> =>
       return sendBadRequest(res, 'common.invalidQueryParams', { error: 'Invalid sort format' }, language);
     }
 
+    // Parse time ranges - now supports both formats
+    let timeRanges: TimeRange[] = [];
+    try {
+      if (req.query.timeRanges) {
+        const timeRangesParam = req.query.timeRanges as string;
+
+        // Check if it's the new simple format (contains hyphens but no JSON brackets)
+        if (timeRangesParam.includes('-') && !timeRangesParam.includes('[') && !timeRangesParam.includes('{')) {
+          // Use simple format parser: "1-5,7-12,23-2"
+          timeRanges = parseTimeRanges(timeRangesParam);
+        } else {
+          // Use legacy JSON format: [{"start":1,"end":5},{"start":7,"end":12}]
+          const parsed = JSON.parse(timeRangesParam);
+          timeRanges = Array.isArray(parsed) ? parsed : [parsed];
+
+          // Validate time ranges
+          for (const range of timeRanges) {
+            if (
+              typeof range.start !== 'number' ||
+              typeof range.end !== 'number' ||
+              range.start < 0 ||
+              range.start > 23 ||
+              range.end < 0 ||
+              range.end > 23
+            ) {
+              return sendBadRequest(
+                res,
+                'common.invalidQueryParams',
+                {
+                  error: 'Invalid time range format. Start and end must be numbers between 0-23',
+                },
+                language
+              );
+            }
+          }
+        }
+      }
+    } catch (parseError) {
+      return sendBadRequest(
+        res,
+        'common.invalidQueryParams',
+        {
+          error: parseError instanceof Error ? parseError.message : 'Invalid timeRanges format',
+        },
+        language
+      );
+    }
+
     // Build complex filters
     const tripFilters = buildTripFilters(req.query);
 
@@ -457,20 +511,15 @@ export const getTripList = async (req: Request, res: Response): Promise<void> =>
       })
     );
 
-    // Filter by departure hour if specified (post-processing với timezone)
+    // Filter by time ranges if specified
     let filteredTrips = tripsWithAdditionalData;
-    if (req.query.minDepartureHour !== undefined || req.query.maxDepartureHour !== undefined) {
-      const minHour = req.query.minDepartureHour ? parseInt(req.query.minDepartureHour as string) : 0;
-      const maxHour = req.query.maxDepartureHour ? parseInt(req.query.maxDepartureHour as string) : 23;
-
-      // Lấy timezone từ query hoặc default là Asia/Ho_Chi_Minh
+    if (timeRanges.length > 0) {
       const timezone = (req.query.timezone as string) || 'Asia/Ho_Chi_Minh';
 
       filteredTrips = tripsWithAdditionalData.filter((trip: any) => {
         const departureDate = new Date(trip.departureTime);
 
-        // Lấy giờ theo timezone được chỉ định
-        // Sử dụng toLocaleString để lấy giờ theo timezone
+        // Get hour in specified timezone
         const timeString = departureDate.toLocaleString('en-US', {
           timeZone: timezone,
           hour12: false,
@@ -478,10 +527,11 @@ export const getTripList = async (req: Request, res: Response): Promise<void> =>
         });
         const departureHour = parseInt(timeString);
 
-        return departureHour >= minHour && departureHour <= maxHour;
+        // Use helper function to check if hour falls within time ranges
+        return isHourInTimeRanges(departureHour, timeRanges);
       });
 
-      // Update lại meta count nếu đã filter
+      // Update metadata if filtered
       if (filteredTrips.length !== tripsWithAdditionalData.length) {
         result.meta.totalCount = filteredTrips.length;
         result.meta.totalPages = Math.ceil(filteredTrips.length / result.meta.pageSize);

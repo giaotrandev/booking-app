@@ -376,7 +376,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
         bookingId: result.id,
         status: result.status,
         totalPrice: result.finalPrice,
-        trips: result.bookingTrips.map((bt) => ({
+        trips: result.bookingTrips?.map((bt) => ({
           tripId: bt.tripId,
           routeName: bt.trip.route.name,
           departureTime: bt.trip.departureTime,
@@ -787,11 +787,11 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
         }
 
         broadcastBookingStatusChange(bookingTrip.bookingId, BookingStatus.CONFIRMED, {
-          trips: bookingWithRoute.bookingTrips.map((bt) => ({
+          trips: bookingWithRoute.bookingTrips?.map((bt) => ({
             tripId: bt.trip.id,
             routeName: bt.trip.route.name,
             departureTime: bt.trip.departureTime,
-            seats: bt.seats.map((s) => ({
+            seats: bt.seats?.map((s) => ({
               id: s.id,
               seatNumber: s.seatNumber,
               status: SeatStatus.BOOKED,
@@ -1067,7 +1067,7 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
     // Prepare response with image URLs
     const result = {
       ...booking,
-      bookingTrips: booking.bookingTrips.map((bt) => ({
+      bookingTrips: booking.bookingTrips?.map((bt) => ({
         ...bt,
         trip: {
           ...bt.trip,
@@ -1158,9 +1158,9 @@ export const getUserBookings = async (req: Request, res: Response): Promise<void
 
     // Get trip images
     const bookingsWithImages = await Promise.all(
-      bookings.map(async (booking) => {
+      bookings?.map(async (booking) => {
         const tripsWithImages = await Promise.all(
-          booking.bookingTrips.map(async (bt) => {
+          booking.bookingTrips?.map(async (bt) => {
             let tripImageUrl = null;
             if (bt.trip.image) {
               tripImageUrl = await getSignedUrlForFile(bt.trip.image);
@@ -1246,7 +1246,7 @@ export const getBookingHistory = async (req: Request, res: Response): Promise<vo
 
     // Get user info for each history entry
     const historyWithUsers = await Promise.all(
-      history.map(async (entry) => {
+      history?.map(async (entry) => {
         const user = await prisma.user.findUnique({
           where: { id: entry.changedBy },
           select: {

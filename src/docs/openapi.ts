@@ -5442,7 +5442,8 @@ export const apiSpecification: OpenAPIV3.Document = {
       get: {
         tags: ['Vehicle Type'],
         summary: 'Lấy danh sách loại phương tiện',
-        description: 'Lấy danh sách loại phương tiện với phân trang, tìm kiếm và lọc (yêu cầu xác thực)',
+        description:
+          'Lấy danh sách loại phương tiện với phân trang, tìm kiếm và lọc theo trạng thái, tỉnh đi, tỉnh đến, và khoảng thời gian khởi hành. Chỉ trả về id và tên loại phương tiện (yêu cầu xác thực).',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -5461,7 +5462,7 @@ export const apiSpecification: OpenAPIV3.Document = {
             in: 'query',
             name: 'search',
             schema: { type: 'string' },
-            description: 'Từ khóa tìm kiếm (name)',
+            description: 'Từ khóa tìm kiếm (name hoặc description)',
           },
           {
             in: 'query',
@@ -5481,6 +5482,37 @@ export const apiSpecification: OpenAPIV3.Document = {
             schema: { type: 'string' },
             description: 'Ngôn ngữ phản hồi (mặc định: en)',
           },
+          {
+            in: 'query',
+            name: 'sourceProvinceId',
+            schema: { type: 'string' },
+            description: 'ID tỉnh đi để lọc các loại phương tiện có chuyến đi từ tỉnh này',
+          },
+          {
+            in: 'query',
+            name: 'destinationProvinceId',
+            schema: { type: 'string' },
+            description: 'ID tỉnh đến để lọc các loại phương tiện có chuyến đi đến tỉnh này',
+          },
+          {
+            in: 'query',
+            name: 'departureDate',
+            schema: { type: 'string', format: 'date-time' },
+            description: 'Ngày giờ khởi hành tối thiểu (lọc các chuyến đi có departureTime >= giá trị này)',
+          },
+          {
+            in: 'query',
+            name: 'arrivalDate',
+            schema: { type: 'string', format: 'date-time' },
+            description:
+              'Ngày giờ khởi hành tối đa (lọc các chuyến đi có departureTime <= giá trị này, mặc định đến cuối ngày nếu không có giờ cụ thể)',
+          },
+          {
+            in: 'query',
+            name: 'returnAll',
+            schema: { type: 'boolean' },
+            description: 'Trả về tất cả kết quả (bỏ qua phân trang) nếu là true',
+          },
         ],
         responses: {
           '200': {
@@ -5490,14 +5522,56 @@ export const apiSpecification: OpenAPIV3.Document = {
                 schema: {
                   type: 'object',
                   properties: {
-                    data: {
-                      type: 'array',
-                      items: { $ref: '#/components/schemas/VehicleType' },
+                    status: {
+                      type: 'string',
+                      example: 'success',
                     },
-                    total: { type: 'number' },
-                    page: { type: 'number' },
-                    pageSize: { type: 'number' },
-                    totalPages: { type: 'number' },
+                    message: {
+                      type: 'string',
+                      example: 'vehicleType.listRetrieved',
+                    },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        results: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              id: {
+                                type: 'string',
+                                description: 'ID của loại phương tiện',
+                              },
+                              name: {
+                                type: 'string',
+                                description: 'Tên của loại phương tiện',
+                              },
+                            },
+                          },
+                        },
+                        pagination: {
+                          type: 'object',
+                          properties: {
+                            total: {
+                              type: 'number',
+                              description: 'Tổng số bản ghi',
+                            },
+                            page: {
+                              type: 'number',
+                              description: 'Trang hiện tại',
+                            },
+                            pageSize: {
+                              type: 'number',
+                              description: 'Kích thước trang',
+                            },
+                            totalPages: {
+                              type: 'number',
+                              description: 'Tổng số trang',
+                            },
+                          },
+                        },
+                      },
+                    },
                   },
                 },
               },
@@ -5505,12 +5579,85 @@ export const apiSpecification: OpenAPIV3.Document = {
           },
           '400': {
             description: 'Tham số truy vấn không hợp lệ',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'error',
+                    },
+                    message: {
+                      type: 'string',
+                      example: 'common.invalidQueryParams',
+                    },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        error: {
+                          type: 'string',
+                          example: 'Invalid sort or filters format',
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
           '401': {
             description: 'Không có quyền truy cập',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'error',
+                    },
+                    message: {
+                      type: 'string',
+                      example: 'common.unauthorized',
+                    },
+                  },
+                },
+              },
+            },
           },
           '500': {
             description: 'Lỗi server',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'error',
+                    },
+                    message: {
+                      type: 'string',
+                      example: 'common.serverError',
+                    },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        message: {
+                          type: 'string',
+                          example: 'Internal server error',
+                        },
+                        stack: {
+                          type: 'string',
+                          description: 'Stack trace (chỉ trong môi trường development)',
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -7431,30 +7578,19 @@ export const apiSpecification: OpenAPIV3.Document = {
                   },
                 },
                 required: ['tripId', 'seatIds'],
-                anyOf: [
-                  {
-                    required: ['passengerName', 'passengerPhone', 'passengerEmail'],
-                  },
-                  {
-                    not: {
-                      required: ['passengerName', 'passengerPhone', 'passengerEmail'],
-                    },
-                  },
-                ],
               },
             },
           },
         },
         responses: {
           '200': {
-            description: 'Đặt vé thành công',
+            description: 'Booking created successfully',
             content: {
               'application/json': {
                 schema: {
                   type: 'object',
                   properties: {
-                    success: { type: 'boolean', example: true },
-                    message: { type: 'string', example: 'booking.created' },
+                    message: { type: 'string' },
                     data: { $ref: '#/components/schemas/Booking' },
                   },
                 },
@@ -7462,57 +7598,26 @@ export const apiSpecification: OpenAPIV3.Document = {
             },
           },
           '400': {
-            description: 'Dữ liệu không hợp lệ, ghế không khả dụng hoặc mã giảm giá không hợp lệ',
+            description: 'Invalid input data',
             content: {
               'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: {
-                    success: { type: 'boolean', example: false },
-                    message: {
-                      type: 'string',
-                      enum: [
-                        'booking.missingRequiredFields',
-                        'booking.tooManySeats',
-                        'booking.invalidTripStatus',
-                        'booking.invalidSeats',
-                        'booking.seatsNotAvailable',
-                        'voucher.invalid',
-                        'voucher.limitReached',
-                        'voucher.userLimitReached',
-                        'voucher.notApplicableForRoute',
-                        'voucher.minOrderNotMet',
-                      ],
-                      example: 'booking.seatsNotAvailable',
-                    },
-                    data: {
-                      type: 'object',
-                      properties: {
-                        maxSeats: { type: 'integer', example: 5 },
-                        seats: {
-                          type: 'array',
-                          items: { type: 'string' },
-                          example: ['A1', 'A2'],
-                        },
-                        minOrder: { type: 'number', example: 100000 },
-                      },
-                    },
-                  },
-                },
+                schema: { $ref: '#/components/schemas/Error' },
               },
             },
           },
           '404': {
-            description: 'Chuyến đi không tìm thấy',
+            description: 'Trip not found',
             content: {
               'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: {
-                    success: { type: 'boolean', example: false },
-                    message: { type: 'string', example: 'trip.notFound' },
-                  },
-                },
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
               },
             },
           },
@@ -8309,7 +8414,7 @@ export const apiSpecification: OpenAPIV3.Document = {
                 schema: {
                   type: 'string',
                   example:
-                    'bookingId,bookingDate,customer,email,phone,route,departureTime,seats,seatCount,basePrice,discount,finalPrice,status,paymentStatus,voucher\n507f1f77bcf86cd799439014,2025-07-02T09:47:00Z,"John Doe",john.doe@example.com,+84123456789,"HCM → Hanoi",2025-07-03T08:00:00Z,"A1,A2",2,200000,20000,180000,CONFIRMED,COMPLETED,SUMMER2025',
+                    'bookingId,bookingDate,passenger,email,phone,route,departureTime,seats,seatCount,basePrice,discount,finalPrice,status,paymentStatus,voucher\n507f1f77bcf86cd799439014,2025-07-02T09:47:00Z,"John Doe",john.doe@example.com,+84123456789,"HCM → Hanoi",2025-07-03T08:00:00Z,"A1,A2",2,200000,20000,180000,CONFIRMED,COMPLETED,SUMMER2025',
                 },
               },
             },

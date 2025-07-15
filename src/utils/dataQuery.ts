@@ -165,7 +165,7 @@ export async function queryData<T>(
   }
 
   // Thực hiện truy vấn
-  console.log('Executing query with conditions:', prismaModel);
+  // console.log('Executing query with conditions:', prismaModel);
 
   const [totalCount, data] = await Promise.all([
     prismaModel.count({ where: whereCondition }),

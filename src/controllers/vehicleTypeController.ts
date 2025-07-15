@@ -4,6 +4,7 @@ import { queryData, DataQueryParams } from '#utils/dataQuery';
 import { sendSuccess, sendBadRequest, sendNotFound, sendServerError } from '#utils/apiResponse';
 import { CommonStatus } from '@prisma/client';
 import { getSignedUrlForFile } from '#src/services/r2Service';
+import { deepRemoveTimestamps } from '#src/helpers/dataHelper';
 
 /**
  * Get list of vehicle types
@@ -23,10 +24,11 @@ export const getVehicleTypeList = async (req: Request, res: Response): Promise<v
       ? (req.query.searchFields as string).split(',').map((field) => field.trim())
       : ['name', 'description'];
     const returnAll = req.query.returnAll === 'true';
+    const { sourceProvinceId, destinationProvinceId, departureDate, arrivalDate } = req.query;
 
     // Parse sort and filters from query string
     let sort: DataQueryParams['sort'] | undefined;
-    let filters: DataQueryParams['filters'] | undefined;
+    let filters: DataQueryParams['filters'] = { status: CommonStatus.ACTIVE, isDeleted: false };
 
     try {
       if (req.query.sort) {
@@ -35,11 +37,80 @@ export const getVehicleTypeList = async (req: Request, res: Response): Promise<v
 
       if (req.query.filters) {
         const parsedFilters = JSON.parse(req.query.filters as string);
-        filters = parsedFilters;
+        filters = { ...filters, ...parsedFilters };
+      }
+
+      // Add date range filters for trips
+      if (departureDate || arrivalDate) {
+        if (!filters) filters = {};
+        filters.vehicles = {
+          some: {
+            trips: {
+              some: {
+                AND: [
+                  departureDate ? { departureTime: { gte: new Date(departureDate as string) } } : {},
+                  arrivalDate
+                    ? {
+                        departureTime: {
+                          lte: (() => {
+                            const arrival = new Date(arrivalDate as string);
+                            if (arrival.getHours() === 0 && arrival.getMinutes() === 0 && arrival.getSeconds() === 0) {
+                              arrival.setHours(23, 59, 59, 999);
+                            }
+                            return arrival;
+                          })(),
+                        },
+                      }
+                    : {},
+                ],
+              },
+            },
+          },
+        };
+      }
+
+      // Add route filters for sourceProvinceId and destinationProvinceId
+      if (sourceProvinceId || destinationProvinceId || departureDate || arrivalDate) {
+        if (!filters) filters = {};
+        filters.vehicles = {
+          some: {
+            trips: {
+              some: {
+                AND: [
+                  // Route filters
+                  {
+                    route: {
+                      AND: [
+                        sourceProvinceId ? { sourceProvinceId: sourceProvinceId as string } : {},
+                        destinationProvinceId ? { destinationProvinceId: destinationProvinceId as string } : {},
+                      ],
+                    },
+                  },
+                  // Date filters
+                  departureDate ? { departureTime: { gte: new Date(departureDate as string) } } : {},
+                  arrivalDate
+                    ? {
+                        departureTime: {
+                          lte: (() => {
+                            const arrival = new Date(arrivalDate as string);
+                            if (arrival.getHours() === 0 && arrival.getMinutes() === 0 && arrival.getSeconds() === 0) {
+                              arrival.setHours(23, 59, 59, 999);
+                            }
+                            return arrival;
+                          })(),
+                        },
+                      }
+                    : {},
+                ],
+              },
+            },
+          },
+        };
       }
     } catch (parseError) {
       return sendBadRequest(res, 'common.invalidQueryParams', { error: 'Invalid sort or filters format' }, language);
     }
+
     // Define enum fields for VehicleType model
     const enumFields = {
       status: Object.values(CommonStatus),
@@ -59,7 +130,7 @@ export const getVehicleTypeList = async (req: Request, res: Response): Promise<v
 
     const result = await queryData(prisma.vehicleType, queryParams);
 
-    return sendSuccess(res, 'vehicleType.listRetrieved', result, language);
+    return sendSuccess(res, 'vehicleType.listRetrieved', deepRemoveTimestamps(result), language);
   } catch (error) {
     console.error('Error retrieving vehicle type list:', error);
     return sendServerError(
