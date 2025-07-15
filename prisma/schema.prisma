@@ -546,9 +546,9 @@ model Booking {
   userId String? @db.ObjectId
   user   User?   @relation(fields: [userId], references: [id])
 
-  guestName      String?
-  guestEmail     String?
-  guestPhone     String?
+  passengerName      String?
+  passengerEmail     String?
+  passengerPhone     String?
   isGuestBooking Boolean @default(false)
   
   pickupId   String?  @db.ObjectId
@@ -579,7 +579,7 @@ model Booking {
 
   voucherUsage VoucherUsage?
 
-  customerNotes String?
+  passengerNote String?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

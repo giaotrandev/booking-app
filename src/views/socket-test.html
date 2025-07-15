@@ -633,8 +633,8 @@
                 </div>
             </div>
             <div class="form-group">
-                <label for="customerNotes">Customer Notes (Optional):</label>
-                <textarea id="customerNotes" rows="3" placeholder="Any special requirements..."></textarea>
+                <label for="passengerNote">Customer Notes (Optional):</label>
+                <textarea id="passengerNote" rows="3" placeholder="Any special requirements..."></textarea>
             </div>
 
             <div id="priceCalculation" class="price-calculation" style="display: none;">
@@ -1011,7 +1011,7 @@
             const token = document.getElementById('token').value;
             const tripId = document.getElementById('bookingTripId').value;
             const voucherCode = document.getElementById('voucherCode').value;
-            const customerNotes = document.getElementById('customerNotes').value;
+            const passengerNote = document.getElementById('passengerNote').value;
 
             if (selectedSeats.size === 0) {
                 addLog('Please select at least one seat', 'error');
@@ -1034,7 +1034,7 @@
                         tripId,
                         seatIds: Array.from(selectedSeats),
                         voucherCode: voucherCode || undefined,
-                        customerNotes: customerNotes || undefined
+                        passengerNote: passengerNote || undefined
                     })
                 });
 

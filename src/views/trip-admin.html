@@ -1119,10 +1119,10 @@
                                 <label>Seats:</label>
                                 <div>${seats.map(seat => `${seat.seatNumber} (${seat.status})`).join(', ') || 'No seats'}</div>
                             </div>
-                            ${booking.customerNotes ? `
+                            ${booking.passengerNote ? `
                                 <div class="form-group form-full">
                                     <label>Customer Notes:</label>
-                                    <div>${booking.customerNotes}</div>
+                                    <div>${booking.passengerNote}</div>
                                 </div>
                             ` : ''}
                         </div>

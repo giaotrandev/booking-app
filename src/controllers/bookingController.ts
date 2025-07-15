@@ -81,8 +81,17 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
   const userId = (req.user as { userId: string })?.userId || undefined;
 
   try {
-    const { tripId, seatIds, voucherCode, guestName, guestPhone, guestEmail, pickupId, dropoffId, customerNotes } =
-      req.body;
+    const {
+      tripId,
+      seatIds,
+      voucherCode,
+      passengerName,
+      passengerPhone,
+      passengerEmail,
+      pickupId,
+      dropoffId,
+      passengerNote,
+    } = req.body;
 
     if (!tripId || !seatIds || !Array.isArray(seatIds) || seatIds.length === 0) {
       sendBadRequest(res, 'booking.missingRequiredFields', null, language);
@@ -221,15 +230,15 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
           data: {
             userId: userId,
             isGuestBooking: !userId,
-            guestName: !userId ? guestName : undefined,
-            guestEmail: !userId ? guestEmail : undefined,
-            guestPhone: !userId ? guestPhone : undefined,
+            passengerName: !userId ? passengerName : undefined,
+            passengerEmail: !userId ? passengerEmail : undefined,
+            passengerPhone: !userId ? passengerPhone : undefined,
             status: BookingStatus.PENDING,
             paymentStatus: PaymentStatus.PENDING,
             totalPrice,
             discountAmount: discountAmount > 0 ? discountAmount : null,
             finalPrice,
-            customerNotes: customerNotes || null,
+            passengerNote: passengerNote || null,
             pickupId: pickupId || null,
             dropoffId: dropoffId || null,
           },
@@ -2087,9 +2096,9 @@ export const exportBookingData = async (req: Request, res: Response): Promise<vo
       return {
         bookingId: booking.id,
         bookingDate: booking.createdAt.toISOString(),
-        customer: booking.user ? booking.user.firstName + ' ' + booking.user.lastName : booking.guestName,
-        email: booking.user ? booking.user.email : booking.guestEmail,
-        phone: booking.user ? booking.user.phoneNumber : booking.guestPhone,
+        customer: booking.user ? booking.user.firstName + ' ' + booking.user.lastName : booking.passengerName,
+        email: booking.user ? booking.user.email : booking.passengerEmail,
+        phone: booking.user ? booking.user.phoneNumber : booking.passengerPhone,
         route: route ? `${route.sourceProvince.name} → ${route.destinationProvince.name}` : 'N/A',
         departureTime: trip ? trip.departureTime.toISOString() : 'N/A',
         seats: seats.join(', '),

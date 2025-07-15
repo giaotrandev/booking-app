@@ -91,8 +91,8 @@ export async function generateTicketsForBooking(bookingId: string) {
           qrCodeImage: qrCodeFileKey,
           passengerName: booking.user
             ? `${booking.user.firstName} ${booking.user.lastName}`
-            : booking.guestName || 'N/A',
-          passengerPhone: booking.guestPhone || null,
+            : booking.passengerName || 'N/A',
+          passengerPhone: booking.passengerPhone || null,
         };
       })
     )
@@ -128,9 +128,9 @@ export async function generateTicketsForBooking(bookingId: string) {
       qrCodePath: ticket.qrCodeImage ? await getSignedUrlForFile(ticket.qrCodeImage) : null,
     };
 
-    const guestEmail = ticket.booking.guestEmail || (ticket.booking.user ? ticket.booking.user.email : null);
+    const passengerEmail = ticket.booking.passengerEmail || (ticket.booking.user ? ticket.booking.user.email : null);
 
-    if (guestEmail) await sendEmail(guestEmail, 'Your Bus Ticket', () => template(emailParams), emailParams);
+    if (passengerEmail) await sendEmail(passengerEmail, 'Your Bus Ticket', () => template(emailParams), emailParams);
   }
 
   return result;
@@ -192,10 +192,11 @@ export async function regenerateTicketQRCode(ticketId: string) {
     seatNumbers: updatedTicket.seat.seatNumber || 'N/A',
     qrCodePath: updatedTicket.qrCodeImage,
   };
-  const guestEmail =
-    updatedTicket.booking.guestEmail || (updatedTicket.booking.user ? updatedTicket.booking.user.email : null);
+  const passengerEmail =
+    updatedTicket.booking.passengerEmail || (updatedTicket.booking.user ? updatedTicket.booking.user.email : null);
 
-  if (guestEmail) await sendEmail(guestEmail, 'Your Updated Bus Ticket', () => template(emailParams), emailParams);
+  if (passengerEmail)
+    await sendEmail(passengerEmail, 'Your Updated Bus Ticket', () => template(emailParams), emailParams);
 
   return updatedTicket;
 }

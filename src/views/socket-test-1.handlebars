@@ -631,22 +631,22 @@
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="guestName">Name:</label>
-                    <input type="text" id="guestName" placeholder="Enter your name">
+                    <label for="passengerName">Name:</label>
+                    <input type="text" id="passengerName" placeholder="Enter your name">
                 </div>
                 <div class="form-group">
-                    <label for="guestPhone">Phone number (Required):</label>
-                    <input type="text" id="guestPhone" placeholder="Enter phone number">
+                    <label for="passengerPhone">Phone number (Required):</label>
+                    <input type="text" id="passengerPhone" placeholder="Enter phone number">
                 </div>
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="guestEmail">Customer email:</label>
-                    <input type="email" id="guestEmail" placeholder="Enter email">
+                    <label for="passengerEmail">Customer email:</label>
+                    <input type="email" id="passengerEmail" placeholder="Enter email">
                 </div>
                 <div class="form-group">
-                    <label for="customerNotes">Customer Notes (Optional):</label>
-                    <textarea id="customerNotes" rows="3" placeholder="Any special requirements..."></textarea>
+                    <label for="passengerNote">Customer Notes (Optional):</label>
+                    <textarea id="passengerNote" rows="3" placeholder="Any special requirements..."></textarea>
                 </div>
             </div>
 
@@ -1025,22 +1025,22 @@
             const apiUrl = document.getElementById('apiUrl').value;
             const tripId = document.getElementById('bookingTripId').value;
             const guest = {
-                name: document.getElementById('guestName').value,
-                phone: document.getElementById('guestPhone').value,
-                email: document.getElementById('guestEmail').value
+                name: document.getElementById('passengerName').value,
+                phone: document.getElementById('passengerPhone').value,
+                email: document.getElementById('passengerEmail').value
             };
             const voucherCode = document.getElementById('voucherCode').value;
-            const customerNotes = document.getElementById('customerNotes').value;
+            const passengerNote = document.getElementById('passengerNote').value;
             const userId = document.getElementById('userId').value;
 
             console.log('Creating booking with data:', {
                         tripId,
                         seatIds: Array.from(selectedSeats),
-                        guestName: guest.name,
-                        guestPhone: guest.phone,
-                        guestEmail: guest.email,
+                        passengerName: guest.name,
+                        passengerPhone: guest.phone,
+                        passengerEmail: guest.email,
                         voucherCode: voucherCode || undefined,
-                        customerNotes: customerNotes || undefined,
+                        passengerNote: passengerNote || undefined,
                         userId: userId || null
                     });
 
@@ -1063,11 +1063,11 @@
                     body: JSON.stringify({
                         tripId,
                         seatIds: Array.from(selectedSeats),
-                        guestName: guest.name,
-                        guestPhone: guest.phone,
-                        guestEmail: guest.email,
+                        passengerName: guest.name,
+                        passengerPhone: guest.phone,
+                        passengerEmail: guest.email,
                         voucherCode: voucherCode || undefined,
-                        customerNotes: customerNotes || undefined,
+                        passengerNote: passengerNote || undefined,
                         userId: userId || null
                     })
                 });

@@ -7398,17 +7398,17 @@ export const apiSpecification: OpenAPIV3.Document = {
                     description: 'Mã giảm giá (yêu cầu xác thực)',
                     example: 'SUMMER2025',
                   },
-                  guestName: {
+                  passengerName: {
                     type: 'string',
                     description: 'Tên khách hàng (dùng cho đặt vé không đăng nhập)',
                     example: 'John Doe',
                   },
-                  guestPhone: {
+                  passengerPhone: {
                     type: 'string',
                     description: 'Số điện thoại khách hàng (dùng cho đặt vé không đăng nhập)',
                     example: '+84123456789',
                   },
-                  guestEmail: {
+                  passengerEmail: {
                     type: 'string',
                     format: 'email',
                     description: 'Email khách hàng (dùng cho đặt vé không đăng nhập)',
@@ -7424,7 +7424,7 @@ export const apiSpecification: OpenAPIV3.Document = {
                     description: 'Id của bus stop điểm đến',
                     example: '507f1f77bcf86cd799439015',
                   },
-                  customerNotes: {
+                  passengerNote: {
                     type: 'string',
                     description: 'Ghi chú của khách hàng',
                     example: 'Gần cửa sổ',
@@ -7433,11 +7433,11 @@ export const apiSpecification: OpenAPIV3.Document = {
                 required: ['tripId', 'seatIds'],
                 anyOf: [
                   {
-                    required: ['guestName', 'guestPhone', 'guestEmail'],
+                    required: ['passengerName', 'passengerPhone', 'passengerEmail'],
                   },
                   {
                     not: {
-                      required: ['guestName', 'guestPhone', 'guestEmail'],
+                      required: ['passengerName', 'passengerPhone', 'passengerEmail'],
                     },
                   },
                 ],
@@ -8848,6 +8848,70 @@ export const apiSpecification: OpenAPIV3.Document = {
           },
         },
         required: ['seatId', 'status'],
+      },
+      Booking: {
+        type: 'object',
+        properties: {
+          tripId: {
+            type: 'string',
+            description: 'ID của chuyến đi',
+            example: '507f1f77bcf86cd799439012',
+          },
+          seatIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Danh sách ID của các ghế được chọn',
+            example: ['507f1f77bcf86cd799439013', '507f1f77bcf86cd799439014'],
+            minItems: 1,
+          },
+          voucherCode: {
+            type: 'string',
+            description: 'Mã giảm giá (yêu cầu xác thực)',
+            example: 'SUMMER2025',
+          },
+          passengerName: {
+            type: 'string',
+            description: 'Tên khách hàng (dùng cho đặt vé không đăng nhập)',
+            example: 'John Doe',
+          },
+          passengerPhone: {
+            type: 'string',
+            description: 'Số điện thoại khách hàng (dùng cho đặt vé không đăng nhập)',
+            example: '+84123456789',
+          },
+          passengerEmail: {
+            type: 'string',
+            format: 'email',
+            description: 'Email khách hàng (dùng cho đặt vé không đăng nhập)',
+            example: 'john.doe@example.com',
+          },
+          pickupId: {
+            type: 'string',
+            description: 'Id của bus stop điểm đón',
+            example: '507f1f77bcf86cd799439014',
+          },
+          dropoffId: {
+            type: 'string',
+            description: 'Id của bus stop điểm đến',
+            example: '507f1f77bcf86cd799439015',
+          },
+          passengerNote: {
+            type: 'string',
+            description: 'Ghi chú của khách hàng',
+            example: 'Gần cửa sổ',
+          },
+        },
+        required: ['tripId', 'seatIds'],
+        anyOf: [
+          {
+            required: ['passengerName', 'passengerPhone', 'passengerEmail'],
+          },
+          {
+            not: {
+              required: ['passengerName', 'passengerPhone', 'passengerEmail'],
+            },
+          },
+        ],
       },
       BookingStatusChanged: {
         type: 'object',
