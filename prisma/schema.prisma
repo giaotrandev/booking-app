@@ -170,6 +170,9 @@ model RouteStop {
   busStopId String  @db.ObjectId
   busStop   BusStop @relation(fields: [busStopId], references: [id])
 
+  isPickUp Boolean @default(false)
+  isDropOff Boolean @default(false)
+
   stopOrder Int
 
   estimatedArrivalTime   DateTime?

@@ -4468,6 +4468,175 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
+    '/bus-stops/by-routes': {
+      get: {
+        tags: ['Bus Stop'],
+        summary: 'Get list of bus stops by routes',
+        description:
+          'Retrieve a list of bus stops associated with specified routes, filtered by route IDs or source and destination province IDs. Returns all bus stops, pickup points, and dropoff points with their associated route information. Either routeIds or both sourceProvinceId and destinationProvinceId must be provided.',
+        parameters: [
+          {
+            name: 'routeIds',
+            in: 'query',
+            description:
+              'Filter bus stops by route IDs (comma-separated string, JSON array, or query array, e.g., "route1,route2", "[\"route1\",\"route2\"]", or routeIds[]=route1&routeIds[]=route2)',
+            schema: {
+              oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+            },
+          },
+          {
+            name: 'sourceProvinceId',
+            in: 'query',
+            description: 'Filter bus stops by source province ID (required if routeIds is not provided)',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'destinationProvinceId',
+            in: 'query',
+            description: 'Filter bus stops by destination province ID (required if routeIds is not provided)',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'departureDate',
+            in: 'query',
+            schema: { type: 'string', format: 'date-time' },
+            description: 'Ngày giờ khởi hành tối thiểu (lọc các chuyến đi có departureTime >= giá trị này)',
+          },
+          {
+            name: 'arrivalDate',
+            in: 'query',
+            schema: { type: 'string', format: 'date-time' },
+            description:
+              'Ngày giờ khởi hành tối đa (lọc các chuyến đi có departureTime <= giá trị này, mặc định đến cuối ngày nếu không có giờ cụ thể)',
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages (e.g., en, vi). Defaults to en.',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'List of bus stops retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', description: 'Response message' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        allBusStops: {
+                          type: 'array',
+                          description: 'List of all bus stops associated with the specified routes',
+                          items: {
+                            allOf: [
+                              { $ref: '#/components/schemas/BusStop' },
+                              {
+                                type: 'object',
+                                properties: {
+                                  routes: {
+                                    type: 'array',
+                                    items: {
+                                      type: 'object',
+                                      properties: {
+                                        routeId: { type: 'string', description: 'ID of the route' },
+                                        routeName: { type: 'string', description: 'Name of the route' },
+                                        stopOrder: { type: 'integer', description: 'Order of the stop in the route' },
+                                        isPickUp: {
+                                          type: 'boolean',
+                                          description: 'Whether the stop is a pickup point',
+                                        },
+                                        isDropOff: {
+                                          type: 'boolean',
+                                          description: 'Whether the stop is a dropoff point',
+                                        },
+                                      },
+                                    },
+                                  },
+                                },
+                              },
+                            ],
+                          },
+                        },
+                        pickupPoints: {
+                          type: 'array',
+                          description: 'List of bus stops that are pickup points',
+                          items: {
+                            allOf: [
+                              { $ref: '#/components/schemas/BusStop' },
+                              {
+                                type: 'object',
+                                properties: {
+                                  pickupRoutes: {
+                                    type: 'array',
+                                    items: {
+                                      type: 'object',
+                                      properties: {
+                                        routeId: { type: 'string', description: 'ID of the route' },
+                                        routeName: { type: 'string', description: 'Name of the route' },
+                                        stopOrder: { type: 'integer', description: 'Order of the stop in the route' },
+                                      },
+                                    },
+                                  },
+                                },
+                              },
+                            ],
+                          },
+                        },
+                        dropoffPoints: {
+                          type: 'array',
+                          description: 'List of bus stops that are dropoff points',
+                          items: {
+                            allOf: [
+                              { $ref: '#/components/schemas/BusStop' },
+                              {
+                                type: 'object',
+                                properties: {
+                                  dropoffRoutes: {
+                                    type: 'array',
+                                    items: {
+                                      type: 'object',
+                                      properties: {
+                                        routeId: { type: 'string', description: 'ID of the route' },
+                                        routeName: { type: 'string', description: 'Name of the route' },
+                                        stopOrder: { type: 'integer', description: 'Order of the stop in the route' },
+                                      },
+                                    },
+                                  },
+                                },
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid query parameters (e.g., missing routeIds or sourceProvinceId/destinationProvinceId)',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+              },
+            },
+          },
+        },
+      },
+    },
     // Route stop
     '/route-stops': {
       get: {
@@ -6270,7 +6439,7 @@ export const apiSpecification: OpenAPIV3.Document = {
             name: 'pickupStopIds',
             in: 'query',
             description:
-              'Filter trips by pickup bus stop IDs (comma-separated string or array, e.g., "stop1,stop2" or pickupStopIds[]=stop1&pickupStopIds[]=stop2)',
+              'Filter trips by pickup bus stop IDs (comma-separated string or array, e.g., "stop1,stop2" or pickupStopIds[]=stop1&pickupStopIds[]=stop2). Only matches stops where isPickUp is true.',
             schema: {
               oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
             },
@@ -6279,7 +6448,7 @@ export const apiSpecification: OpenAPIV3.Document = {
             name: 'dropoffStopIds',
             in: 'query',
             description:
-              'Filter trips by dropoff bus stop IDs (comma-separated string or array, e.g., "stop1,stop2" or dropoffStopIds[]=stop1&dropoffStopIds[]=stop2)',
+              'Filter trips by dropoff bus stop IDs (comma-separated string or array, e.g., "stop1,stop2" or dropoffStopIds[]=stop1&dropoffStopIds[]=stop2). Only matches stops where isDropOff is true.',
             schema: {
               oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
             },
@@ -6300,22 +6469,36 @@ export const apiSpecification: OpenAPIV3.Document = {
             schema: { type: 'string', enum: ['true', 'false'] },
           },
           {
-            name: 'minDepartureHour',
+            name: 'timeRanges',
             in: 'query',
-            description: 'Filter trips by minimum departure hour in the specified timezone (0-23)',
-            schema: { type: 'integer', minimum: 0, maximum: 23 },
-          },
-          {
-            name: 'maxDepartureHour',
-            in: 'query',
-            description: 'Filter trips by maximum departure hour in the specified timezone (0-23)',
-            schema: { type: 'integer', minimum: 0, maximum: 23 },
+            description:
+              'Filter trips by departure time ranges in the specified timezone. Accepts either a comma-separated string of ranges (e.g., "1-5,7-12,23-2") or a JSON array of objects (e.g., [{"start":1,"end":5},{"start":7,"end":12}]). Hours are 0-23.',
+            schema: {
+              oneOf: [
+                { type: 'string' },
+                {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      start: { type: 'integer', minimum: 0, maximum: 23 },
+                      end: { type: 'integer', minimum: 0, maximum: 23 },
+                    },
+                    required: ['start', 'end'],
+                  },
+                },
+              ],
+            },
+            examples: {
+              simpleFormat: { value: '1-5,7-12,23-2' },
+              jsonFormat: { value: '[{"start":1,"end":5},{"start":7,"end":12}]' },
+            },
           },
           {
             name: 'timezone',
             in: 'query',
             description:
-              'Timezone for departure hour filtering (IANA format, e.g., Asia/Ho_Chi_Minh). Defaults to Asia/Ho_Chi_Minh if not provided.',
+              'Timezone for departure time filtering (IANA format, e.g., Asia/Ho_Chi_Minh). Defaults to Asia/Ho_Chi_Minh if not provided.',
             schema: { type: 'string', default: 'Asia/Ho_Chi_Minh' },
           },
           {
@@ -6384,18 +6567,33 @@ export const apiSpecification: OpenAPIV3.Document = {
                   properties: {
                     message: { type: 'string', description: 'Response message' },
                     data: {
-                      type: 'array',
-                      items: { $ref: '#/components/schemas/TripWithDetails' },
-                    },
-                    meta: {
                       type: 'object',
                       properties: {
-                        page: { type: 'integer', description: 'Current page number' },
-                        pageSize: { type: 'integer', description: 'Number of items per page' },
-                        totalCount: { type: 'integer', description: 'Total number of trips' },
-                        totalPages: { type: 'integer', description: 'Total number of pages' },
-                        hasNextPage: { type: 'boolean', description: 'Whether there is a next page' },
-                        hasPrevPage: { type: 'boolean', description: 'Whether there is a previous page' },
+                        outboundTrips: {
+                          type: 'object',
+                          properties: {
+                            data: {
+                              type: 'array',
+                              items: { $ref: '#/components/schemas/TripWithDetails' },
+                            },
+                            pagination: {
+                              type: 'object',
+                              properties: {
+                                page: { type: 'integer', description: 'Current page number' },
+                                pageSize: { type: 'integer', description: 'Number of items per page' },
+                                totalCount: { type: 'integer', description: 'Total number of trips' },
+                                totalPages: { type: 'integer', description: 'Total number of pages' },
+                                hasNextPage: { type: 'boolean', description: 'Whether there is a next page' },
+                                hasPrevPage: { type: 'boolean', description: 'Whether there is a previous page' },
+                              },
+                            },
+                          },
+                        },
+                        returnTrips: {
+                          type: 'object',
+                          description: 'Placeholder for return trips (currently empty)',
+                          properties: {},
+                        },
                       },
                     },
                   },

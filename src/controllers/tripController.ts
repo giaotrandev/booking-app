@@ -317,28 +317,56 @@ function buildTripFilters(query: any) {
 
   // Bus stop filters (điểm đón/trả)
   if (query.busStopIds || query.pickupStopIds || query.dropoffStopIds) {
-    const stopIds = [];
+    const routeConditions = [];
 
+    // Xử lý busStopIds - chỉ cần tồn tại busStopId trùng khớp
     if (query.busStopIds) {
-      stopIds.push(...(Array.isArray(query.busStopIds) ? query.busStopIds : query.busStopIds.split(',')));
+      const busStopIds = Array.isArray(query.busStopIds) ? query.busStopIds : query.busStopIds.split(',');
+
+      routeConditions.push({
+        routeStops: {
+          some: {
+            busStopId: { in: busStopIds },
+          },
+        },
+      });
     }
 
+    // Xử lý pickupStopIds - busStopId trùng khớp VÀ isPickUp = true
     if (query.pickupStopIds) {
-      stopIds.push(...(Array.isArray(query.pickupStopIds) ? query.pickupStopIds : query.pickupStopIds.split(',')));
+      const pickupStopIds = Array.isArray(query.pickupStopIds) ? query.pickupStopIds : query.pickupStopIds.split(',');
+
+      routeConditions.push({
+        routeStops: {
+          some: {
+            busStopId: { in: pickupStopIds },
+            isPickUp: true,
+          },
+        },
+      });
     }
 
+    // Xử lý dropoffStopIds - busStopId trùng khớp VÀ isDropOff = true
     if (query.dropoffStopIds) {
-      stopIds.push(...(Array.isArray(query.dropoffStopIds) ? query.dropoffStopIds : query.dropoffStopIds.split(',')));
+      const dropoffStopIds = Array.isArray(query.dropoffStopIds)
+        ? query.dropoffStopIds
+        : query.dropoffStopIds.split(',');
+
+      routeConditions.push({
+        routeStops: {
+          some: {
+            busStopId: { in: dropoffStopIds },
+            isDropOff: true,
+          },
+        },
+      });
     }
 
-    if (stopIds.length > 0) {
+    // Áp dụng filter nếu có điều kiện
+    if (routeConditions.length > 0) {
       filters.route = {
         ...filters.route,
-        // routeStops: {
-        //   some: {
-        //     busStopId: { in: [...new Set(stopIds)] }, // Remove duplicates
-        //   },
-        // },
+        AND: routeConditions,
       };
     }
   }
@@ -648,14 +676,16 @@ export const getTripDetails = async (req: Request, res: Response): Promise<void>
         provinceName: province.name,
         provinceId: province.id,
         stopOrder: routeStop.stopOrder,
-        price: priceMap.get(busStop.id) || 0, // Include price from stopPrices
+        isPickUp: routeStop.isPickUp,
+        isDropOff: routeStop.isDropOff,
+        price: priceMap.get(busStop.id) || 0,
       };
     });
 
     // Separate stops into pickup and dropoff points
     const routeStops = {
-      pickupPoints: processedStops.filter((stop) => stop.provinceId === trip.route.sourceProvince.id),
-      dropoffPoints: processedStops.filter((stop) => stop.provinceId === trip.route.destinationProvince.id),
+      pickupPoints: processedStops.filter((stop) => stop.isPickUp),
+      dropoffPoints: processedStops.filter((stop) => stop.isDropOff),
     };
 
     // Build final result

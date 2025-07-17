@@ -345,9 +345,6 @@ export const getRouteStopsByBusStop = async (req: Request, res: Response): Promi
   }
 };
 
-/**
- * Create a new route stop
- */
 export const createRouteStop = async (req: Request, res: Response): Promise<void> => {
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
 
@@ -359,18 +356,33 @@ export const createRouteStop = async (req: Request, res: Response): Promise<void
       return sendBadRequest(res, 'routeStop.missingRequiredFields', null, language);
     }
 
-    // Check if route exists
+    // Check if route exists and include province relations
     const route = await prisma.route.findUnique({
       where: { id: routeId },
+      include: {
+        sourceProvince: true,
+        destinationProvince: true,
+      },
     });
 
     if (!route) {
       return sendNotFound(res, 'route.notFound', null, language);
     }
 
-    // Check if bus stop exists
+    // Check if bus stop exists and include ward with district and province
     const busStop = await prisma.busStop.findUnique({
       where: { id: busStopId },
+      include: {
+        ward: {
+          include: {
+            district: {
+              include: {
+                province: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!busStop) {
@@ -415,12 +427,19 @@ export const createRouteStop = async (req: Request, res: Response): Promise<void
       departureTime = new Date(estimatedDepartureTime);
     }
 
+    // Determine isPickUp and isDropOff based on province matching
+    const busStopProvinceId = busStop.ward.district.province.id;
+    const isPickUp = busStopProvinceId === route.sourceProvinceId;
+    const isDropOff = busStopProvinceId === route.destinationProvinceId;
+
     // Create the route stop in the database
     const newRouteStop = await prisma.routeStop.create({
       data: {
         routeId,
         busStopId,
         stopOrder: parseInt(stopOrder),
+        isPickUp,
+        isDropOff,
         estimatedArrivalTime: arrivalTime,
         estimatedDepartureTime: departureTime,
         status: CommonStatus.ACTIVE,
@@ -458,9 +477,30 @@ export const updateRouteStop = async (req: Request, res: Response): Promise<void
   try {
     const { id } = req.params;
 
-    // Check if route stop exists
+    // Check if route stop exists and include route with provinces
     const routeStop = await prisma.routeStop.findUnique({
       where: { id },
+      include: {
+        route: {
+          include: {
+            sourceProvince: true,
+            destinationProvince: true,
+          },
+        },
+        busStop: {
+          include: {
+            ward: {
+              include: {
+                district: {
+                  include: {
+                    province: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!routeStop) {
@@ -506,6 +546,14 @@ export const updateRouteStop = async (req: Request, res: Response): Promise<void
     if (status !== undefined) {
       updateData.status = status;
     }
+
+    // Recalculate isPickUp and isDropOff based on province matching
+    const busStopProvinceId = routeStop.busStop.ward.district.province.id;
+    const isPickUp = busStopProvinceId === routeStop.route.sourceProvinceId;
+    const isDropOff = busStopProvinceId === routeStop.route.destinationProvinceId;
+
+    updateData.isPickUp = isPickUp;
+    updateData.isDropOff = isDropOff;
 
     // Update route stop
     const updatedRouteStop = await prisma.routeStop.update({

@@ -123,6 +123,273 @@ export const getBusStopDetails = async (req: Request, res: Response): Promise<vo
   }
 };
 
+interface GetBusStopsByRoutesParams {
+  routeIds?: string[];
+  sourceProvinceId?: string;
+  destinationProvinceId?: string;
+  departureDate?: string; // ISO date string
+  arrivalDate?: string; // ISO date string
+}
+
+interface BusStopsByRoutesResponse {
+  allBusStops: any[];
+  pickupPoints: any[];
+  dropoffPoints: any[];
+}
+
+export const getAllBusStopByRoutes = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+
+  try {
+    let routeIds: string[] = [];
+    const sourceProvinceId = req.query.sourceProvinceId as string;
+    const destinationProvinceId = req.query.destinationProvinceId as string;
+    const departureDate = req.query.departureDate as string;
+    const arrivalDate = req.query.arrivalDate as string;
+
+    // Parse routeIds from query
+    if (req.query.routeIds) {
+      try {
+        routeIds = Array.isArray(req.query.routeIds)
+          ? (req.query.routeIds as string[])
+          : JSON.parse(req.query.routeIds as string);
+      } catch (parseError) {
+        routeIds = (req.query.routeIds as string).split(',').map((id) => id.trim());
+      }
+    }
+
+    // Validate input
+    if (
+      (!routeIds || routeIds.length === 0) &&
+      !sourceProvinceId &&
+      !destinationProvinceId &&
+      !departureDate &&
+      !arrivalDate
+    ) {
+      return sendBadRequest(
+        res,
+        'common.invalidQueryParams',
+        {
+          error:
+            'At least one filter parameter is required: routeIds, sourceProvinceId, destinationProvinceId, departureDate, or arrivalDate',
+        },
+        language
+      );
+    }
+
+    // Build where condition cho routes
+    let routeWhereCondition: any = {
+      status: 'ACTIVE',
+      isDeleted: false,
+    };
+
+    // Route ID filter
+    if (routeIds && routeIds.length > 0) {
+      routeWhereCondition.id = { in: routeIds };
+    }
+
+    // Province filters
+    if (sourceProvinceId) {
+      routeWhereCondition.sourceProvinceId = sourceProvinceId;
+    }
+    if (destinationProvinceId) {
+      routeWhereCondition.destinationProvinceId = destinationProvinceId;
+    }
+
+    // Date filters - filter routes that have trips within date range
+    if (departureDate || arrivalDate) {
+      const tripDateFilters: any[] = [];
+
+      if (departureDate) {
+        tripDateFilters.push({
+          departureTime: {
+            gte: new Date(departureDate),
+          },
+        });
+      }
+
+      if (arrivalDate) {
+        const arrivalDateTime = new Date(arrivalDate);
+        // Nếu chỉ có ngày (không có giờ), set thành cuối ngày
+        if (
+          arrivalDateTime.getHours() === 0 &&
+          arrivalDateTime.getMinutes() === 0 &&
+          arrivalDateTime.getSeconds() === 0
+        ) {
+          arrivalDateTime.setHours(23, 59, 59, 999);
+        }
+
+        tripDateFilters.push({
+          departureTime: {
+            lte: arrivalDateTime,
+          },
+        });
+      }
+
+      // Routes phải có ít nhất một trip thỏa mãn điều kiện date
+      routeWhereCondition.trips = {
+        some: {
+          AND: tripDateFilters,
+        },
+      };
+    }
+
+    // Query để lấy routes
+    const routes = await prisma.route.findMany({
+      where: routeWhereCondition,
+      select: {
+        id: true,
+        code: true,
+        name: true,
+      },
+    });
+
+    if (routes.length === 0) {
+      return sendSuccess(
+        res,
+        'busStop.noRoutesFound',
+        {
+          allBusStops: [],
+          pickupPoints: [],
+          dropoffPoints: [],
+        },
+        language
+      );
+    }
+
+    // Extract route IDs cho việc query route stops
+    const foundRouteIds = routes.map((route) => route.id);
+
+    // Query route stops với bus stops
+    const routeStops = await prisma.routeStop.findMany({
+      where: {
+        routeId: { in: foundRouteIds },
+        status: 'ACTIVE',
+        isDeleted: false,
+      },
+      include: {
+        busStop: {
+          include: {
+            ward: {
+              include: {
+                district: {
+                  include: {
+                    province: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        route: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ routeId: 'asc' }, { stopOrder: 'asc' }],
+    });
+
+    // Process bus stops
+    const busStopMap = new Map();
+    const pickupPointMap = new Map();
+    const dropoffPointMap = new Map();
+
+    routeStops.forEach((routeStop) => {
+      const busStop = routeStop.busStop;
+
+      // Skip deleted or inactive bus stops
+      if (busStop.isDeleted || busStop.status !== 'ACTIVE') {
+        return;
+      }
+
+      // Thêm vào danh sách tất cả bus stops
+      if (!busStopMap.has(busStop.id)) {
+        busStopMap.set(busStop.id, {
+          ...busStop,
+          routes: [],
+        });
+      }
+
+      // Thêm route info vào bus stop
+      const existingBusStop = busStopMap.get(busStop.id);
+      existingBusStop.routes.push({
+        routeId: routeStop.routeId,
+        routeCode: routeStop.route.code,
+        routeName: routeStop.route.name,
+        stopOrder: routeStop.stopOrder,
+        isPickUp: routeStop.isPickUp,
+        isDropOff: routeStop.isDropOff,
+        estimatedArrivalTime: routeStop.estimatedArrivalTime,
+        estimatedDepartureTime: routeStop.estimatedDepartureTime,
+      });
+
+      // Phân loại pickup và dropoff points
+      if (routeStop.isPickUp && !pickupPointMap.has(busStop.id)) {
+        pickupPointMap.set(busStop.id, {
+          ...busStop,
+          pickupRoutes: [],
+        });
+      }
+
+      if (routeStop.isDropOff && !dropoffPointMap.has(busStop.id)) {
+        dropoffPointMap.set(busStop.id, {
+          ...busStop,
+          dropoffRoutes: [],
+        });
+      }
+
+      // Thêm route info cho pickup/dropoff
+      if (routeStop.isPickUp) {
+        const pickupPoint = pickupPointMap.get(busStop.id);
+        pickupPoint.pickupRoutes.push({
+          routeId: routeStop.routeId,
+          routeCode: routeStop.route.code,
+          routeName: routeStop.route.name,
+          stopOrder: routeStop.stopOrder,
+          estimatedArrivalTime: routeStop.estimatedArrivalTime,
+          estimatedDepartureTime: routeStop.estimatedDepartureTime,
+        });
+      }
+
+      if (routeStop.isDropOff) {
+        const dropoffPoint = dropoffPointMap.get(busStop.id);
+        dropoffPoint.dropoffRoutes.push({
+          routeId: routeStop.routeId,
+          routeCode: routeStop.route.code,
+          routeName: routeStop.route.name,
+          stopOrder: routeStop.stopOrder,
+          estimatedArrivalTime: routeStop.estimatedArrivalTime,
+          estimatedDepartureTime: routeStop.estimatedDepartureTime,
+        });
+      }
+    });
+
+    const result: BusStopsByRoutesResponse = {
+      allBusStops: Array.from(busStopMap.values()),
+      pickupPoints: Array.from(pickupPointMap.values()),
+      dropoffPoints: Array.from(dropoffPointMap.values()),
+    };
+
+    return sendSuccess(res, 'busStop.routeStopsRetrieved', result, language);
+  } catch (error) {
+    console.error('Error retrieving bus stops by routes:', error);
+    return sendServerError(
+      res,
+      'common.serverError',
+      error instanceof Error
+        ? {
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+          }
+        : null,
+      language
+    );
+  }
+};
+
 /**
  * Create a new bus stop
  */

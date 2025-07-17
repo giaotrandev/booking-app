@@ -15,6 +15,20 @@ const router = express.Router();
 router.get('/', BusStopController.getBusStopList);
 
 /**
+ * @route GET /api/bus-stops/by-routes
+ * @desc Get bus stops by multiple routes
+ * @access Public
+ */
+router.get('/by-routes', BusStopController.getAllBusStopByRoutes);
+
+/**
+ * @route GET /api/bus-stops/nearby
+ * @desc Get nearby bus stops based on coordinates
+ * @access Public
+ */
+router.get('/nearby', BusStopController.getNearbyBusStops);
+
+/**
  * @route GET /api/bus-stops/:id
  * @desc Get bus stop by ID
  * @access Public
@@ -27,13 +41,6 @@ router.get('/:id', BusStopController.getBusStopDetails);
  * @access Public
  */
 router.get('/:id/routes', BusStopController.getRoutesByBusStop);
-
-/**
- * @route GET /api/bus-stops/nearby
- * @desc Get nearby bus stops based on coordinates
- * @access Public
- */
-router.get('/nearby', BusStopController.getNearbyBusStops);
 
 /**
  * @route POST /api/bus-stops
