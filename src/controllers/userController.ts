@@ -1,7 +1,13 @@
 import { Request, Response } from 'express';
 import { Request as MulterRequest } from 'express-serve-static-core';
 import fs from 'fs';
-import { uploadFileToR2, getSignedUrlForFile, deleteFileFromR2, StorageFolders } from '#services/r2Service';
+import {
+  uploadFileToR2,
+  getSignedUrlForFile,
+  getPublicR2Url,
+  deleteFileFromR2,
+  StorageFolders,
+} from '#services/r2Service';
 import { optimizeImage } from '#services/imageService';
 import { prisma } from '#config/db';
 import { queryData, DataQueryParams } from '#utils/dataQuery';
@@ -153,7 +159,7 @@ export const getUserDetails = async (req: Request, res: Response): Promise<void>
     // Get avatar URL if exists
     let avatarUrl = null;
     if (user.avatar) {
-      avatarUrl = await getSignedUrlForFile(user.avatar);
+      avatarUrl = await getPublicR2Url(user.avatar);
     }
 
     sendSuccess(res, 'user.detailsRetrieved', { user: { ...user, avatarUrl } }, language);
@@ -190,7 +196,7 @@ export const getUserAvatar = async (req: Request, res: Response): Promise<void> 
     // Get avatar URL if exists
     let avatarUrl = null;
     if (user.avatar) {
-      avatarUrl = await getSignedUrlForFile(user.avatar);
+      avatarUrl = await getPublicR2Url(user.avatar);
     }
 
     sendSuccess(
@@ -307,7 +313,7 @@ export const uploadAvatar = async (req: RequestWithFile, res: Response): Promise
     // Generate a pre-signed URL for immediate use
     let url = null;
     try {
-      url = await getSignedUrlForFile(fileKey);
+      url = await getPublicR2Url(fileKey);
     } catch (urlError) {
       console.error('Error generating signed URL for new avatar:', urlError);
       // Continue anyway, the avatar is uploaded but we just can't get the URL right now
@@ -460,7 +466,7 @@ export const updateUser = async (req: RequestWithFile, res: Response): Promise<v
     // Get avatar URL if exists
     let avatarUrl = null;
     if (updatedUser.avatar) {
-      avatarUrl = await getSignedUrlForFile(updatedUser.avatar);
+      avatarUrl = await getPublicR2Url(updatedUser.avatar);
     }
 
     sendSuccess(
@@ -675,7 +681,7 @@ export const getCurrentUserProfile = async (req: Request, res: Response): Promis
     // Get avatar URL if exists
     let avatarUrl = null;
     if (user.avatar) {
-      avatarUrl = await getSignedUrlForFile(user.avatar);
+      avatarUrl = await getPublicR2Url(user.avatar);
     }
 
     sendSuccess(res, 'user.profileRetrieved', { user: { ...user, avatarUrl } }, language);

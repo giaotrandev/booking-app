@@ -93,6 +93,10 @@ export const apiSpecification: OpenAPIV3.Document = {
       description: 'Booking management endpoints',
     },
     {
+      name: 'Ticket',
+      description: 'Ticket management endpoints',
+    },
+    {
       name: 'Realtime',
       description: 'Real-time booking, room management and other endpoints using Socket.IO',
     },
@@ -8727,6 +8731,376 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
+    // Ticket
+    '/tickets/generate/{bookingId}': {
+      post: {
+        tags: ['Ticket'],
+        summary: 'Generate tickets for a booking',
+        description: 'Generates tickets for a specific booking identified by bookingId',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'bookingId',
+            in: 'path',
+            description: 'ID of the booking',
+            required: true,
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '201': {
+            description: 'Tickets generated successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'ticket.generated' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        count: { type: 'integer', example: 2 },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/tickets/unchecked-in/{bookingId}': {
+      get: {
+        tags: ['Ticket'],
+        summary: 'Get unchecked-in tickets',
+        description: 'Retrieves all unchecked-in tickets for a specific booking',
+        parameters: [
+          {
+            name: 'bookingId',
+            in: 'path',
+            description: 'ID of the booking',
+            required: true,
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Unchecked-in tickets retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'ticket.fetchedUncheckedIn' },
+                    data: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/Ticket' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'No unchecked-in tickets found',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'ticket.noUncheckedIn' },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/tickets/check-in/{ticketId}': {
+      patch: {
+        tags: ['Ticket'],
+        summary: 'Check in a ticket',
+        description: 'Checks in a specific ticket, restricted to staff or admin users',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'ticketId',
+            in: 'path',
+            description: 'ID of the ticket',
+            required: true,
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Ticket checked in successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'ticket.checkedIn' },
+                    data: { $ref: '#/components/schemas/Ticket' },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Authentication required or insufficient permissions',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'Ticket not found',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'ticket.notFound' },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/tickets/check-in/bulk/{bookingTripId}': {
+      patch: {
+        tags: ['Ticket'],
+        summary: 'Bulk check-in tickets',
+        description:
+          'Checks in all unchecked-in tickets for a specific booking trip, restricted to staff or admin users',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'bookingTripId',
+            in: 'path',
+            description: 'ID of the booking trip',
+            required: true,
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Tickets checked in successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'ticket.bulkCheckedIn' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        count: { type: 'integer', example: 2 },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Authentication required or insufficient permissions',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '404': {
+            description: 'No unchecked-in tickets found',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'ticket.noUncheckedIn' },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/tickets/pdf/{ticketId}': {
+      get: {
+        tags: ['Ticket'],
+        summary: 'Get ticket PDF',
+        description: 'Retrieves the PDF version of a specific ticket',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'ticketId',
+            in: 'path',
+            description: 'ID of the ticket',
+            required: true,
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Ticket PDF retrieved successfully',
+            content: {
+              'application/pdf': {
+                schema: {
+                  type: 'string',
+                  format: 'binary',
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/tickets/regenerate/{ticketId}': {
+      post: {
+        tags: ['Ticket'],
+        summary: 'Regenerate ticket QR code',
+        description: 'Regenerates the QR code for a specific ticket',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'ticketId',
+            in: 'path',
+            description: 'ID of the ticket',
+            required: true,
+            schema: { type: 'string' },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Ticket QR code regenerated successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'ticket.regenerated' },
+                    data: { $ref: '#/components/schemas/Ticket' },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'Ticket not found',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'ticket.notFound' },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
     // Real-time
     '/socket.io': {
       get: {
@@ -9255,6 +9629,21 @@ export const apiSpecification: OpenAPIV3.Document = {
           },
         },
         required: ['bookingId', 'status', 'updatedAt'],
+      },
+      Ticket: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          bookingId: { type: 'string' },
+          bookingTripId: { type: 'string' },
+          seatId: { type: 'string' },
+          qrCode: { type: 'string', nullable: true },
+          status: { type: 'string', enum: ['PENDING', 'CHECKED_IN', 'CANCELLED'] },
+          checkInBy: { type: 'string', nullable: true },
+          checkInAt: { type: 'string', format: 'date-time', nullable: true },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
       },
       RoomAccessResponse: {
         type: 'object',

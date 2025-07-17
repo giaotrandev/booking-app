@@ -1,5 +1,5 @@
 import { prisma } from '#config/db';
-import { uploadFileToR2, StorageFolders, getSignedUrlForFile } from '#services/r2Service';
+import { uploadFileToR2, StorageFolders, getSignedUrlForFile, getPublicR2Url } from '#services/r2Service';
 import { optimizeImage } from '#services/imageService';
 import { generateUniqueTicketNumber, generateQRCodeImage } from '#utils/ticketHandler';
 import * as path from 'path';
@@ -9,8 +9,43 @@ import * as crypto from 'crypto';
 import { sendEmail } from '#emails/sendEmail';
 import * as handlebars from 'handlebars';
 
-// Generate and upload QR code
-export async function generateAndUploadQRCode(data: string): Promise<string> {
+// Security configuration
+const TICKET_SECRET = process.env.TICKET_SECRET_KEY || 'your-secret-key-here';
+const SIGNATURE_ALGORITHM = 'sha256';
+
+/**
+ * Generate digital signature for ticket data
+ */
+function generateTicketSignature(ticketData: any): string {
+  const dataString = JSON.stringify(ticketData);
+  return crypto.createHmac(SIGNATURE_ALGORITHM, TICKET_SECRET).update(dataString).digest('hex');
+}
+
+/**
+ * Verify ticket signature
+ */
+export function verifyTicketSignature(ticketData: any, signature: string): boolean {
+  const expectedSignature = generateTicketSignature(ticketData);
+  return crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expectedSignature, 'hex'));
+}
+
+/**
+ * Create secure QR code data with signature
+ */
+function createSecureQRData(ticketData: any) {
+  const signature = generateTicketSignature(ticketData);
+  const secureData = {
+    ...ticketData,
+    signature,
+    timestamp: Date.now(),
+    version: '1.0',
+  };
+
+  return JSON.stringify(secureData);
+}
+
+// Generate and upload QR code với security
+export async function generateAndUploadQRCode(ticketData: any): Promise<string> {
   try {
     const tempDir = path.join(process.cwd(), 'temp');
     if (!fs.existsSync(tempDir)) {
@@ -20,9 +55,13 @@ export async function generateAndUploadQRCode(data: string): Promise<string> {
     const qrFileName = `qr-${crypto.randomBytes(16).toString('hex')}.png`;
     const qrFilePath = path.join(tempDir, qrFileName);
 
-    await QRCode.toFile(qrFilePath, data, {
-      width: 150, // Smaller for receipt-like ticket
+    // Create secure QR data with signature
+    const secureQRData = createSecureQRData(ticketData);
+
+    await QRCode.toFile(qrFilePath, secureQRData, {
+      width: 150,
       margin: 2,
+      errorCorrectionLevel: 'M', // Medium error correction for security
     });
 
     const optimizedQRPath = await optimizeImage(qrFilePath, {
@@ -44,7 +83,7 @@ export async function generateAndUploadQRCode(data: string): Promise<string> {
   }
 }
 
-// Generate tickets for a booking
+// Generate tickets for a booking với enhanced security
 export async function generateTicketsForBooking(bookingId: string) {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
@@ -71,23 +110,26 @@ export async function generateTicketsForBooking(bookingId: string) {
     booking.bookingTrips.flatMap((bookingTrip) =>
       bookingTrip.seats.map(async (seat) => {
         const ticketNumber = generateUniqueTicketNumber();
-        const qrCodeData = JSON.stringify({
+        const ticketSecretHash = crypto.randomBytes(32).toString('hex'); // Private key cho mỗi vé
+
+        const ticketData = {
           bookingId: booking.id,
           bookingTripId: bookingTrip.id,
           seatId: seat.id,
           ticketNumber: ticketNumber,
           routeName: bookingTrip.trip.route.name,
           departureTime: bookingTrip.trip.departureTime,
-        });
+          secretHash: ticketSecretHash, // Secret hash trong QR data
+        };
 
-        const qrCodeFileKey = await generateAndUploadQRCode(qrCodeData);
+        const qrCodeFileKey = await generateAndUploadQRCode(ticketData);
 
         return {
           bookingId: booking.id,
           bookingTripId: bookingTrip.id,
           seatId: seat.id,
           ticketNumber: ticketNumber,
-          qrCode: qrCodeData,
+          qrCode: JSON.stringify(ticketData), // Store signed data including secretHash
           qrCodeImage: qrCodeFileKey,
           passengerName: booking.user
             ? `${booking.user.firstName} ${booking.user.lastName}`
@@ -102,7 +144,7 @@ export async function generateTicketsForBooking(bookingId: string) {
     data: ticketsToCreate,
   });
 
-  // Send email for each ticket
+  // Send email for each ticket (same as before)
   const tickets = await prisma.ticket.findMany({
     where: { bookingId },
     include: {
@@ -111,6 +153,7 @@ export async function generateTicketsForBooking(bookingId: string) {
       seat: true,
     },
   });
+
   for (const ticket of tickets) {
     const templatePath = './src/templates/ticket.hbs';
     const templateContent = fs.readFileSync(templatePath, 'utf-8');
@@ -125,7 +168,7 @@ export async function generateTicketsForBooking(bookingId: string) {
       seatNumbers: ticket.seat.seatNumber || 'N/A',
       pickupName: ticket.booking.pickup?.name || 'N/A',
       dropoffName: ticket.booking.dropoff?.name || 'N/A',
-      qrCodePath: ticket.qrCodeImage ? await getSignedUrlForFile(ticket.qrCodeImage) : null,
+      qrCodePath: ticket.qrCodeImage ? await getPublicR2Url(ticket.qrCodeImage) : null,
     };
 
     const passengerEmail = ticket.booking.passengerEmail || (ticket.booking.user ? ticket.booking.user.email : null);
@@ -136,7 +179,81 @@ export async function generateTicketsForBooking(bookingId: string) {
   return result;
 }
 
-// Regenerate QR code and ticket for an existing ticket
+/**
+ * Validate QR code khi scan
+ */
+export async function validateQRCode(qrData: string): Promise<{
+  isValid: boolean;
+  ticket?: any;
+  error?: string;
+}> {
+  try {
+    const parsedData = JSON.parse(qrData);
+
+    // Check if QR data has required fields
+    if (!parsedData.signature || !parsedData.ticketNumber || !parsedData.secretHash) {
+      return { isValid: false, error: 'Invalid QR code format' };
+    }
+
+    // Extract signature and ticket data
+    const { signature, ...ticketData } = parsedData;
+
+    // Verify signature
+    if (!verifyTicketSignature(ticketData, signature)) {
+      return { isValid: false, error: 'Invalid QR code signature' };
+    }
+
+    // Check timestamp (optional: prevent old QR codes)
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    if (parsedData.timestamp && Date.now() - parsedData.timestamp > maxAge) {
+      return { isValid: false, error: 'QR code expired' };
+    }
+
+    // Verify with database using stored qrCode data
+    const ticket = await prisma.ticket.findFirst({
+      where: {
+        ticketNumber: parsedData.ticketNumber,
+        qrCode: {
+          contains: parsedData.secretHash, // Verify secretHash exists in stored qrCode
+        },
+      },
+      include: {
+        booking: { include: { user: true } },
+        bookingTrip: { include: { trip: { include: { route: true } } } },
+        seat: true,
+      },
+    });
+
+    if (!ticket) {
+      return { isValid: false, error: 'Ticket not found or invalid' };
+    }
+
+    // Additional verification: parse stored qrCode and compare secretHash
+    try {
+      const storedQRData = JSON.parse(ticket.qrCode);
+      if (storedQRData.secretHash !== parsedData.secretHash) {
+        return { isValid: false, error: 'Invalid ticket authentication' };
+      }
+    } catch {
+      return { isValid: false, error: 'Corrupted ticket data' };
+    }
+
+    // Additional validations
+    if (ticket.isCheckedIn) {
+      return { isValid: false, error: 'Ticket already checked in' };
+    }
+
+    if (ticket.status === 'CANCELLED') {
+      return { isValid: false, error: 'Ticket cancelled' };
+    }
+
+    return { isValid: true, ticket };
+  } catch (error) {
+    return { isValid: false, error: 'Invalid QR code format' };
+  }
+}
+
+// Regenerate QR code với enhanced security
 export async function regenerateTicketQRCode(ticketId: string) {
   const ticket = await prisma.ticket.findUnique({
     where: { id: ticketId },
@@ -152,22 +269,25 @@ export async function regenerateTicketQRCode(ticketId: string) {
   }
 
   const ticketNumber = generateUniqueTicketNumber();
-  const qrCodeData = JSON.stringify({
+  const newSecretHash = crypto.randomBytes(32).toString('hex'); // New private key
+
+  const ticketData = {
     bookingId: ticket.bookingId,
     bookingTripId: ticket.bookingTripId,
     seatId: ticket.seatId,
     ticketNumber: ticketNumber,
     routeName: ticket.bookingTrip.trip.route.name,
     departureTime: ticket.bookingTrip.trip.departureTime,
-  });
+    secretHash: newSecretHash,
+  };
 
-  const qrCodeFileKey = await generateAndUploadQRCode(qrCodeData);
+  const qrCodeFileKey = await generateAndUploadQRCode(ticketData);
 
   const updatedTicket = await prisma.ticket.update({
     where: { id: ticketId },
     data: {
       ticketNumber,
-      qrCode: qrCodeData,
+      qrCode: JSON.stringify(ticketData), // Store signed data including secretHash
       qrCodeImage: qrCodeFileKey,
       updatedAt: new Date(),
     },
@@ -178,7 +298,7 @@ export async function regenerateTicketQRCode(ticketId: string) {
     },
   });
 
-  // Send updated ticket via email
+  // Send updated ticket via email (same as before)
   const templatePath = path.join(process.cwd(), 'templates', 'ticket.hbs');
   const templateContent = fs.readFileSync(templatePath, 'utf-8');
   const template = handlebars.compile(templateContent);
@@ -192,6 +312,7 @@ export async function regenerateTicketQRCode(ticketId: string) {
     seatNumbers: updatedTicket.seat.seatNumber || 'N/A',
     qrCodePath: updatedTicket.qrCodeImage,
   };
+
   const passengerEmail =
     updatedTicket.booking.passengerEmail || (updatedTicket.booking.user ? updatedTicket.booking.user.email : null);
 
@@ -201,11 +322,11 @@ export async function regenerateTicketQRCode(ticketId: string) {
   return updatedTicket;
 }
 
-// Get unchecked-in tickets
-export async function getUnCheckedInTickets(bookingTripId: string) {
+// Existing functions remain the same...
+export async function getUncheckedInTickets(bookingId: string) {
   return await prisma.ticket.findMany({
     where: {
-      bookingTripId,
+      bookingId: bookingId,
       isCheckedIn: false,
     },
     include: {
@@ -214,7 +335,6 @@ export async function getUnCheckedInTickets(bookingTripId: string) {
   });
 }
 
-// Check-in a single ticket
 export async function checkInTicket(ticketId: string, userId: string) {
   const ticket = await prisma.ticket.update({
     where: { id: ticketId },
@@ -232,11 +352,10 @@ export async function checkInTicket(ticketId: string, userId: string) {
   return ticket;
 }
 
-// Bulk check-in tickets
-export async function checkInBulkTickets(bookingTripId: string, userId: string) {
+export async function checkInBulkTickets(bookingId: string, userId: string) {
   const updatedTickets = await prisma.ticket.updateMany({
     where: {
-      bookingTripId,
+      bookingId,
       isCheckedIn: false,
     },
     data: {
@@ -247,29 +366,31 @@ export async function checkInBulkTickets(bookingTripId: string, userId: string) 
     },
   });
 
-  await updateTripStatusIfAllCheckedIn(bookingTripId);
+  await updateTripStatusIfAllCheckedIn(bookingId);
 
   return updatedTickets;
 }
 
-// Update trip status if all tickets are checked in
-async function updateTripStatusIfAllCheckedIn(bookingTripId: string) {
-  const bookingTrip = await prisma.bookingTrip.findUnique({
-    where: { id: bookingTripId },
+async function updateTripStatusIfAllCheckedIn(bookingId: string) {
+  const bookingTrips = await prisma.bookingTrip.findMany({
+    where: { bookingId: bookingId },
     include: {
       tickets: true,
       trip: true,
     },
   });
 
-  const allTicketsCheckedIn = bookingTrip?.tickets.every((ticket) => ticket.isCheckedIn);
+  for (const bookingTrip of bookingTrips) {
+    const allTicketsCheckedIn =
+      bookingTrip.tickets.length > 0 && bookingTrip.tickets.every((ticket) => ticket.isCheckedIn);
 
-  if (allTicketsCheckedIn) {
-    await prisma.trip.update({
-      where: { id: bookingTrip?.trip.id },
-      data: {
-        status: 'IN_PROGRESS',
-      },
-    });
+    if (allTicketsCheckedIn && bookingTrip.trip?.id) {
+      await prisma.trip.update({
+        where: { id: bookingTrip.trip.id },
+        data: {
+          status: 'IN_PROGRESS',
+        },
+      });
+    }
   }
 }

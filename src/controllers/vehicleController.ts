@@ -1,7 +1,13 @@
 import { Request, Response } from 'express';
 import { Request as MulterRequest } from 'express-serve-static-core';
 import fs from 'fs';
-import { uploadFileToR2, getSignedUrlForFile, deleteFileFromR2, StorageFolders } from '#services/r2Service';
+import {
+  uploadFileToR2,
+  getSignedUrlForFile,
+  getPublicR2Url,
+  deleteFileFromR2,
+  StorageFolders,
+} from '#services/r2Service';
 import { optimizeImage } from '#services/imageService';
 import { prisma } from '#config/db';
 import { queryData, DataQueryParams } from '#utils/dataQuery';
@@ -74,7 +80,7 @@ export const getVehicleList = async (req: Request, res: Response): Promise<void>
       result.data.map(async (vehicle: any) => {
         let imageUrl = null;
         if (vehicle.image) {
-          imageUrl = await getSignedUrlForFile(vehicle.image);
+          imageUrl = await getPublicR2Url(vehicle.image);
         }
         return { ...vehicle, imageUrl };
       })
@@ -132,13 +138,13 @@ export const getVehicleDetails = async (req: Request, res: Response): Promise<vo
     // Get vehicle image URL if exists
     let imageUrl = null;
     if (vehicle.image) {
-      imageUrl = await getSignedUrlForFile(vehicle.image);
+      imageUrl = await getPublicR2Url(vehicle.image);
     }
 
     // Get driver avatar URL if exists
     let driverAvatarUrl = null;
     if (vehicle.driver && vehicle.driver.avatar) {
-      driverAvatarUrl = await getSignedUrlForFile(vehicle.driver.avatar);
+      driverAvatarUrl = await getPublicR2Url(vehicle.driver.avatar);
     }
 
     const response = {
@@ -283,7 +289,7 @@ export const createVehicle = async (req: RequestWithFile, res: Response): Promis
     // Get image URL if exists
     let imageUrl = null;
     if (newVehicle.image) {
-      imageUrl = await getSignedUrlForFile(newVehicle.image);
+      imageUrl = await getPublicR2Url(newVehicle.image);
     }
 
     return sendSuccess(res, 'vehicle.created', { vehicle: { ...newVehicle, imageUrl } }, language);
@@ -455,7 +461,7 @@ export const updateVehicle = async (req: RequestWithFile, res: Response): Promis
     // Get image URL if exists
     let imageUrl = null;
     if (updatedVehicle.image) {
-      imageUrl = await getSignedUrlForFile(updatedVehicle.image);
+      imageUrl = await getPublicR2Url(updatedVehicle.image);
     }
 
     return sendSuccess(res, 'vehicle.updated', { vehicle: { ...updatedVehicle, imageUrl } }, language);
@@ -581,7 +587,7 @@ export const uploadVehicleImage = async (req: RequestWithFile, res: Response): P
     // Generate a pre-signed URL for immediate use
     let imageUrl = null;
     try {
-      imageUrl = await getSignedUrlForFile(fileKey);
+      imageUrl = await getPublicR2Url(fileKey);
     } catch (urlError) {
       console.error('Error generating signed URL for new vehicle image:', urlError);
       // Continue anyway, the image is uploaded but we just can't get the URL right now
@@ -644,7 +650,7 @@ export const getVehicleImage = async (req: Request, res: Response): Promise<void
     // Get image URL if exists
     let imageUrl = null;
     if (vehicle.image) {
-      imageUrl = await getSignedUrlForFile(vehicle.image);
+      imageUrl = await getPublicR2Url(vehicle.image);
     }
 
     return sendSuccess(

@@ -7,12 +7,7 @@ const router = express.Router();
 
 // Authenticated user routes
 router.post('/generate/:bookingId', authenticateToken, ticketController.generateTickets);
-router.get(
-  '/unchecked-in/:bookingTripId',
-  authenticateToken,
-  validatePermissions(['staff', 'admin']),
-  ticketController.getUnCheckedInTicketsCtrl
-);
+router.get('/unchecked-in/:bookingId', ticketController.getUncheckedInTicketsCtrl);
 router.patch(
   '/check-in/:ticketId',
   authenticateToken,
@@ -20,7 +15,7 @@ router.patch(
   ticketController.checkInTicketCtrl
 );
 router.patch(
-  '/check-in/bulk/:bookingTripId',
+  '/check-in/bulk/:bookingId',
   authenticateToken,
   validatePermissions(['staff', 'admin']),
   ticketController.checkInBulkTicketsCtrl

@@ -3,7 +3,7 @@ import { prisma } from '#config/db';
 import { sendSuccess, sendBadRequest, sendNotFound, sendServerError, sendForbidden } from '#utils/apiResponse';
 import { BookingStatus, PaymentStatus, SeatStatus } from '@prisma/client';
 import * as crypto from 'crypto';
-import { getSignedUrlForFile } from '#services/r2Service';
+import { getSignedUrlForFile, getPublicR2Url } from '#services/r2Service';
 import axios from 'axios';
 import { Socket, Server } from 'socket.io';
 import { addJob, QueueType } from '#queues/index';
@@ -68,6 +68,7 @@ function broadcastBookingStatusChange(bookingId: string, status: BookingStatus, 
   if (io) {
     const roomName = createRoomName.publicBooking(bookingId);
     io.to(roomName).emit('bookingStatusChanged', {
+      bookingId,
       status,
       ...data,
     });
@@ -734,12 +735,9 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
       console.warn(
         `Payment amount mismatch for booking ${booking.id}: expected ${expectedAmount}, got ${receivedAmount}`
       );
-      // Log but don't fail - let admin review
     }
 
-    // Process successful payment
     await prisma.$transaction(async (tx) => {
-      // Update booking status
       await tx.booking.update({
         where: { id: booking.id },
         data: {
@@ -748,7 +746,6 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
         },
       });
 
-      // Query lại booking với đầy đủ includes để có route data
       const bookingWithRoute = await tx.booking.findUnique({
         where: { id: booking.id },
         include: {
@@ -769,7 +766,6 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
         throw new Error('Booking not found');
       }
 
-      // Update seat status to booked and broadcast changes
       for (const bookingTrip of bookingWithRoute.bookingTrips) {
         for (const seat of bookingTrip.seats) {
           await tx.seat.update({
@@ -778,8 +774,6 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
               status: SeatStatus.BOOKED,
             },
           });
-
-          console.log('Tào lao vậy: ', bookingWithRoute);
 
           broadcastSeatStatusChange(bookingTrip.trip.id, seat.id, SeatStatus.BOOKED, {
             seatNumber: seat.seatNumber,
@@ -1207,8 +1201,8 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
       booking.bookingTrips.map(async (bt) => {
         // Get signed URLs
         const [driverAvatarUrl, tripImageUrl] = await Promise.all([
-          bt.trip.vehicle.driver?.avatar ? getSignedUrlForFile(bt.trip.vehicle.driver.avatar) : Promise.resolve(null),
-          bt.trip?.image ? getSignedUrlForFile(bt.trip.image) : Promise.resolve(null),
+          bt.trip.vehicle.driver?.avatar ? getPublicR2Url(bt.trip.vehicle.driver.avatar) : Promise.resolve(null),
+          bt.trip?.image ? getPublicR2Url(bt.trip.image) : Promise.resolve(null),
         ]);
 
         let seats = bt.seats.map((seat) => ({
@@ -1413,7 +1407,7 @@ export const getUserBookings = async (req: Request, res: Response): Promise<void
           booking.bookingTrips?.map(async (bt) => {
             let tripImageUrl = null;
             if (bt.trip.image) {
-              tripImageUrl = await getSignedUrlForFile(bt.trip.image);
+              tripImageUrl = await getPublicR2Url(bt.trip.image);
             }
 
             return {
@@ -1510,7 +1504,7 @@ export const getBookingHistory = async (req: Request, res: Response): Promise<vo
 
         let avatarUrl = null;
         if (user?.avatar) {
-          avatarUrl = await getSignedUrlForFile(user.avatar);
+          avatarUrl = await getPublicR2Url(user.avatar);
         }
 
         return {

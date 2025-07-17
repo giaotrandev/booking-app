@@ -37,6 +37,7 @@ import vehicleRoutes from './routes/vehicleRoutes';
 import busStopRoutes from './routes/busStopRoutes';
 import routeStopRoutes from './routes/routeStopRoutes';
 import vehicleTypeRoutes from './routes/vehicleTypeRoutes';
+import ticketRoutes from './routes/ticketRoutes';
 
 const app: Express = express();
 const nonce = crypto.randomBytes(16).toString('base64');
@@ -163,6 +164,7 @@ app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/bus-stops', busStopRoutes);
 app.use('/api/route-stops', routeStopRoutes);
 app.use('/api/vehicle-types', vehicleTypeRoutes);
+app.use('/api/tickets', ticketRoutes);
 
 // Health check route
 app.get('/api/health', authenticateToken, (_, res) => {

@@ -1,7 +1,13 @@
 import { Request, Response } from 'express';
 import { Request as MulterRequest } from 'express-serve-static-core';
 import fs from 'fs';
-import { uploadFileToR2, getSignedUrlForFile, deleteFileFromR2, StorageFolders } from '#services/r2Service';
+import {
+  uploadFileToR2,
+  getSignedUrlForFile,
+  getPublicR2Url,
+  deleteFileFromR2,
+  StorageFolders,
+} from '#services/r2Service';
 import { optimizeImage } from '#services/imageService';
 import { prisma } from '#config/db';
 import { queryData, DataQueryParams } from '#utils/dataQuery';
@@ -75,7 +81,7 @@ export const getRouteList = async (req: Request, res: Response): Promise<void> =
       result.data.map(async (route: any) => {
         let imageUrl = null;
         if (route.image) {
-          imageUrl = await getSignedUrlForFile(route.image);
+          imageUrl = await getPublicR2Url(route.image);
         }
         return { ...route, imageUrl };
       })
@@ -134,7 +140,7 @@ export const getRouteDetails = async (req: Request, res: Response): Promise<void
     // Get route image URL if exists
     let imageUrl = null;
     if (route.image) {
-      imageUrl = await getSignedUrlForFile(route.image);
+      imageUrl = await getPublicR2Url(route.image);
     }
 
     return sendSuccess(res, 'route.detailsRetrieved', { route: { ...route, imageUrl } }, language);
@@ -267,7 +273,7 @@ export const createRoute = async (req: RequestWithFile, res: Response): Promise<
     // Get image URL if exists
     let imageUrl = null;
     if (newRoute.image) {
-      imageUrl = await getSignedUrlForFile(newRoute.image);
+      imageUrl = await getPublicR2Url(newRoute.image);
     }
 
     sendSuccess(res, 'route.created', { route: { ...newRoute, imageUrl } }, language);
@@ -418,7 +424,7 @@ export const updateRoute = async (req: RequestWithFile, res: Response): Promise<
     // Get image URL if exists
     let imageUrl = null;
     if (updatedRoute.image) {
-      imageUrl = await getSignedUrlForFile(updatedRoute.image);
+      imageUrl = await getPublicR2Url(updatedRoute.image);
     }
 
     return sendSuccess(res, 'route.updated', { route: { ...updatedRoute, imageUrl } }, language);
@@ -529,7 +535,7 @@ export const uploadRouteImage = async (req: RequestWithFile, res: Response): Pro
     // Generate a pre-signed URL for immediate use
     let imageUrl = null;
     try {
-      imageUrl = await getSignedUrlForFile(fileKey);
+      imageUrl = await getPublicR2Url(fileKey);
     } catch (urlError) {
       console.error('Error generating signed URL for new route image:', urlError);
       // Continue anyway, the image is uploaded but we just can't get the URL right now
@@ -592,7 +598,7 @@ export const getRouteImage = async (req: Request, res: Response): Promise<void> 
     // Get image URL if exists
     let imageUrl = null;
     if (route.image) {
-      imageUrl = await getSignedUrlForFile(route.image);
+      imageUrl = await getPublicR2Url(route.image);
     }
 
     return sendSuccess(

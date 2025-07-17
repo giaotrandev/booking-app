@@ -3,7 +3,13 @@ import fs from 'fs';
 import { TripStatus, SeatStatus, SeatType, Trip } from '@prisma/client';
 import { prisma } from '#config/db';
 import { sendSuccess, sendBadRequest, sendNotFound, sendServerError, sendForbidden } from '#utils/apiResponse';
-import { uploadFileToR2, getSignedUrlForFile, deleteFileFromR2, StorageFolders } from '#services/r2Service';
+import {
+  uploadFileToR2,
+  getSignedUrlForFile,
+  deleteFileFromR2,
+  StorageFolders,
+  getPublicR2Url,
+} from '#services/r2Service';
 import { optimizeImage } from '#services/imageService';
 import safeDeleteFile from '#utils/safeDeleteFile';
 import {
@@ -221,7 +227,7 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
     // Generate image URL
     let imageUrl = null;
     if (result?.image) {
-      imageUrl = await getSignedUrlForFile(result.image);
+      imageUrl = await getPublicR2Url(result.image);
     }
 
     return sendSuccess(res, 'trip.created', { ...result, imageUrl }, language);
@@ -522,7 +528,7 @@ export const getTripList = async (req: Request, res: Response): Promise<void> =>
         // Generate image URL
         let imageUrl = null;
         if (trip.image) {
-          imageUrl = await getSignedUrlForFile(trip.image);
+          imageUrl = await getPublicR2Url(trip.image);
         }
 
         // Remove seats array from response (we only need the count)
@@ -646,12 +652,12 @@ export const getTripDetails = async (req: Request, res: Response): Promise<void>
     // Get signed URLs
     let imageUrl = null;
     if (trip.image) {
-      imageUrl = await getSignedUrlForFile(trip.image);
+      imageUrl = await getPublicR2Url(trip.image);
     }
 
     let driverAvatarUrl = null;
     if (trip.vehicle.driver?.avatar) {
-      driverAvatarUrl = await getSignedUrlForFile(trip.vehicle.driver.avatar);
+      driverAvatarUrl = await getPublicR2Url(trip.vehicle.driver.avatar);
     }
 
     // Create price map for easy lookup
@@ -1028,12 +1034,12 @@ export const updateTrip = async (req: RequestWithFile, res: Response): Promise<v
 
     let imageUrl = null;
     if (updatedTrip.image) {
-      imageUrl = await getSignedUrlForFile(updatedTrip.image);
+      imageUrl = await getPublicR2Url(updatedTrip.image);
     }
 
     let driverAvatarUrl = null;
     if (updatedTrip.vehicle.driver?.avatar) {
-      driverAvatarUrl = await getSignedUrlForFile(updatedTrip.vehicle.driver.avatar);
+      driverAvatarUrl = await getPublicR2Url(updatedTrip.vehicle.driver.avatar);
     }
 
     const result = {
@@ -1448,7 +1454,7 @@ export const searchTrips = async (req: Request, res: Response): Promise<void> =>
       trips.map(async (trip) => {
         let imageUrl = null;
         if (trip.image) {
-          imageUrl = await getSignedUrlForFile(trip.image);
+          imageUrl = await getPublicR2Url(trip.image);
         }
 
         return {
@@ -1558,7 +1564,7 @@ export const searchTrips = async (req: Request, res: Response): Promise<void> =>
           returnTrips.map(async (trip) => {
             let imageUrl = null;
             if (trip.image) {
-              imageUrl = await getSignedUrlForFile(trip.image);
+              imageUrl = await getPublicR2Url(trip.image);
             }
 
             return {
@@ -1662,7 +1668,7 @@ export const getTripHistory = async (req: Request, res: Response): Promise<void>
         // Get avatar URL if exists
         let avatarUrl = null;
         if (user?.avatar) {
-          avatarUrl = await getSignedUrlForFile(user.avatar);
+          avatarUrl = await getPublicR2Url(user.avatar);
         }
 
         return {

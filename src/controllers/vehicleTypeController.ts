@@ -3,7 +3,7 @@ import { prisma } from '#config/db';
 import { queryData, DataQueryParams } from '#utils/dataQuery';
 import { sendSuccess, sendBadRequest, sendNotFound, sendServerError } from '#utils/apiResponse';
 import { CommonStatus } from '@prisma/client';
-import { getSignedUrlForFile } from '#src/services/r2Service';
+import { getSignedUrlForFile, getPublicR2Url } from '#src/services/r2Service';
 import { deepRemoveTimestamps } from '#src/helpers/dataHelper';
 
 /**
@@ -599,7 +599,7 @@ export const getVehiclesByType = async (req: Request, res: Response): Promise<vo
       vehicles.map(async (vehicle: any) => {
         let imageUrl = null;
         if (vehicle.image) {
-          imageUrl = await getSignedUrlForFile(vehicle.image);
+          imageUrl = await getPublicR2Url(vehicle.image);
         }
         return { ...vehicle, imageUrl };
       })
