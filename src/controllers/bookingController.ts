@@ -1138,154 +1138,162 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
       return sendBadRequest(res, 'booking.noTripFound', null, language);
     }
 
-    // Get pickup and dropoff points from route stops
-    const [pickupPoints, dropoffPoints] = await Promise.all([
-      // Get pickup points (isPickUp = true)
-      prisma.routeStop.findMany({
-        where: {
-          routeId: bookingTrip.trip.route.id,
-          isPickUp: true,
-          status: 'ACTIVE',
-          isDeleted: false,
-        },
-        include: {
-          busStop: {
-            include: {
-              ward: {
-                include: {
-                  district: {
-                    include: {
-                      province: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        orderBy: {
-          stopOrder: 'asc',
-        },
-      }),
-
-      // Get dropoff points (isDropOff = true)
-      prisma.routeStop.findMany({
-        where: {
-          routeId: bookingTrip.trip.route.id,
-          isDropOff: true,
-          status: 'ACTIVE',
-          isDeleted: false,
-        },
-        include: {
-          busStop: {
-            include: {
-              ward: {
-                include: {
-                  district: {
-                    include: {
-                      province: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        orderBy: {
-          stopOrder: 'asc',
-        },
-      }),
-    ]);
-
     // Get signed URLs
-    const [driverAvatarUrl, tripImageUrl] = await Promise.all([
-      bookingTrip.trip.vehicle.driver?.avatar
-        ? getSignedUrlForFile(bookingTrip.trip.vehicle.driver.avatar)
-        : Promise.resolve(null),
-      bookingTrip.trip?.image ? getSignedUrlForFile(bookingTrip.trip.image) : Promise.resolve(null),
-    ]);
+    // const [driverAvatarUrl, tripImageUrl] = await Promise.all([
+    //   bookingTrip.trip.vehicle.driver?.avatar
+    //     ? getSignedUrlForFile(bookingTrip.trip.vehicle.driver.avatar)
+    //     : Promise.resolve(null),
+    //   bookingTrip.trip?.image ? getSignedUrlForFile(bookingTrip.trip.image) : Promise.resolve(null),
+    // ]);
 
     // Format pickup and dropoff points
-    const formattedPickupPoints = pickupPoints
-      .map((routeStop) => ({
-        id: routeStop.id,
-        stopOrder: routeStop.stopOrder,
-        estimatedArrivalTime: routeStop.estimatedArrivalTime,
-        estimatedDepartureTime: routeStop.estimatedDepartureTime,
-        busStop: {
-          ...routeStop.busStop,
-          // Filter out deleted bus stops
-        },
-      }))
-      .filter((point) => point.busStop.status === 'ACTIVE' && !point.busStop.isDeleted);
 
-    const formattedDropoffPoints = dropoffPoints
-      .map((routeStop) => ({
-        id: routeStop.id,
-        stopOrder: routeStop.stopOrder,
-        estimatedArrivalTime: routeStop.estimatedArrivalTime,
-        estimatedDepartureTime: routeStop.estimatedDepartureTime,
-        busStop: {
-          ...routeStop.busStop,
-          // Filter out deleted bus stops
-        },
-      }))
-      .filter((point) => point.busStop.status === 'ACTIVE' && !point.busStop.isDeleted);
+    // let seats = bookingTrip.seats.map((seat) => ({
+    //   id: seat.id,
+    //   seatNumber: seat.seatNumber,
+    //   seatType: seat.seatType,
+    //   status: seat.status,
+    // }));
 
-    let seats = bookingTrip.seats.map((seat) => ({
-      id: seat.id,
-      seatNumber: seat.seatNumber,
-      seatType: seat.seatType,
-      status: seat.status,
-    }));
+    // if (!seats || seats.length === 0) {
+    //   try {
+    //     const bookingHistory = await prisma.bookingHistory.findFirst({
+    //       where: {
+    //         bookingId: booking.id,
+    //         changeReason: 'Booking created',
+    //       },
+    //       select: {
+    //         changedFields: true,
+    //       },
+    //       orderBy: {
+    //         createdAt: 'desc',
+    //       },
+    //     });
 
-    if (!seats || seats.length === 0) {
-      try {
-        const bookingHistory = await prisma.bookingHistory.findFirst({
-          where: {
-            bookingId: booking.id,
-            changeReason: 'Booking created',
-          },
-          select: {
-            changedFields: true,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        });
+    //     if (bookingHistory?.changedFields) {
+    //       const changedFields =
+    //         typeof bookingHistory.changedFields === 'string'
+    //           ? JSON.parse(bookingHistory.changedFields)
+    //           : bookingHistory.changedFields;
 
-        if (bookingHistory?.changedFields) {
-          const changedFields =
-            typeof bookingHistory.changedFields === 'string'
-              ? JSON.parse(bookingHistory.changedFields)
-              : bookingHistory.changedFields;
+    //       if (changedFields?.seats) {
+    //         seats = await prisma.seat.findMany({
+    //           where: {
+    //             id: { in: changedFields?.seats },
+    //           },
+    //           select: {
+    //             id: true,
+    //             seatNumber: true,
+    //             seatType: true,
+    //             status: true,
+    //           },
+    //         });
+    //       } else {
+    //         console.warn('No seats found in BookingHistory changedFields');
+    //       }
+    //     } else {
+    //       console.warn('No changedFields found in BookingHistory');
+    //     }
+    //   } catch (historyError) {
+    //     console.error('Error fetching seats from BookingHistory:', historyError);
+    //   }
+    // }
 
-          if (changedFields?.seats) {
-            seats = await prisma.seat.findMany({
-              where: {
-                id: { in: changedFields?.seats },
-              },
-              select: {
-                id: true,
-                seatNumber: true,
-                seatType: true,
-                status: true,
-              },
-            });
-          } else {
-            console.warn('No seats found in BookingHistory changedFields');
-          }
-        } else {
-          console.warn('No changedFields found in BookingHistory');
-        }
-      } catch (historyError) {
-        console.error('Error fetching seats from BookingHistory:', historyError);
-      }
-    }
-
-    const { image, routeId, vehicleId, seats: tripSeats, ...rest } = { ...bookingTrip.trip };
+    // const { image, routeId, vehicleId, seats: tripSeats, ...rest } = { ...bookingTrip.trip };
 
     // Build final result
+    // Map bookingTrips with async operations
+    const bookingTrips = await Promise.all(
+      booking.bookingTrips.map(async (bt) => {
+        // Get signed URLs
+        const [driverAvatarUrl, tripImageUrl] = await Promise.all([
+          bt.trip.vehicle.driver?.avatar ? getSignedUrlForFile(bt.trip.vehicle.driver.avatar) : Promise.resolve(null),
+          bt.trip?.image ? getSignedUrlForFile(bt.trip.image) : Promise.resolve(null),
+        ]);
+
+        let seats = bt.seats.map((seat) => ({
+          id: seat.id,
+          seatNumber: seat.seatNumber,
+          seatType: seat.seatType,
+          status: seat.status,
+        }));
+
+        if (!seats || seats.length === 0) {
+          try {
+            const bookingHistory = await prisma.bookingHistory.findFirst({
+              where: {
+                bookingId: booking.id,
+                changeReason: 'Booking created',
+              },
+              select: {
+                changedFields: true,
+              },
+              orderBy: {
+                createdAt: 'desc',
+              },
+            });
+
+            if (bookingHistory?.changedFields) {
+              const changedFields =
+                typeof bookingHistory.changedFields === 'string'
+                  ? JSON.parse(bookingHistory.changedFields)
+                  : bookingHistory.changedFields;
+
+              if (changedFields?.seats) {
+                seats = await prisma.seat.findMany({
+                  where: {
+                    id: { in: changedFields.seats },
+                  },
+                  select: {
+                    id: true,
+                    seatNumber: true,
+                    seatType: true,
+                    status: true,
+                  },
+                });
+              } else {
+                console.warn('No seats found in BookingHistory changedFields');
+              }
+            } else {
+              console.warn('No changedFields found in BookingHistory');
+            }
+          } catch (historyError) {
+            console.error('Error fetching seats from BookingHistory:', historyError);
+          }
+        }
+
+        // Explicitly select fields from bt.trip to avoid spreading all fields
+        const { id, route, vehicle, seats: tripSeats, ...rest } = bt.trip;
+
+        return {
+          id,
+          route,
+          seats,
+          trip: {
+            id,
+            ...rest,
+            capacity: tripSeats.length,
+            imageUrl: tripImageUrl,
+            vehicle: {
+              id: vehicle.id,
+              type: vehicle.vehicleType.name,
+              vehicleType: vehicle.vehicleType,
+              driver: vehicle.driver
+                ? {
+                    id: vehicle.driver.id,
+                    firstName: vehicle.driver.firstName,
+                    lastName: vehicle.driver.lastName,
+                    phoneNumber: vehicle.driver.phoneNumber,
+                    avatarUrl: driverAvatarUrl,
+                  }
+                : null,
+            },
+            route,
+          },
+        };
+      })
+    );
+
     const result = {
       // Booking basic info
       id: booking.id,
@@ -1304,45 +1312,26 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
 
       user: booking.user,
 
+      bookingTrips,
+
       pickup: {
-        name: booking.pickup?.name,
-        address: booking.pickup?.address,
-        ward: booking.pickup?.ward.name,
-        district: booking.pickup?.ward.district.name,
-        province: booking.pickup?.ward.district.province.name,
+        name: booking.pickup?.name ?? null,
+        address: booking.pickup?.address ?? null,
+        ward: booking.pickup?.ward.name ?? null,
+        district: booking.pickup?.ward.district.name ?? null,
+        province: booking.pickup?.ward.district.province.name ?? null,
       },
 
       dropoff: {
-        name: booking.pickup?.name,
-        address: booking.pickup?.address,
-        ward: booking.pickup?.ward.name,
-        district: booking.pickup?.ward.district.name,
-        province: booking.pickup?.ward.district.province.name,
+        name: booking.dropoff?.name ?? null,
+        address: booking.dropoff?.address ?? null,
+        ward: booking.dropoff?.ward.name ?? null,
+        district: booking.dropoff?.ward.district.name ?? null,
+        province: booking.dropoff?.ward.district.province.name ?? null,
       },
 
-      // Trip info (flattened)
-      trip: {
-        ...rest,
-        capacity: tripSeats.length,
-        // Pickup and dropoff points from route
-        pickupPoints: formattedPickupPoints,
-        dropoffPoints: formattedDropoffPoints,
-        imageUrl: tripImageUrl,
-        vehicle: {
-          ...bookingTrip.trip.vehicle,
-          driver: bookingTrip.trip.vehicle.driver
-            ? {
-                ...bookingTrip.trip.vehicle.driver,
-                avatarUrl: driverAvatarUrl,
-              }
-            : null,
-        },
-      },
+      seats: bookingTrips.flatMap((bt) => bt.seats),
 
-      // Seats info
-      seats: seats,
-
-      // Voucher info
       voucherUsage: booking.voucherUsage,
     };
 
