@@ -8233,27 +8233,27 @@ export const apiSpecification: OpenAPIV3.Document = {
     '/bookings/{id}': {
       get: {
         tags: ['Booking'],
-        summary: 'Lấy chi tiết đặt vé',
-        description: 'Lấy thông tin chi tiết của một đặt vé',
+        summary: 'Get booking details',
+        description: 'Retrieve detailed information about a specific booking',
         security: [{ BearerAuth: [] }],
         parameters: [
           {
             name: 'id',
             in: 'path',
-            description: 'ID của đặt vé',
+            description: 'ID of the booking',
             required: true,
-            schema: { type: 'string', example: '507f1f77bcf86cd799439014' },
+            schema: { type: 'string' },
           },
           {
             name: 'lang',
             in: 'query',
-            description: 'Ngôn ngữ trả về thông báo',
-            schema: { type: 'string', example: 'en' },
+            description: 'Language for response messages',
+            schema: { type: 'string', default: 'en' },
           },
         ],
         responses: {
           '200': {
-            description: 'Lấy chi tiết đặt vé thành công',
+            description: 'Booking details retrieved successfully',
             content: {
               'application/json': {
                 schema: {
@@ -8268,7 +8268,7 @@ export const apiSpecification: OpenAPIV3.Document = {
             },
           },
           '401': {
-            description: 'Yêu cầu xác thực hoặc không có quyền',
+            description: 'Authentication required or access denied',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -8276,7 +8276,7 @@ export const apiSpecification: OpenAPIV3.Document = {
             },
           },
           '404': {
-            description: 'Đặt vé không tìm thấy',
+            description: 'Booking not found',
             content: {
               'application/json': {
                 schema: {
@@ -8286,6 +8286,14 @@ export const apiSpecification: OpenAPIV3.Document = {
                     message: { type: 'string', example: 'booking.notFound' },
                   },
                 },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
               },
             },
           },
@@ -8392,25 +8400,25 @@ export const apiSpecification: OpenAPIV3.Document = {
             name: 'userId',
             in: 'query',
             description: 'Lọc theo ID người dùng',
-            schema: { type: 'string', example: '507f1f77bcf86cd799439011' },
+            schema: { type: 'string' },
           },
           {
             name: 'tripId',
             in: 'query',
             description: 'Lọc theo ID chuyến đi',
-            schema: { type: 'string', example: '507f1f77bcf86cd799439012' },
+            schema: { type: 'string' },
           },
           {
             name: 'startDate',
             in: 'query',
             description: 'Lọc theo ngày bắt đầu (YYYY-MM-DD)',
-            schema: { type: 'string', format: 'date', example: '2025-07-01' },
+            schema: { type: 'string', format: 'date' },
           },
           {
             name: 'endDate',
             in: 'query',
             description: 'Lọc theo ngày kết thúc (YYYY-MM-DD)',
-            schema: { type: 'string', format: 'date', example: '2025-07-31' },
+            schema: { type: 'string', format: 'date' },
           },
           {
             name: 'lang',
@@ -8474,13 +8482,13 @@ export const apiSpecification: OpenAPIV3.Document = {
             name: 'startDate',
             in: 'query',
             description: 'Ngày bắt đầu (YYYY-MM-DD)',
-            schema: { type: 'string', format: 'date', example: '2025-07-01' },
+            schema: { type: 'string', format: 'date' },
           },
           {
             name: 'endDate',
             in: 'query',
             description: 'Ngày kết thúc (YYYY-MM-DD)',
-            schema: { type: 'string', format: 'date', example: '2025-07-31' },
+            schema: { type: 'string', format: 'date' },
           },
           {
             name: 'lang',
@@ -8570,13 +8578,13 @@ export const apiSpecification: OpenAPIV3.Document = {
             name: 'startDate',
             in: 'query',
             description: 'Ngày bắt đầu (YYYY-MM-DD)',
-            schema: { type: 'string', format: 'date', example: '2025-07-01' },
+            schema: { type: 'string', format: 'date' },
           },
           {
             name: 'endDate',
             in: 'query',
             description: 'Ngày kết thúc (YYYY-MM-DD)',
-            schema: { type: 'string', format: 'date', example: '2025-07-31' },
+            schema: { type: 'string', format: 'date' },
           },
           {
             name: 'format',
@@ -8640,7 +8648,7 @@ export const apiSpecification: OpenAPIV3.Document = {
             in: 'path',
             description: 'ID của đặt vé',
             required: true,
-            schema: { type: 'string', example: '507f1f77bcf86cd799439014' },
+            schema: { type: 'string' },
           },
           {
             name: 'lang',
@@ -8733,7 +8741,6 @@ export const apiSpecification: OpenAPIV3.Document = {
             required: false,
             schema: {
               type: 'string',
-              example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
             },
           },
         ],

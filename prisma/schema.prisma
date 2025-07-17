@@ -29,6 +29,9 @@ model SystemConfig {
   maxLoginAttempts  Int @default(5)
   loginLockDuration Int @default(900)
 
+  bookingRateLimit       Int @default(5)
+  bookingRateLimitWindow Int @default(1800)
+
   status SystemConfigStatus @default(ACTIVE)
 
   lastUpdatedBy String?  @db.ObjectId
@@ -142,7 +145,7 @@ model BusStop {
   wardId String @db.ObjectId
   ward   Ward   @relation(fields: [wardId], references: [id])
 
-  address   String?
+  address String?
 
   latitude  Float?
   longitude Float?
@@ -170,7 +173,7 @@ model RouteStop {
   busStopId String  @db.ObjectId
   busStop   BusStop @relation(fields: [busStopId], references: [id])
 
-  isPickUp Boolean @default(false)
+  isPickUp  Boolean @default(false)
   isDropOff Boolean @default(false)
 
   stopOrder Int
@@ -549,18 +552,16 @@ model Booking {
   userId String? @db.ObjectId
   user   User?   @relation(fields: [userId], references: [id])
 
-  passengerName      String?
-  passengerEmail     String?
-  passengerPhone     String?
+  passengerName  String?
+  passengerEmail String?
+  passengerPhone String?
   isGuestBooking Boolean @default(false)
-  
-  pickupId   String?  @db.ObjectId
-  pickup     BusStop? @relation("PickupBusStop", fields: [pickupId], references: [id])
-  dropoffId  String?  @db.ObjectId
-  dropoff    BusStop? @relation("DropoffBusStop", fields: [dropoffId], references: [id])
 
-  
-  
+  pickupId  String?  @db.ObjectId
+  pickup    BusStop? @relation("PickupBusStop", fields: [pickupId], references: [id])
+  dropoffId String?  @db.ObjectId
+  dropoff   BusStop? @relation("DropoffBusStop", fields: [dropoffId], references: [id])
+
   status        BookingStatus @default(PENDING)
   paymentStatus PaymentStatus @default(PENDING)
   isDeleted     Boolean       @default(false)
@@ -587,6 +588,8 @@ model Booking {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
+  
+  ipAddress String?
 
   histories  BookingHistory[]
   PaymentLog PaymentLog[]
@@ -598,7 +601,7 @@ model BookingHistory {
   booking   Booking @relation(fields: [bookingId], references: [id])
 
   changedFields Json
-  changedBy     String  
+  changedBy     String
   changeReason  String?
   createdAt     DateTime @default(now())
 }

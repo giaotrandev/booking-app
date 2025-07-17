@@ -2,6 +2,7 @@ import express from 'express';
 import * as bookingController from '../controllers/bookingController';
 import { authenticateToken } from '#middlewares/authMiddleware';
 import { validatePermissions } from '#middlewares/permissionMiddleware';
+import { createRateLimiter } from '#src/middlewares/rateLimitMiddleware';
 
 const router = express.Router();
 
@@ -10,7 +11,7 @@ router.post('/webhook/payment', bookingController.handlePaymentWebhook);
 
 // Authenticated user routes
 router.post('/calculate', bookingController.calculateBookingWithVoucher);
-router.post('/', bookingController.createBooking);
+router.post('/', createRateLimiter('booking', 'createBooking'), bookingController.createBooking);
 router.get('/:id/payment/qr-code', bookingController.generatePaymentQR);
 router.get('/:id', bookingController.getBookingDetails); // Keep this after specific routes
 router.get('/my-bookings', authenticateToken, bookingController.getUserBookings);
