@@ -1353,19 +1353,49 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
         // Explicitly select fields from bt.trip to avoid spreading all fields
         const { id, route, vehicle, seats: tripSeats, ...rest } = bt.trip;
 
+        const processedStops = route.routeStops.map((routeStop) => {
+          const busStop = routeStop.busStop;
+          const ward = busStop.ward;
+          const district = ward.district;
+          const province = district.province;
+
+          return {
+            busStopId: busStop.id,
+            name: busStop.name,
+            latitude: busStop.latitude,
+            longitude: busStop.longitude,
+            estimatedTime: routeStop.estimatedArrivalTime,
+            address: busStop.address,
+            wardName: ward.name,
+            districtName: district.name,
+            provinceName: province.name,
+            provinceId: province.id,
+            stopOrder: routeStop.stopOrder,
+            isPickUp: routeStop.isPickUp,
+            isDropOff: routeStop.isDropOff,
+          };
+        });
+
         const routeStops = {
-          pickupPoints: route.routeStops.filter((stop) => stop.isPickUp),
-          dropoffPoints: route.routeStops.filter((stop) => stop.isDropOff),
+          pickupPoints: processedStops.filter((stop) => stop.isPickUp),
+          dropoffPoints: processedStops.filter((stop) => stop.isDropOff),
         };
 
         const { routeStops: removedField, ...restRoute } = route;
 
+        console.log('bà nội: ', route);
+
         return {
           id,
-          route,
+          route: {
+            ...restRoute,
+            routeStops,
+          },
           seats,
           trip: {
             id,
+            arrivalTime: rest.arrivalTime,
+            departureTime: rest.departureTime,
             route: {
               ...restRoute,
               routeStops,
