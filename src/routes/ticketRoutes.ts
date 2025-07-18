@@ -20,7 +20,7 @@ router.patch(
   validatePermissions(['staff', 'admin']),
   ticketController.checkInBulkTicketsCtrl
 );
-router.get('/pdf/:ticketId', authenticateToken, ticketController.getPublicTicketPDF);
+router.get('/pdf', ticketController.getPublicTicketPDF);
 router.post('/regenerate/:ticketId', authenticateToken, ticketController.regenerateTicket);
 
 export default router;

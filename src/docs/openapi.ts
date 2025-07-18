@@ -9185,7 +9185,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
-    '/tickets/pdf/{ticketId}': {
+    '/tickets/pdf': {
       get: {
         tags: ['Ticket'],
         summary: 'Get ticket PDF',
