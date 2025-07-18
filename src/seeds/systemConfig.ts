@@ -8,6 +8,7 @@ export async function seedSystemConfig() {
     // Tạo cấu hình mặc định
     const systemConfig = await prisma.systemConfig.create({
       data: {
+        name: process.env.COMPANY_NAME || 'default',
         // Cấu hình rate limit
         rateLimit: 100, // 100 request
         rateLimitWindow: 3600, // trong 1 giờ
