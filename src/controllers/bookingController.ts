@@ -680,9 +680,8 @@ export const generatePaymentQR = async (req: Request, res: Response): Promise<vo
       'booking.qrGenerated',
       {
         bookingId: updatedBooking.id,
-        qrCode: qrCodeData.qrText,
+        qrCode: JSON.parse(qrCodeData.qrText).url || null,
         qrCodeExpiresAt: paymentExpiration,
-        paymentReference: qrCodeData.paymentReference,
       },
       language
     );

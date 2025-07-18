@@ -7868,11 +7868,9 @@ export const apiSpecification: OpenAPIV3.Document = {
                         bookingId: { type: 'string', example: '507f1f77bcf86cd799439014' },
                         qrCode: {
                           type: 'string',
-                          example:
-                            '{"type":"VietQR","bankId":"970436","accountNo":"0123456789","amount":180000,"addInfo":"BKG12345678901234","url":"https://img.vietqr.io/image/..."}',
+                          example: 'https://img.vietqr.io/image/...',
                         },
                         qrCodeExpiresAt: { type: 'string', format: 'date-time', example: '2025-07-02T10:00:00Z' },
-                        paymentReference: { type: 'string', example: 'BKG12345678901234' },
                       },
                     },
                   },
