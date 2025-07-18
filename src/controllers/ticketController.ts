@@ -7,8 +7,10 @@ import {
   checkInBulkTickets,
   validateQRCode,
 } from '#services/ticketService';
-import { generateTicketPDF } from '#services/pdfService';
+import { generatePublicTicketPDF, generateTicketPDF } from '#services/pdfService';
 import { sendCreated, sendSuccess, sendBadRequest, sendNotFound, sendServerError } from '#utils/apiResponse';
+import { getPublicR2Url } from '#src/services/r2Service';
+import { deepRemoveTimestamps } from '#src/helpers/dataHelper';
 
 export async function generateTickets(req: Request, res: Response) {
   try {
@@ -93,7 +95,45 @@ export async function getUncheckedInTicketsCtrl(req: Request, res: Response) {
     if (!tickets.length) {
       return sendNotFound(res, 'ticket.noUncheckedIn', null, req.language);
     }
-    return sendSuccess(res, 'ticket.fetchedUncheckedIn', tickets, req.language);
+
+    function maskEmail(email: string): string {
+      if (!email) return '';
+      const [local, domain] = email.split('@');
+      if (!local || !domain) return '';
+      const firstChar = local[0];
+      const lastTwo = local.length > 2 ? local.slice(-2) : local;
+      const maskedLocal = `${firstChar}${'*'.repeat(Math.max(0, local.length - 3))}${lastTwo}`;
+      return `${maskedLocal}@****`;
+    }
+
+    function maskPhone(phone: string): string {
+      if (!phone) return '';
+      const len = phone.length;
+      if (len <= 4) return `${phone[0] || ''}${'*'.repeat(Math.max(0, len - 2))}${phone[len - 1] || ''}`;
+      const firstTwo = phone.slice(0, 2);
+      const lastTwo = phone.slice(-2);
+      const maskedMiddle = '*'.repeat(len - 4);
+      return `${firstTwo}${maskedMiddle}${lastTwo}`;
+    }
+
+    const formattedTickets = tickets.map((ticket) => {
+      const { seatNumber, seatType, ...rest } = { ...ticket.seat };
+      return {
+        bookingId: ticket.bookingId,
+        passengerName: ticket.passengerName,
+        passengerEmail: maskEmail(ticket.passengerEmail ?? ''),
+        passengerPhone: maskPhone(ticket.passengerPhone ?? ''),
+        qrCodeImage: ticket.qrCodeImage ? getPublicR2Url(ticket.qrCodeImage) : null,
+        status: ticket.status,
+        metadata: ticket.metadata,
+        seat: {
+          seatNumber,
+          seatType,
+        },
+      };
+    });
+
+    return sendSuccess(res, 'ticket.fetchedUncheckedIn', deepRemoveTimestamps(formattedTickets), req.language);
   } catch (error) {
     return sendServerError(
       res,
@@ -142,13 +182,19 @@ export async function checkInBulkTicketsCtrl(req: Request, res: Response) {
   }
 }
 
-export async function getTicketPDF(req: Request, res: Response) {
+export async function getPublicTicketPDF(req: Request, res: Response) {
   try {
-    const { ticketId } = req.params;
-    const pdfBuffer = await generateTicketPDF(ticketId);
+    const { bookingId, seatNumber } = req.params;
+    const { pdfBuffer, passengerName, routeName, departureTime } = await generatePublicTicketPDF(bookingId, seatNumber);
+    // Đổi tên file vé để thêm thông tin đã nhận (passengerName, routeName, departureTime)
+    // Loại bỏ ký tự đặc biệt và thay thế khoảng trắng bằng dấu gạch dưới cho tên file
+    const safePassengerName = passengerName.replace(/[^a-zA-Z0-9]/g, '_');
+    const safeRouteName = routeName.replace(/[^a-zA-Z0-9]/g, '_');
+    const safeDepartureTime = departureTime.replace(/[^a-zA-Z0-9]/g, '_');
+    const fileName = `ticket-${seatNumber}-${safePassengerName}-${safeRouteName}-${safeDepartureTime}.pdf`;
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename=ticket-${ticketId}.pdf`,
+      'Content-Disposition': `attachment; filename=${fileName}`,
     });
     res.send(pdfBuffer);
   } catch (error) {

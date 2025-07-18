@@ -1,66 +1,307 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, SystemConfigStatus } from '@prisma/client';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
+import { optimizeImage } from './imageService';
+import { deleteFileFromR2, StorageFolders, uploadFileToR2 } from './r2Service';
 
 const prisma = new PrismaClient();
 
+interface CreateSystemConfigData {
+  name: string;
+  globalName?: string;
+  rateLimit?: number;
+  rateLimitWindow?: number;
+  emailRateLimit?: number;
+  emailRateLimitWindow?: number;
+  maxLoginAttempts?: number;
+  loginLockDuration?: number;
+  bookingRateLimit?: number;
+  bookingRateLimitWindow?: number;
+  isMaintaining?: boolean;
+  maintenanceStartTime?: Date;
+  maintenanceEndTime?: Date;
+  lastUpdatedBy?: string;
+}
+
+interface UpdateSystemConfigData extends Partial<CreateSystemConfigData> {
+  id: string;
+}
+
 /**
- * Lấy cấu hình hệ thống, tạo mới nếu chưa tồn tại
+ * Get active system config, create default if none exists
  */
 export async function getSystemConfig() {
-  let config = await prisma.systemConfig.findFirst();
+  let config = await prisma.systemConfig.findFirst({
+    where: { status: SystemConfigStatus.ACTIVE },
+  });
 
   if (!config) {
-    config = await prisma.systemConfig.create({
-      data: {}, // Sử dụng giá trị mặc định từ model
+    const count = await prisma.systemConfig.count({
+      where: { status: SystemConfigStatus.ACTIVE },
     });
+
+    if (count === 0) {
+      config = await prisma.systemConfig.create({
+        data: {
+          name: process.env.COMPANY_NAME ?? 'Bus Company',
+          globalName: process.env.COMPANY_NAME_EN ?? 'Bus Company',
+          status: SystemConfigStatus.ACTIVE,
+        },
+      });
+    }
   }
 
   return config;
 }
 
 /**
- * Cập nhật cấu hình hệ thống
- * @param data Thông tin cấu hình cần cập nhật
+ * Create new system config (deactivates existing ones)
  */
-export async function updateSystemConfig(data: Prisma.SystemConfigUpdateInput) {
-  const existingConfig = await getSystemConfig();
+export async function createSystemConfig(data: CreateSystemConfigData) {
+  try {
+    // Start transaction to ensure only one active config
+    const result = await prisma.$transaction(async (tx) => {
+      // Deactivate all existing configs
+      await tx.systemConfig.deleteMany({
+        where: { status: SystemConfigStatus.ACTIVE },
+      });
 
-  return prisma.systemConfig.update({
-    where: { id: existingConfig.id },
-    data,
-  });
+      // Create new active config
+      const newConfig = await tx.systemConfig.create({
+        data: {
+          ...data,
+          status: SystemConfigStatus.ACTIVE,
+        },
+      });
+
+      return newConfig;
+    });
+
+    return result;
+  } catch (error) {
+    console.error('Error creating system config:', error);
+    throw error;
+  }
 }
 
 /**
- * Kiểm tra cấu hình rate limit
- * @param type Loại rate limit (general hoặc email)
+ * Update existing system config
+ */
+export async function updateSystemConfig(data: UpdateSystemConfigData) {
+  try {
+    const { id, ...updateData } = data;
+
+    // Ensure we're updating an active config
+    const existingConfig = await prisma.systemConfig.findFirst({
+      where: {
+        id,
+        status: SystemConfigStatus.ACTIVE,
+      },
+    });
+
+    if (!existingConfig) {
+      throw new Error('Active system config not found');
+    }
+
+    const updatedConfig = await prisma.systemConfig.update({
+      where: { id },
+      data: {
+        ...updateData,
+        updatedAt: new Date(),
+      },
+    });
+
+    return updatedConfig;
+  } catch (error) {
+    console.error('Error updating system config:', error);
+    throw error;
+  }
+}
+
+/**
+ * Upload and optimize logo image
+ */
+export async function uploadSystemLogo(filePath: string, logoType: 'logo' | 'textLogo' = 'logo'): Promise<string> {
+  try {
+    const tempDir = path.join(process.cwd(), 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const fileExtension = path.extname(filePath).toLowerCase();
+    const isVector = fileExtension === '.svg';
+
+    let optimizedPath: string;
+    let finalFileName: string;
+
+    if (isVector) {
+      // For SVG files, just rename and upload directly
+      const svgFileName = `${logoType}-${crypto.randomBytes(8).toString('hex')}.svg`;
+      optimizedPath = path.join(tempDir, svgFileName);
+      fs.copyFileSync(filePath, optimizedPath);
+      finalFileName = svgFileName;
+    } else {
+      // For raster images, optimize to WebP
+      const webpFileName = `${logoType}-${crypto.randomBytes(8).toString('hex')}.webp`;
+
+      optimizedPath = await optimizeImage(filePath, {
+        width: logoType === 'logo' ? 200 : 300,
+        height: logoType === 'logo' ? 200 : 80,
+        format: 'webp',
+        quality: 90,
+      });
+
+      // Rename to final filename
+      const finalPath = path.join(tempDir, webpFileName);
+      fs.renameSync(optimizedPath, finalPath);
+      optimizedPath = finalPath;
+      finalFileName = webpFileName;
+    }
+
+    // Upload to R2
+    const logoKey = await uploadFileToR2(
+      optimizedPath,
+      StorageFolders.DOCUMENTS,
+      finalFileName,
+      isVector ? 'image/svg+xml' : 'image/webp'
+    );
+
+    // Clean up temp file
+    fs.unlinkSync(optimizedPath);
+
+    return logoKey;
+  } catch (error) {
+    console.error('Error uploading system logo:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update system config with new logo
+ */
+export async function updateSystemConfigLogo(
+  configId: string,
+  logoPath: string,
+  logoType: 'logo' | 'textLogo' = 'logo',
+  lastUpdatedBy?: string
+) {
+  try {
+    // Get current config to delete old logo if exists
+    const currentConfig = await prisma.systemConfig.findUnique({
+      where: { id: configId },
+    });
+
+    if (!currentConfig) {
+      throw new Error('System config not found');
+    }
+
+    // Upload new logo
+    const newLogoKey = await uploadSystemLogo(logoPath, logoType);
+
+    // Delete old logo if exists
+    const oldLogoKey = logoType === 'logo' ? currentConfig.logo : currentConfig.textLogo;
+    if (oldLogoKey) {
+      try {
+        await deleteFileFromR2(oldLogoKey);
+      } catch (deleteError) {
+        console.warn('Failed to delete old logo:', deleteError);
+      }
+    }
+
+    // Update config with new logo
+    const updateData = {
+      [logoType]: newLogoKey,
+      lastUpdatedBy,
+      updatedAt: new Date(),
+    };
+
+    const updatedConfig = await prisma.systemConfig.update({
+      where: { id: configId },
+      data: updateData,
+    });
+
+    return updatedConfig;
+  } catch (error) {
+    console.error('Error updating system config logo:', error);
+    throw error;
+  }
+}
+
+/**
+ * Delete system config logo
+ */
+export async function deleteSystemConfigLogo(
+  configId: string,
+  logoType: 'logo' | 'textLogo' = 'logo',
+  lastUpdatedBy?: string
+) {
+  try {
+    const config = await prisma.systemConfig.findUnique({
+      where: { id: configId },
+    });
+
+    if (!config) {
+      throw new Error('System config not found');
+    }
+
+    const logoKey = logoType === 'logo' ? config.logo : config.textLogo;
+
+    if (logoKey) {
+      // Delete from R2
+      await deleteFileFromR2(logoKey);
+
+      // Update config
+      const updateData = {
+        [logoType]: null,
+        lastUpdatedBy,
+        updatedAt: new Date(),
+      };
+
+      const updatedConfig = await prisma.systemConfig.update({
+        where: { id: configId },
+        data: updateData,
+      });
+
+      return updatedConfig;
+    }
+
+    return config;
+  } catch (error) {
+    console.error('Error deleting system config logo:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get rate limit configuration
  */
 export async function getRateLimitConfig(type = 'general') {
   const config = await getSystemConfig();
 
   return {
-    limit: type === 'email' ? config.emailRateLimit : config.rateLimit,
-    window: type === 'email' ? config.emailRateLimitWindow : config.rateLimitWindow,
+    limit: type === 'email' ? config?.emailRateLimit : config?.rateLimit,
+    window: type === 'email' ? config?.emailRateLimitWindow : config?.rateLimitWindow,
   };
 }
 
 /**
- * Kiểm tra chế độ bảo trì
+ * Check if maintenance mode is active
  */
 export async function isMaintenanceModeActive() {
   const config = await getSystemConfig();
 
-  if (!config.isMaintaining) return false;
+  if (!config?.isMaintaining) return false;
 
   const now = new Date();
   return (
-    (!config.maintenanceStartTime || now >= config.maintenanceStartTime) &&
-    (!config.maintenanceEndTime || now <= config.maintenanceEndTime)
+    (!config?.maintenanceStartTime || now >= config?.maintenanceStartTime) &&
+    (!config?.maintenanceEndTime || now <= config?.maintenanceEndTime)
   );
 }
 
 /**
- * Lấy cấu hình rate limit cho middleware
- * @param type Loại rate limit
+ * Get rate limit configuration for middleware
  */
 export async function getRateLimitMiddlewareConfig(type = 'general') {
   const { limit, window } = await getRateLimitConfig(type);

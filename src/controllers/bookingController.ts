@@ -413,6 +413,150 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
 };
 
 /**
+ * Update booking
+ */
+export const updateBooking = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+  const userId = (req.user as { userId: string })?.userId;
+
+  try {
+    const { id } = req.params;
+    const { passengerName, passengerEmail, passengerPhone, pickupId, dropoffId, passengerNote, paymentMethod } =
+      req.body;
+
+    // Find existing booking to check permissions
+    const existingBooking = await prisma.booking.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        paymentStatus: true,
+        isDeleted: true,
+      },
+    });
+
+    if (!existingBooking) {
+      sendNotFound(res, 'booking.notFound', null, language);
+      return;
+    }
+
+    if (existingBooking.isDeleted) {
+      sendBadRequest(res, 'booking.deleted', null, language);
+      return;
+    }
+
+    // Check permissions - user can only update their own booking
+    const isOwner = existingBooking.userId === userId;
+    if (!isOwner) {
+      sendForbidden(res, 'booking.accessDenied', null, language);
+      return;
+    }
+
+    // Prevent updates for completed or cancelled bookings
+    if (existingBooking.status === 'CONFIRMED' || existingBooking.status === 'CANCELLED') {
+      sendBadRequest(res, 'booking.cannotUpdateCompletedOrCancelled', null, language);
+      return;
+    }
+
+    // Validate pickup and dropoff if provided
+    if (pickupId) {
+      const pickupExists = await prisma.busStop.findUnique({
+        where: { id: pickupId },
+        select: { id: true },
+      });
+      if (!pickupExists) {
+        sendBadRequest(res, 'booking.invalidPickupLocation', null, language);
+        return;
+      }
+    }
+
+    if (dropoffId) {
+      const dropoffExists = await prisma.busStop.findUnique({
+        where: { id: dropoffId },
+        select: { id: true },
+      });
+      if (!dropoffExists) {
+        sendBadRequest(res, 'booking.invalidDropoffLocation', null, language);
+        return;
+      }
+    }
+
+    // Build update data object with only provided fields
+    const updateData: any = {
+      updatedAt: new Date(),
+    };
+
+    if (passengerName !== undefined) updateData.passengerName = passengerName;
+    if (passengerEmail !== undefined) updateData.passengerEmail = passengerEmail;
+    if (passengerPhone !== undefined) updateData.passengerPhone = passengerPhone;
+    if (pickupId !== undefined) updateData.pickupId = pickupId;
+    if (dropoffId !== undefined) updateData.dropoffId = dropoffId;
+    if (passengerNote !== undefined) updateData.passengerNote = passengerNote;
+    if (paymentMethod !== undefined) updateData.paymentMethod = paymentMethod;
+
+    // Create booking history record
+    const changedFields: any = {};
+    if (passengerName !== undefined) changedFields.passengerName = passengerName;
+    if (passengerEmail !== undefined) changedFields.passengerEmail = passengerEmail;
+    if (passengerPhone !== undefined) changedFields.passengerPhone = passengerPhone;
+    if (pickupId !== undefined) changedFields.pickupId = pickupId;
+    if (dropoffId !== undefined) changedFields.dropoffId = dropoffId;
+    if (passengerNote !== undefined) changedFields.passengerNote = passengerNote;
+    if (paymentMethod !== undefined) changedFields.paymentMethod = paymentMethod;
+
+    // Perform update and create history in a transaction
+    const updatedBooking = await prisma.$transaction(async (tx) => {
+      // Update booking
+      const booking = await tx.booking.update({
+        where: { id },
+        data: updateData,
+        select: {
+          id: true,
+          passengerName: true,
+          passengerEmail: true,
+          passengerPhone: true,
+          passengerNote: true,
+          paymentMethod: true,
+          updatedAt: true,
+          pickup: {
+            select: {
+              id: true,
+              name: true,
+              address: true,
+            },
+          },
+          dropoff: {
+            select: {
+              id: true,
+              name: true,
+              address: true,
+            },
+          },
+        },
+      });
+
+      // Create booking history
+      await tx.bookingHistory.create({
+        data: {
+          bookingId: id,
+          changeReason: 'Booking updated by user',
+          changedFields: JSON.stringify(changedFields),
+          changedBy: userId,
+        },
+      });
+
+      return booking;
+    });
+
+    sendSuccess(res, 'booking.updatedSuccessfully', updatedBooking, language);
+  } catch (error) {
+    console.error('Error updating booking:', error);
+    sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
+  }
+};
+
+/**
  * Generate VietQR payment code
  */
 async function generateVietQRCode(
@@ -993,6 +1137,7 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
         discountAmount: true,
         finalPrice: true,
         status: true,
+        paymentMethod: true,
         paymentStatus: true,
         groupBookingId: true,
         createdAt: true,
@@ -1067,6 +1212,20 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
                     estimatedDuration: true,
                     sourceProvince: true,
                     destinationProvince: true,
+                    routeStops: {
+                      include: {
+                        busStop: {
+                          include: {
+                            ward: {
+                              include: {
+                                district: { include: { province: true } },
+                              },
+                            },
+                          },
+                        },
+                      },
+                      orderBy: { stopOrder: 'asc' },
+                    },
                   },
                 },
                 vehicle: {
@@ -1132,70 +1291,6 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
       return sendBadRequest(res, 'booking.noTripFound', null, language);
     }
 
-    // Get signed URLs
-    // const [driverAvatarUrl, tripImageUrl] = await Promise.all([
-    //   bookingTrip.trip.vehicle.driver?.avatar
-    //     ? getSignedUrlForFile(bookingTrip.trip.vehicle.driver.avatar)
-    //     : Promise.resolve(null),
-    //   bookingTrip.trip?.image ? getSignedUrlForFile(bookingTrip.trip.image) : Promise.resolve(null),
-    // ]);
-
-    // Format pickup and dropoff points
-
-    // let seats = bookingTrip.seats.map((seat) => ({
-    //   id: seat.id,
-    //   seatNumber: seat.seatNumber,
-    //   seatType: seat.seatType,
-    //   status: seat.status,
-    // }));
-
-    // if (!seats || seats.length === 0) {
-    //   try {
-    //     const bookingHistory = await prisma.bookingHistory.findFirst({
-    //       where: {
-    //         bookingId: booking.id,
-    //         changeReason: 'Booking created',
-    //       },
-    //       select: {
-    //         changedFields: true,
-    //       },
-    //       orderBy: {
-    //         createdAt: 'desc',
-    //       },
-    //     });
-
-    //     if (bookingHistory?.changedFields) {
-    //       const changedFields =
-    //         typeof bookingHistory.changedFields === 'string'
-    //           ? JSON.parse(bookingHistory.changedFields)
-    //           : bookingHistory.changedFields;
-
-    //       if (changedFields?.seats) {
-    //         seats = await prisma.seat.findMany({
-    //           where: {
-    //             id: { in: changedFields?.seats },
-    //           },
-    //           select: {
-    //             id: true,
-    //             seatNumber: true,
-    //             seatType: true,
-    //             status: true,
-    //           },
-    //         });
-    //       } else {
-    //         console.warn('No seats found in BookingHistory changedFields');
-    //       }
-    //     } else {
-    //       console.warn('No changedFields found in BookingHistory');
-    //     }
-    //   } catch (historyError) {
-    //     console.error('Error fetching seats from BookingHistory:', historyError);
-    //   }
-    // }
-
-    // const { image, routeId, vehicleId, seats: tripSeats, ...rest } = { ...bookingTrip.trip };
-
-    // Build final result
     // Map bookingTrips with async operations
     const bookingTrips = await Promise.all(
       booking.bookingTrips.map(async (bt) => {
@@ -1259,13 +1354,23 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
         // Explicitly select fields from bt.trip to avoid spreading all fields
         const { id, route, vehicle, seats: tripSeats, ...rest } = bt.trip;
 
+        const routeStops = {
+          pickupPoints: route.routeStops.filter((stop) => stop.isPickUp),
+          dropoffPoints: route.routeStops.filter((stop) => stop.isDropOff),
+        };
+
+        const { routeStops: removedField, ...restRoute } = route;
+
         return {
           id,
           route,
           seats,
           trip: {
             id,
-            ...rest,
+            route: {
+              ...restRoute,
+              routeStops,
+            },
             capacity: tripSeats.length,
             imageUrl: tripImageUrl,
             vehicle: {
@@ -1282,7 +1387,6 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
                   }
                 : null,
             },
-            route,
           },
         };
       })

@@ -59,15 +59,16 @@ export async function generateAndUploadQRCode(ticketData: any): Promise<string> 
     const secureQRData = createSecureQRData(ticketData);
 
     await QRCode.toFile(qrFilePath, secureQRData, {
-      width: 150,
-      margin: 2,
-      errorCorrectionLevel: 'M', // Medium error correction for security
+      width: 400,
+      margin: 1,
+      errorCorrectionLevel: 'Q', // tăng error correction để scan tốt hơn
+      scale: 8, // tăng scale để nét hơn nữa
     });
 
     const optimizedQRPath = await optimizeImage(qrFilePath, {
-      width: 150,
+      width: 400,
       format: 'png',
-      quality: 90,
+      quality: 95, // tăng quality
     });
 
     const qrFileKey = await uploadFileToR2(optimizedQRPath, StorageFolders.TEMP, path.basename(optimizedQRPath));
@@ -129,12 +130,13 @@ export async function generateTicketsForBooking(bookingId: string) {
           bookingTripId: bookingTrip.id,
           seatId: seat.id,
           ticketNumber: ticketNumber,
-          qrCode: JSON.stringify(ticketData), // Store signed data including secretHash
+          qrCode: JSON.stringify(ticketData),
           qrCodeImage: qrCodeFileKey,
           passengerName: booking.user
             ? `${booking.user.firstName} ${booking.user.lastName}`
             : booking.passengerName || 'N/A',
-          passengerPhone: booking.passengerPhone || null,
+          passengerPhone: booking.passengerPhone || booking.user?.phoneNumber || null,
+          passengerEmail: booking.passengerEmail || booking.user?.email || null,
         };
       })
     )

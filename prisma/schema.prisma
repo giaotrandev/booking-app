@@ -16,6 +16,12 @@ datasource db {
 model SystemConfig {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
+  name String @unique
+  globalName String? @unique
+
+  logo  String?
+  textLogo  String?
+
   rateLimit       Int @default(5)
   rateLimitWindow Int @default(3600)
 
@@ -563,6 +569,7 @@ model Booking {
   dropoff   BusStop? @relation("DropoffBusStop", fields: [dropoffId], references: [id])
 
   status        BookingStatus @default(PENDING)
+  paymentMethod String?
   paymentStatus PaymentStatus @default(PENDING)
   isDeleted     Boolean       @default(false)
 
@@ -634,6 +641,7 @@ model Ticket {
 
   passengerName  String
   passengerPhone String?
+  passengerEmail String?
 
   ticketNumber String  @unique
   qrCode       String  @unique
@@ -823,6 +831,7 @@ enum CommonStatus {
 
 enum SystemConfigStatus {
   ACTIVE
+  INACTIVE
   MAINTENANCE
 }
 

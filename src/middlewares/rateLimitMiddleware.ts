@@ -16,8 +16,14 @@ export function createRateLimiter(type: string = 'general', name: string) {
       // Khóa được tạo dựa trên IP và loại
       const key = `rate_limit:${name}/${type}:${req.ip}`;
 
+      // Đảm bảo config.max và config.windowMs không undefined
+      if (typeof config.max !== 'number' || typeof config.windowMs !== 'number') {
+        console.error('Rate limit config is invalid:', config);
+        return sendTooManyRequests(res, 'common.tooManyRequests');
+      }
+
       // Tăng số lần request
-      const currentCount = (await incrementRequestCount(key, config)) || 0;
+      const currentCount = (await incrementRequestCount(key, config as RateLimitConfig)) || 0;
 
       // Kiểm tra vượt quá giới hạn
       if (currentCount > config.max) {

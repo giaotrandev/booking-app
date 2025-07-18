@@ -97,6 +97,10 @@ export const apiSpecification: OpenAPIV3.Document = {
       description: 'Ticket management endpoints',
     },
     {
+      name: 'System Config',
+      description: 'System Config endpoints',
+    },
+    {
       name: 'Realtime',
       description: 'Real-time booking, room management and other endpoints using Socket.IO',
     },
@@ -7915,6 +7919,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
+
     '/bookings/my-bookings': {
       get: {
         tags: ['Booking'],
@@ -8298,6 +8303,193 @@ export const apiSpecification: OpenAPIV3.Document = {
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+      put: {
+        tags: ['Booking'],
+        summary: 'Cập nhật thông tin đặt vé',
+        description:
+          'Cập nhật thông tin đặt vé hiện có. Chỉ người dùng sở hữu vé mới có thể cập nhật, và vé không được ở trạng thái CONFIRMED hoặc CANCELLED.',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: {
+              type: 'string',
+              example: '507f1f77bcf86cd799439011',
+              description: 'ID của đặt vé cần cập nhật',
+            },
+          },
+          {
+            name: 'lang',
+            in: 'query',
+            schema: {
+              type: 'string',
+              example: 'en',
+              description: "Ngôn ngữ cho phản hồi (mặc định: 'en')",
+            },
+          },
+        ],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  passengerName: {
+                    type: 'string',
+                    example: 'John Doe',
+                    description: 'Tên hành khách',
+                  },
+                  passengerEmail: {
+                    type: 'string',
+                    format: 'email',
+                    example: 'john.doe@example.com',
+                    description: 'Email hành khách',
+                  },
+                  passengerPhone: {
+                    type: 'string',
+                    example: '+84123456789',
+                    description: 'Số điện thoại hành khách',
+                  },
+                  pickupId: {
+                    type: 'string',
+                    example: '507f1f77bcf86cd799439014',
+                    description: 'ID của điểm đón (bus stop)',
+                  },
+                  dropoffId: {
+                    type: 'string',
+                    example: '507f1f77bcf86cd799439015',
+                    description: 'ID của điểm trả (bus stop)',
+                  },
+                  passengerNote: {
+                    type: 'string',
+                    example: 'Gần cửa sổ',
+                    description: 'Ghi chú của hành khách',
+                  },
+                  paymentMethod: {
+                    type: 'string',
+                    example: 'CREDIT_CARD',
+                    description: 'Phương thức thanh toán',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Booking updated successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'booking.updatedSuccessfully' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', example: '507f1f77bcf86cd799439011' },
+                        passengerName: { type: 'string', example: 'John Doe' },
+                        passengerEmail: { type: 'string', format: 'email', example: 'john.doe@example.com' },
+                        passengerPhone: { type: 'string', example: '+84123456789' },
+                        passengerNote: { type: 'string', example: 'Gần cửa sổ' },
+                        paymentMethod: { type: 'string', example: 'CREDIT_CARD' },
+                        updatedAt: { type: 'string', format: 'date-time', example: '2025-07-18T16:49:00.000Z' },
+                        pickup: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'string', example: '507f1f77bcf86cd799439014' },
+                            name: { type: 'string', example: 'Main Station' },
+                            address: { type: 'string', example: '123 Main St, City' },
+                          },
+                        },
+                        dropoff: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'string', example: '507f1f77bcf86cd799439015' },
+                            name: { type: 'string', example: 'Downtown Station' },
+                            address: { type: 'string', example: '456 Downtown Ave, City' },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid input data or booking cannot be updated',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: {
+                      type: 'string',
+                      example: 'booking.invalidPickupLocation',
+                      description:
+                        "Possible messages: 'booking.invalidPickupLocation', 'booking.invalidDropoffLocation', 'booking.deleted', 'booking.cannotUpdateCompletedOrCancelled'",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '403': {
+            description: 'Access denied',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'booking.accessDenied' },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'Booking not found',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'booking.notFound' },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'common.serverError' },
+                    error: {
+                      type: 'object',
+                      nullable: true,
+                      properties: {
+                        message: { type: 'string', example: 'Internal server error' },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -9003,9 +9195,16 @@ export const apiSpecification: OpenAPIV3.Document = {
         security: [{ BearerAuth: [] }],
         parameters: [
           {
-            name: 'ticketId',
+            name: 'bookingId',
             in: 'path',
-            description: 'ID of the ticket',
+            description: 'ID of the booking',
+            required: true,
+            schema: { type: 'string' },
+          },
+          {
+            name: 'seatNumber',
+            in: 'path',
+            description: 'Seat number of the ticket',
             required: true,
             schema: { type: 'string' },
           },
@@ -9095,6 +9294,708 @@ export const apiSpecification: OpenAPIV3.Document = {
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
+    // System Config
+    '/system-config': {
+      get: {
+        tags: ['System Config'],
+        summary: 'Get public system configuration',
+        description: 'Retrieves minimal system configuration information for public display',
+        responses: {
+          '200': {
+            description: 'System configuration retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'systemConfig.publicRetrieved' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        name: { type: 'string', example: 'Bus Company', description: 'Company name' },
+                        globalName: { type: 'string', example: 'Bus Company', description: 'Company name in English' },
+                        logo: {
+                          type: 'string',
+                          nullable: true,
+                          example: 'logo-1234567890abcdef.webp',
+                          description: 'Logo file key',
+                        },
+                        textLogo: {
+                          type: 'string',
+                          nullable: true,
+                          example: 'textLogo-1234567890abcdef.webp',
+                          description: 'Text logo file key',
+                        },
+                        isMaintaining: { type: 'boolean', example: false, description: 'Maintenance mode status' },
+                        maintenanceStartTime: {
+                          type: 'string',
+                          format: 'date-time',
+                          nullable: true,
+                          example: '2025-07-18T14:00:00.000Z',
+                          description: 'Maintenance start time',
+                        },
+                        maintenanceEndTime: {
+                          type: 'string',
+                          format: 'date-time',
+                          nullable: true,
+                          example: '2025-07-18T16:00:00.000Z',
+                          description: 'Maintenance end time',
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'System configuration not found',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'systemConfig.notFound' },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'systemConfig.getError' },
+                    error: {
+                      type: 'object',
+                      nullable: true,
+                      properties: {
+                        message: { type: 'string', example: 'Internal server error' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: ['System Config'],
+        summary: 'Create new system configuration',
+        description: 'Creates a new system configuration and deactivates existing ones (Admin only)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string', example: 'Bus Company', description: 'Company name' },
+                  globalName: { type: 'string', example: 'Bus Company', description: 'Company name in English' },
+                  rateLimit: { type: 'number', example: 100, description: 'General rate limit' },
+                  rateLimitWindow: {
+                    type: 'number',
+                    example: 900000,
+                    description: 'General rate limit window in milliseconds',
+                  },
+                  emailRateLimit: { type: 'number', example: 10, description: 'Email rate limit' },
+                  emailRateLimitWindow: {
+                    type: 'number',
+                    example: 3600000,
+                    description: 'Email rate limit window in milliseconds',
+                  },
+                  maxLoginAttempts: { type: 'number', example: 5, description: 'Maximum login attempts' },
+                  loginLockDuration: {
+                    type: 'number',
+                    example: 1800000,
+                    description: 'Login lock duration in milliseconds',
+                  },
+                  bookingRateLimit: { type: 'number', example: 20, description: 'Booking rate limit' },
+                  bookingRateLimitWindow: {
+                    type: 'number',
+                    example: 3600000,
+                    description: 'Booking rate limit window in milliseconds',
+                  },
+                  isMaintaining: { type: 'boolean', example: false, description: 'Maintenance mode status' },
+                  maintenanceStartTime: {
+                    type: 'string',
+                    format: 'date-time',
+                    example: '2025-07-18T14:00:00.000Z',
+                    description: 'Maintenance start time',
+                  },
+                  maintenanceEndTime: {
+                    type: 'string',
+                    format: 'date-time',
+                    example: '2025-07-18T16:00:00.000Z',
+                    description: 'Maintenance end time',
+                  },
+                },
+                required: ['name'],
+              },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'System configuration created successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'systemConfig.created' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', example: '507f1f77bcf86cd799439011' },
+                        name: { type: 'string', example: 'Bus Company' },
+                        globalName: { type: 'string', example: 'Bus Company' },
+                        rateLimit: { type: 'number', example: 100 },
+                        rateLimitWindow: { type: 'number', example: 900000 },
+                        emailRateLimit: { type: 'number', example: 10 },
+                        emailRateLimitWindow: { type: 'number', example: 3600000 },
+                        maxLoginAttempts: { type: 'number', example: 5 },
+                        loginLockDuration: { type: 'number', example: 1800000 },
+                        bookingRateLimit: { type: 'number', example: 20 },
+                        bookingRateLimitWindow: { type: 'number', example: 3600000 },
+                        isMaintaining: { type: 'boolean', example: false },
+                        maintenanceStartTime: {
+                          type: 'string',
+                          format: 'date-time',
+                          example: '2025-07-18T14:00:00.000Z',
+                        },
+                        maintenanceEndTime: {
+                          type: 'string',
+                          format: 'date-time',
+                          example: '2025-07-18T16:00:00.000Z',
+                        },
+                        lastUpdatedBy: { type: 'string', example: '507f1f77bcf86cd799439012' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'systemConfig.createError' },
+                    error: {
+                      type: 'object',
+                      nullable: true,
+                      properties: {
+                        message: { type: 'string', example: 'Internal server error' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      put: {
+        tags: ['System Config'],
+        summary: 'Update system configuration',
+        description: 'Updates the existing active system configuration (Admin only)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', example: '507f1f77bcf86cd799439011', description: 'System configuration ID' },
+                  name: { type: 'string', example: 'Bus Company', description: 'Company name' },
+                  globalName: { type: 'string', example: 'Bus Company', description: 'Company name in English' },
+                  rateLimit: { type: 'number', example: 100, description: 'General rate limit' },
+                  rateLimitWindow: {
+                    type: 'number',
+                    example: 900000,
+                    description: 'General rate limit window in milliseconds',
+                  },
+                  emailRateLimit: { type: 'number', example: 10, description: 'Email rate limit' },
+                  emailRateLimitWindow: {
+                    type: 'number',
+                    example: 3600000,
+                    description: 'Email rate limit window in milliseconds',
+                  },
+                  maxLoginAttempts: { type: 'number', example: 5, description: 'Maximum login attempts' },
+                  loginLockDuration: {
+                    type: 'number',
+                    example: 1800000,
+                    description: 'Login lock duration in milliseconds',
+                  },
+                  bookingRateLimit: { type: 'number', example: 20, description: 'Booking rate limit' },
+                  bookingRateLimitWindow: {
+                    type: 'number',
+                    example: 3600000,
+                    description: 'Booking rate limit window in milliseconds',
+                  },
+                  isMaintaining: { type: 'boolean', example: false, description: 'Maintenance mode status' },
+                  maintenanceStartTime: {
+                    type: 'string',
+                    format: 'date-time',
+                    example: '2025-07-18T14:00:00.000Z',
+                    description: 'Maintenance start time',
+                  },
+                  maintenanceEndTime: {
+                    type: 'string',
+                    format: 'date-time',
+                    example: '2025-07-18T16:00:00.000Z',
+                    description: 'Maintenance end time',
+                  },
+                },
+                required: ['id'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'System configuration updated successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'systemConfig.updated' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', example: '507f1f77bcf86cd799439011' },
+                        name: { type: 'string', example: 'Bus Company' },
+                        globalName: { type: 'string', example: 'Bus Company' },
+                        rateLimit: { type: 'number', example: 100 },
+                        rateLimitWindow: { type: 'number', example: 900000 },
+                        emailRateLimit: { type: 'number', example: 10 },
+                        emailRateLimitWindow: { type: 'number', example: 3600000 },
+                        maxLoginAttempts: { type: 'number', example: 5 },
+                        loginLockDuration: { type: 'number', example: 1800000 },
+                        bookingRateLimit: { type: 'number', example: 20 },
+                        bookingRateLimitWindow: { type: 'number', example: 3600000 },
+                        isMaintaining: { type: 'boolean', example: false },
+                        maintenanceStartTime: {
+                          type: 'string',
+                          format: 'date-time',
+                          example: '2025-07-18T14:00:00.000Z',
+                        },
+                        maintenanceEndTime: {
+                          type: 'string',
+                          format: 'date-time',
+                          example: '2025-07-18T16:00:00.000Z',
+                        },
+                        lastUpdatedBy: { type: 'string', example: '507f1f77bcf86cd799439012' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'System configuration not found',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'systemConfig.notFound' },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'systemConfig.updateError' },
+                    error: {
+                      type: 'object',
+                      nullable: true,
+                      properties: {
+                        message: { type: 'string', example: 'Internal server error' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/system-config/admin': {
+      get: {
+        tags: ['System Config'],
+        summary: 'Get full system configuration',
+        description: 'Retrieves the complete system configuration (Admin only)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'System configuration retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'systemConfig.retrieved' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', example: '507f1f77bcf86cd799439011' },
+                        name: { type: 'string', example: 'Bus Company' },
+                        globalName: { type: 'string', example: 'Bus Company' },
+                        logo: { type: 'string', nullable: true, example: 'logo-1234567890abcdef.webp' },
+                        textLogo: { type: 'string', nullable: true, example: 'textLogo-1234567890abcdef.webp' },
+                        rateLimit: { type: 'number', example: 100 },
+                        rateLimitWindow: { type: 'number', example: 900000 },
+                        emailRateLimit: { type: 'number', example: 10 },
+                        emailRateLimitWindow: { type: 'number', example: 3600000 },
+                        maxLoginAttempts: { type: 'number', example: 5 },
+                        loginLockDuration: { type: 'number', example: 1800000 },
+                        bookingRateLimit: { type: 'number', example: 20 },
+                        bookingRateLimitWindow: { type: 'number', example: 3600000 },
+                        isMaintaining: { type: 'boolean', example: false },
+                        maintenanceStartTime: {
+                          type: 'string',
+                          format: 'date-time',
+                          example: '2025-07-18T14:00:00.000Z',
+                        },
+                        maintenanceEndTime: {
+                          type: 'string',
+                          format: 'date-time',
+                          example: '2025-07-18T16:00:00.000Z',
+                        },
+                        lastUpdatedBy: { type: 'string', example: '507f1f77bcf86cd799439012' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'System configuration not found',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'systemConfig.notFound' },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'systemConfig.getError' },
+                    error: {
+                      type: 'object',
+                      nullable: true,
+                      properties: {
+                        message: { type: 'string', example: 'Internal server error' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/system-config/{id}/logo': {
+      post: {
+        tags: ['System Config'],
+        summary: 'Upload system configuration logo',
+        description: 'Uploads a logo or text logo for the system configuration (Admin only)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        requestBody: {
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                properties: {
+                  logoType: {
+                    type: 'string',
+                    enum: ['logo', 'textLogo'],
+                    example: 'logo',
+                    description: 'Type of logo to upload',
+                  },
+                  image: { type: 'string', format: 'binary', description: 'Logo image file (SVG or raster)' },
+                },
+                required: ['image'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Logo uploaded successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'systemConfig.logoUploaded' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', example: '507f1f77bcf86cd799439011' },
+                        name: { type: 'string', example: 'Bus Company' },
+                        globalName: { type: 'string', example: 'Bus Company' },
+                        logo: { type: 'string', nullable: true, example: 'logo-1234567890abcdef.webp' },
+                        textLogo: { type: 'string', nullable: true, example: 'textLogo-1234567890abcdef.webp' },
+                        rateLimit: { type: 'number', example: 100 },
+                        rateLimitWindow: { type: 'number', example: 900000 },
+                        emailRateLimit: { type: 'number', example: 10 },
+                        emailRateLimitWindow: { type: 'number', example: 3600000 },
+                        maxLoginAttempts: { type: 'number', example: 5 },
+                        loginLockDuration: { type: 'number', example: 1800000 },
+                        bookingRateLimit: { type: 'number', example: 20 },
+                        bookingRateLimitWindow: { type: 'number', example: 3600000 },
+                        isMaintaining: { type: 'boolean', example: false },
+                        maintenanceStartTime: {
+                          type: 'string',
+                          format: 'date-time',
+                          example: '2025-07-18T14:00:00.000Z',
+                        },
+                        maintenanceEndTime: {
+                          type: 'string',
+                          format: 'date-time',
+                          example: '2025-07-18T16:00:00.000Z',
+                        },
+                        lastUpdatedBy: { type: 'string', example: '507f1f77bcf86cd799439012' },
+                      },
+                    },
+                    metadata: {
+                      type: 'object',
+                      properties: {
+                        logoType: { type: 'string', example: 'logo' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid request',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'systemConfig.logoRequired' },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'System configuration not found',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'systemConfig.notFound' },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'systemConfig.logoUploadError' },
+                    error: {
+                      type: 'object',
+                      nullable: true,
+                      properties: {
+                        message: { type: 'string', example: 'Internal server error' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      delete: {
+        tags: ['System Config'],
+        summary: 'Delete system configuration logo',
+        description: 'Deletes the logo or text logo from the system configuration (Admin only)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', example: '507f1f77bcf86cd799439011' },
+          },
+          {
+            name: 'logoType',
+            in: 'query',
+            schema: {
+              type: 'string',
+              enum: ['logo', 'textLogo'],
+              example: 'logo',
+              description: 'Type of logo to delete',
+            },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Logo deleted successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'systemConfig.logoDeleted' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', example: '507f1f77bcf86cd799439011' },
+                        name: { type: 'string', example: 'Bus Company' },
+                        globalName: { type: 'string', example: 'Bus Company' },
+                        logo: { type: 'string', nullable: true, example: null },
+                        textLogo: { type: 'string', nullable: true, example: null },
+                        rateLimit: { type: 'number', example: 100 },
+                        rateLimitWindow: { type: 'number', example: 900000 },
+                        emailRateLimit: { type: 'number', example: 10 },
+                        emailRateLimitWindow: { type: 'number', example: 3600000 },
+                        maxLoginAttempts: { type: 'number', example: 5 },
+                        loginLockDuration: { type: 'number', example: 1800000 },
+                        bookingRateLimit: { type: 'number', example: 20 },
+                        bookingRateLimitWindow: { type: 'number', example: 3600000 },
+                        isMaintaining: { type: 'boolean', example: false },
+                        maintenanceStartTime: {
+                          type: 'string',
+                          format: 'date-time',
+                          example: '2025-07-18T14:00:00.000Z',
+                        },
+                        maintenanceEndTime: {
+                          type: 'string',
+                          format: 'date-time',
+                          example: '2025-07-18T16:00:00.000Z',
+                        },
+                        lastUpdatedBy: { type: 'string', example: '507f1f77bcf86cd799439012' },
+                      },
+                    },
+                    metadata: {
+                      type: 'object',
+                      properties: {
+                        logoType: { type: 'string', example: 'logo' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid logo type',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'systemConfig.invalidLogoType' },
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'System configuration not found',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'systemConfig.notFound' },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    message: { type: 'string', example: 'systemConfig.logoDeleteError' },
+                    error: {
+                      type: 'object',
+                      nullable: true,
+                      properties: {
+                        message: { type: 'string', example: 'Internal server error' },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
