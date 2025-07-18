@@ -1149,17 +1149,17 @@
                 
                 // Parse QR code data
                 let qrData;
-                try {
-                    qrData = JSON.parse(currentBooking.qrCode);
-                } catch (parseError) {
-                    addLog('❌ Error parsing QR code data - invalid JSON format', 'error');
-                    console.error('QR Code raw data:', currentBooking.qrCode);
-                    showRetryQROption();
-                    return;
-                }
+                // try {
+                //     qrData = JSON.parse(currentBooking.qrCode);
+                // } catch (parseError) {
+                //     addLog('❌ Error parsing QR code data - invalid JSON format', 'error');
+                //     console.error('QR Code raw data:', currentBooking.qrCode);
+                //     showRetryQROption();
+                //     return;
+                // }
                 
                 // Validate QR data structure
-                if (!qrData.url) {
+                if (!qrData) {
                     addLog('❌ QR code data missing URL field', 'error');
                     console.error('QR Data structure:', qrData);
                     showRetryQROption();
@@ -1172,14 +1172,14 @@
                 
                 // Show and configure QR image
                 qrCodeImage.style.display = 'block';
-                qrCodeImage.src = qrData.url;
+                qrCodeImage.src = qrData;
                 
                 qrCodeImage.onload = () => {
                     addLog('✅ QR code image loaded successfully', 'success');
                 };
                 qrCodeImage.onerror = () => {
                     addLog('❌ Failed to load QR code image', 'error');
-                    addLog(`QR URL: ${qrData.url}`, 'info');
+                    addLog(`QR URL: ${qrData}`, 'info');
                     showRetryQROption();
                 };
 

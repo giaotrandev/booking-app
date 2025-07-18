@@ -7843,7 +7843,7 @@ export const apiSpecification: OpenAPIV3.Document = {
             in: 'path',
             description: 'ID của đặt vé',
             required: true,
-            schema: { type: 'string', example: '507f1f77bcf86cd799439014' },
+            schema: { type: 'string' },
           },
           {
             name: 'lang',

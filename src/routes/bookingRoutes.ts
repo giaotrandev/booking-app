@@ -11,7 +11,7 @@ router.post('/webhook/payment', bookingController.handlePaymentWebhook);
 
 // Authenticated user routes
 router.post('/calculate', bookingController.calculateBookingWithVoucher);
-router.post('/', createRateLimiter('booking', 'createBooking'), bookingController.createBooking);
+router.post('/', bookingController.createBooking);
 router.put('/', bookingController.updateBooking);
 router.get('/:id/payment/qr-code', bookingController.generatePaymentQR);
 router.get('/:id', bookingController.getBookingDetails); // Keep this after specific routes
