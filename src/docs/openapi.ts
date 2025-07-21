@@ -7833,9 +7833,8 @@ export const apiSpecification: OpenAPIV3.Document = {
     '/bookings/{id}/payment/qr-code': {
       get: {
         tags: ['Booking'],
-        summary: 'Tạo mã QR thanh toán cho đặt vé',
-        description:
-          'Tạo mã QR thanh toán VietQR cho một đặt vé đang chờ xử lý. Chỉ chủ sở hữu hoặc quản trị viên có thể truy cập.',
+        summary: 'Lấy mã QR thanh toán cho đặt vé',
+        description: 'Lấy mã QR thanh toán VietQR cho một đặt vé đang chờ xử lý.',
         security: [{ BearerAuth: [] }],
         parameters: [
           {

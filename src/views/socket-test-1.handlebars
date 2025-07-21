@@ -764,6 +764,8 @@
         let paymentTimer = null;
         let sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
+        let qrCode;
+
         // Translation function (placeholder, replace with your actual translation service)
         function t(key) {
             const translations = {
@@ -1116,14 +1118,13 @@
                     throw new Error(qrErrorData.message || `HTTP ${qrResponse.status}: ${qrResponse.statusText}`);
                 }
 
-                const qrResult = await qrResponse.json();
-                console.log('QR code data:', qrResult);
+                qrCode = await qrResponse.json();
 
-                if (qrResult.success && qrResult.data.qrCode && qrResult.data.qrCodeExpiresAt) {
+                if (qrCode.success && qrCode.data.qrCode && qrCode.data.qrCodeExpiresAt) {
                     // Update currentBooking with QR code data
-                    currentBooking.qrCode = qrResult.data.qrCode;
-                    currentBooking.qrCodeExpiresAt = qrResult.data.qrCodeExpiresAt;
-                    currentBooking.paymentWebhookReference = qrResult.data.paymentReference || currentBooking.paymentWebhookReference;
+                    currentBooking.qrCode = qrCode.data.qrCode;
+                    currentBooking.qrCodeExpiresAt = qrCode.data.qrCodeExpiresAt;
+                    currentBooking.paymentWebhookReference = qrCode.data.paymentReference || currentBooking.paymentWebhookReference;
 
                     addLog('✅ QR code fetched successfully', 'success');
                     showPaymentSection();
@@ -1140,6 +1141,7 @@
                 }
 
             } catch (error) {
+                console.log("Dô đây hả?")
                 addLog(`❌ Error creating booking or fetching QR code: ${error.message}`, 'error');
                 showRetryQROption();
             } finally {
@@ -1203,21 +1205,10 @@
             try {
                 addLog('🔍 Processing QR code data...', 'info');
 
-                // Parse QR code data
-                let qrData;
-                try {
-                    qrData = JSON.parse(currentBooking.qrCode);
-                } catch (parseError) {
-                    addLog('❌ Error parsing QR code data - invalid JSON format', 'error');
-                    console.error('QR Code raw data:', currentBooking.qrCode);
-                    showRetryQROption();
-                    return;
-                }
-
                 // Validate QR data structure
-                if (!qrData.url) {
+                if (!qrCode.data.qrCode) {
                     addLog('❌ QR code data missing URL field', 'error');
-                    console.error('QR Data structure:', qrData);
+                    console.error('QR Data structure:', qrCode.data);
                     showRetryQROption();
                     return;
                 }
@@ -1228,14 +1219,14 @@
 
                 // Show and configure QR image
                 qrCodeImage.style.display = 'block';
-                qrCodeImage.src = qrData.url;
+                qrCodeImage.src = qrCode.data.qrCode;
 
                 qrCodeImage.onload = () => {
                     addLog('✅ QR code image loaded successfully', 'success');
                 };
                 qrCodeImage.onerror = () => {
                     addLog('❌ Failed to load QR code image', 'error');
-                    addLog(`QR URL: ${qrData.url}`, 'info');
+                    addLog(`QR URL: ${qrCode.data.qrCode}`, 'info');
                     showRetryQROption();
                 };
 
@@ -1244,8 +1235,6 @@
                 paymentReference.textContent = currentBooking.paymentWebhookReference || 'Not set';
 
                 // Display bank account info
-                const accountInfo = `${qrData.accountNo || 'N/A'} - ${qrData.accountName || 'N/A'}`;
-                bankAccount.textContent = accountInfo;
 
                 // Show webhook simulator
                 webhookSimulator.style.display = 'block';

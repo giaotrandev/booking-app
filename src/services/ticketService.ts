@@ -44,7 +44,9 @@ function createSecureQRData(ticketData: any) {
   return JSON.stringify(secureData);
 }
 
-// Generate and upload QR code với security
+/**
+ * Generate and upload QR code với security
+ */
 export async function generateAndUploadQRCode(ticketData: any): Promise<string> {
   try {
     const tempDir = path.join(process.cwd(), 'temp');
@@ -55,20 +57,19 @@ export async function generateAndUploadQRCode(ticketData: any): Promise<string> 
     const qrFileName = `qr-${crypto.randomBytes(16).toString('hex')}.png`;
     const qrFilePath = path.join(tempDir, qrFileName);
 
-    // Create secure QR data with signature
     const secureQRData = createSecureQRData(ticketData);
 
     await QRCode.toFile(qrFilePath, secureQRData, {
       width: 400,
       margin: 1,
-      errorCorrectionLevel: 'Q', // tăng error correction để scan tốt hơn
-      scale: 8, // tăng scale để nét hơn nữa
+      errorCorrectionLevel: 'Q',
+      scale: 8,
     });
 
     const optimizedQRPath = await optimizeImage(qrFilePath, {
       width: 400,
       format: 'png',
-      quality: 95, // tăng quality
+      quality: 95,
     });
 
     const qrFileKey = await uploadFileToR2(optimizedQRPath, StorageFolders.TEMP, path.basename(optimizedQRPath));
@@ -271,7 +272,7 @@ export async function regenerateTicketQRCode(ticketId: string) {
   }
 
   const ticketNumber = generateUniqueTicketNumber();
-  const newSecretHash = crypto.randomBytes(32).toString('hex'); // New private key
+  const newSecretHash = crypto.randomBytes(32).toString('hex');
 
   const ticketData = {
     bookingId: ticket.bookingId,
@@ -289,7 +290,7 @@ export async function regenerateTicketQRCode(ticketId: string) {
     where: { id: ticketId },
     data: {
       ticketNumber,
-      qrCode: JSON.stringify(ticketData), // Store signed data including secretHash
+      qrCode: JSON.stringify(ticketData),
       qrCodeImage: qrCodeFileKey,
       updatedAt: new Date(),
     },
