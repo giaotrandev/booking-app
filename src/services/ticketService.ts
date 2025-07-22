@@ -6,8 +6,11 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as QRCode from 'qrcode';
 import * as crypto from 'crypto';
-import { sendEmail } from '#emails/sendEmail';
+import { sendEmail, sendEmailWithAttachments } from '#emails/sendEmail';
 import * as handlebars from 'handlebars';
+import { getSystemConfig } from './systemConfigService';
+import { generatePublicTicketPDF } from './pdfService';
+import { Booking, Ticket } from '@prisma/client';
 
 // Security configuration
 const TICKET_SECRET = process.env.TICKET_SECRET_KEY || 'your-secret-key-here';
@@ -112,7 +115,7 @@ export async function generateTicketsForBooking(bookingId: string) {
     booking.bookingTrips.flatMap((bookingTrip) =>
       bookingTrip.seats.map(async (seat) => {
         const ticketNumber = generateUniqueTicketNumber();
-        const ticketSecretHash = crypto.randomBytes(32).toString('hex'); // Private key cho mỗi vé
+        const ticketSecretHash = crypto.randomBytes(32).toString('hex');
 
         const ticketData = {
           bookingId: booking.id,
@@ -121,7 +124,7 @@ export async function generateTicketsForBooking(bookingId: string) {
           ticketNumber: ticketNumber,
           routeName: bookingTrip.trip.route.name,
           departureTime: bookingTrip.trip.departureTime,
-          secretHash: ticketSecretHash, // Secret hash trong QR data
+          secretHash: ticketSecretHash,
         };
 
         const qrCodeFileKey = await generateAndUploadQRCode(ticketData);
@@ -147,39 +150,182 @@ export async function generateTicketsForBooking(bookingId: string) {
     data: ticketsToCreate,
   });
 
-  // Send email for each ticket (same as before)
-  const tickets = await prisma.ticket.findMany({
-    where: { bookingId },
+  console.log(`Generated ${ticketsToCreate.length} tickets for booking ${bookingId}`);
+  return result;
+}
+
+export async function generateTicketsInTransaction(tx: any, bookingId: string) {
+  const booking = await tx.booking.findUnique({
+    where: { id: bookingId },
     include: {
-      booking: { include: { user: true, pickup: true, dropoff: true } },
-      bookingTrip: { include: { trip: { include: { route: true } } } },
-      seat: true,
+      user: true,
+      bookingTrips: {
+        include: {
+          seats: true,
+          trip: {
+            include: {
+              route: true,
+            },
+          },
+        },
+      },
     },
   });
 
-  for (const ticket of tickets) {
-    const templatePath = './src/templates/ticket.hbs';
-    const templateContent = fs.readFileSync(templatePath, 'utf-8');
-    const template = handlebars.compile(templateContent);
-
-    const emailParams = {
-      companyName: 'Your Bus Company',
-      ticketNumber: ticket.ticketNumber,
-      passengerName: ticket.passengerName,
-      routeName: ticket.bookingTrip.trip.route.name,
-      departureTime: new Date(ticket.bookingTrip.trip.departureTime).toLocaleString(),
-      seatNumbers: ticket.seat.seatNumber || 'N/A',
-      pickupName: ticket.booking.pickup?.name || 'N/A',
-      dropoffName: ticket.booking.dropoff?.name || 'N/A',
-      qrCodePath: ticket.qrCodeImage ? await getPublicR2Url(ticket.qrCodeImage) : null,
-    };
-
-    const passengerEmail = ticket.booking.passengerEmail || (ticket.booking.user ? ticket.booking.user.email : null);
-
-    if (passengerEmail) await sendEmail(passengerEmail, 'Your Bus Ticket', () => template(emailParams), emailParams);
+  if (!booking) {
+    throw new Error('Booking not found');
   }
 
-  return result;
+  const ticketsToCreate = await Promise.all(
+    booking.bookingTrips.flatMap((bookingTrip: any) =>
+      bookingTrip.seats.map(async (seat: any) => {
+        const ticketNumber = generateUniqueTicketNumber();
+        const ticketSecretHash = crypto.randomBytes(32).toString('hex');
+
+        const ticketData = {
+          bookingId: booking.id,
+          bookingTripId: bookingTrip.id,
+          seatId: seat.id,
+          ticketNumber: ticketNumber,
+          routeName: bookingTrip.trip.route.name,
+          departureTime: bookingTrip.trip.departureTime,
+          secretHash: ticketSecretHash,
+        };
+
+        const qrCodeFileKey = await generateAndUploadQRCode(ticketData);
+
+        return {
+          bookingId: booking.id,
+          bookingTripId: bookingTrip.id,
+          seatId: seat.id,
+          ticketNumber: ticketNumber,
+          qrCode: JSON.stringify(ticketData),
+          qrCodeImage: qrCodeFileKey,
+          passengerName: booking.user
+            ? `${booking.user.firstName} ${booking.user.lastName}`
+            : booking.passengerName || 'N/A',
+          passengerPhone: booking.passengerPhone || booking.user?.phoneNumber || null,
+          passengerEmail: booking.passengerEmail || booking.user?.email || null,
+        };
+      })
+    )
+  );
+
+  return await tx.ticket.createMany({
+    data: ticketsToCreate,
+  });
+}
+
+async function sendBookingConfirmationEmail(booking: any, tickets: any[]) {
+  const config = await getSystemConfig();
+
+  const pdfAttachments = await Promise.all(
+    tickets.map(async (ticket) => {
+      const { pdfBuffer } = await generatePublicTicketPDF(booking.id, ticket.seat.seatNumber);
+
+      // Create safe filename
+      const safePassengerName = ticket.passengerName.replace(/[^a-zA-Z0-9]/g, '_');
+      const safeRouteName = ticket.bookingTrip.trip.route.name.replace(/[^a-zA-Z0-9]/g, '_');
+      const filename = `ticket-${ticket.seat.seatNumber}-${safePassengerName}-${safeRouteName}.pdf`;
+
+      return {
+        filename,
+        content: pdfBuffer,
+        contentType: 'application/pdf',
+      };
+    })
+  );
+
+  // Load booking confirmation email template
+  const templatePath = path.join(process.cwd(), 'src/templates', 'booking-confirmation.hbs');
+  const templateContent = fs.readFileSync(templatePath, 'utf-8');
+  const template = handlebars.compile(templateContent);
+
+  // Use correct pricing fields from your Booking model
+  const totalAmount = booking.totalPrice || 0;
+  const discountAmount = booking.discountAmount || 0;
+  const finalAmount = booking.finalPrice || 0;
+  const bookingFee = totalAmount - finalAmount + discountAmount; // Calculate booking fee if needed
+  const taxes = 0; // Add if you have tax calculations
+
+  // Format addresses
+  const pickupFullAddress = booking.pickup
+    ? `${booking.pickup.address}, ${booking.pickup.ward.name}, ${booking.pickup.ward.district.name}, ${booking.pickup.ward.district.province.name}`
+    : 'N/A';
+
+  const dropoffFullAddress = booking.dropoff
+    ? `${booking.dropoff.address}, ${booking.dropoff.ward.name}, ${booking.dropoff.ward.district.name}, ${booking.dropoff.ward.district.province.name}`
+    : 'N/A';
+
+  // Format departure time
+  const departureDate = new Date(tickets[0].bookingTrip.trip.departureTime);
+  const formattedDepartureTime = departureDate.toLocaleString('vi-VN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  // Get passenger email - check multiple sources
+  const passengerEmail =
+    booking.passengerEmail || (booking.user ? booking.user.email : null) || tickets[0]?.passengerEmail;
+
+  if (!passengerEmail) {
+    console.log('No email found for booking:', booking.id);
+    return; // Skip sending email if no email available
+  }
+
+  const emailParams = {
+    companyName: config?.name || process.env.COMPANY_NAME || 'Bus Company',
+    companyLogo: config?.textLogo ? getPublicR2Url(config.textLogo) : null,
+    bookingId: booking.id,
+    bookingDate: new Date(booking.createdAt).toLocaleDateString('vi-VN'),
+    passengerName:
+      booking.passengerName ||
+      (booking.user ? `${booking.user.firstName} ${booking.user.lastName}` : null) ||
+      tickets[0]?.passengerName ||
+      'N/A',
+    passengerPhone:
+      booking.passengerPhone || (booking.user ? booking.user.phoneNumber : null) || tickets[0]?.passengerPhone || 'N/A',
+    passengerEmail: passengerEmail,
+
+    // Trip information
+    routeName: tickets[0].bookingTrip.trip.route.name,
+    departureTime: formattedDepartureTime,
+    pickupStation: booking.pickup?.name || 'N/A',
+    pickupAddress: pickupFullAddress,
+    dropoffStation: booking.dropoff?.name || 'N/A',
+    dropoffAddress: dropoffFullAddress,
+
+    // Tickets information
+    tickets: tickets.map((ticket) => ({
+      ticketNumber: ticket.ticketNumber,
+      seatNumber: ticket.seat.seatNumber,
+      passengerName: ticket.passengerName,
+    })),
+    totalTickets: tickets.length,
+
+    // Pricing - using your actual model fields
+    ticketPrice: Math.round(totalAmount / tickets.length), // Price per ticket
+    totalAmount: totalAmount,
+    discountAmount: discountAmount,
+    bookingFee: bookingFee,
+    taxes: taxes,
+    finalAmount: finalAmount,
+
+    // Support information
+    supportPhone: process.env.SUPPORT_PHONE || '1900-xxxx',
+    supportEmail: process.env.SUPPORT_EMAIL || 'support@company.com',
+    websiteUrl: process.env.WEBSITE_URL || 'https://company.com',
+  };
+
+  const htmlContent = template(emailParams);
+  const subject = `Xác nhận đặt vé - Booking #${booking.id}`;
+
+  // Send email with PDF attachments
+  await sendEmailWithAttachments(passengerEmail, subject, htmlContent, pdfAttachments);
 }
 
 /**

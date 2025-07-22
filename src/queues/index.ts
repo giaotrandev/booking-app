@@ -8,6 +8,7 @@ import { setupEmailProcessor } from './processors/emailProcessor';
 import { setupScheduledPostsProcessor } from './processors/scheduledPostsProcessor';
 import { setupBookingCancellationProcessor } from './processors/bookingCancellationProcessor';
 import { setupSeatStatusProcessor } from './processors/seatStatusProcessor';
+import { setupBookingEmailProcessor } from './processors/bookingEmailProcessor';
 
 /**
  * Initialize all queue processors
@@ -15,6 +16,7 @@ import { setupSeatStatusProcessor } from './processors/seatStatusProcessor';
 export function setupQueueProcessors(): void {
   // Set up processors for each queue type
   // setupEmailProcessor();
+  setupBookingEmailProcessor();
   setupScheduledPostsProcessor();
   setupBookingCancellationProcessor();
   // setupSeatStatusProcessor();

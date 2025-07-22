@@ -8,7 +8,7 @@ import axios from 'axios';
 import { Socket, Server } from 'socket.io';
 import { addJob, QueueType } from '#queues/index';
 import { getSocketIOInstance } from './bookingControllerSocketInterface';
-import { generateTicketsForBooking } from '#services/ticketService';
+import { generateTicketsForBooking, generateTicketsInTransaction } from '#services/ticketService';
 import { createRoomName } from '#src/services/socketService';
 import { deepRemoveTimestamps } from '#src/helpers/dataHelper';
 
@@ -356,6 +356,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
     }
 
     const io = getSocketIOInstance();
+
     if (io && result) {
       // Emit event to booking room
       const roomName = createRoomName.publicBooking(result.id);
@@ -925,7 +926,6 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
       description,
     } = req.body;
 
-    // Log the incoming webhook for debugging
     console.log('Received SePay webhook:', {
       gateway,
       accountNumber,
@@ -934,12 +934,10 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
       referenceCode,
     });
 
-    // Basic validation
     if (!content || !transferAmount) {
       return sendBadRequest(res, 'payment.invalidWebhookPayload', null, language);
     }
 
-    // Extract payment reference from content (format: "BKG12345678901234 Customer Name")
     const referenceMatch = content.match(/BKG[A-Z0-9]{14}/);
     if (!referenceMatch) {
       console.log('No valid booking reference found in content:', content);
@@ -947,8 +945,6 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
     }
 
     const paymentReference = referenceMatch[0];
-
-    // Find booking by payment reference
     const booking = await prisma.booking.findFirst({
       where: {
         paymentWebhookReference: paymentReference,
@@ -970,11 +966,10 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
       return sendSuccess(res, 'payment.webhookReceived', { message: 'No pending booking found' }, language);
     }
 
-    // Verify amount matches (allow small variance for bank fees)
     const expectedAmount = booking.finalPrice;
     const receivedAmount = parseFloat(transferAmount);
     const amountDiff = Math.abs(expectedAmount - receivedAmount);
-    const isAmountValid = amountDiff <= 1000; // Allow 1000 VND difference
+    const isAmountValid = amountDiff <= 1000;
 
     if (!isAmountValid) {
       console.warn(
@@ -982,54 +977,104 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
       );
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.booking.update({
-        where: { id: booking.id },
-        data: {
-          paymentStatus: PaymentStatus.COMPLETED,
-          status: BookingStatus.CONFIRMED,
-        },
-      });
+    // Update booking status, create tickets, and broadcast in transaction
+    await prisma.$transaction(
+      async (tx) => {
+        // Update booking status
+        await tx.booking.update({
+          where: { id: booking.id },
+          data: {
+            paymentStatus: PaymentStatus.COMPLETED,
+            status: BookingStatus.CONFIRMED,
+          },
+        });
 
-      const bookingWithRoute = await tx.booking.findUnique({
-        where: { id: booking.id },
-        include: {
-          bookingTrips: {
-            include: {
-              trip: {
-                include: {
-                  route: true,
+        const bookingWithRoute = await tx.booking.findUnique({
+          where: { id: booking.id },
+          include: {
+            bookingTrips: {
+              include: {
+                trip: {
+                  include: {
+                    route: true,
+                  },
                 },
+                seats: true,
               },
-              seats: true,
             },
           },
-        },
-      });
+        });
 
-      if (!bookingWithRoute) {
-        throw new Error('Booking not found');
-      }
+        if (!bookingWithRoute) {
+          throw new Error('Booking not found');
+        }
 
-      for (const bookingTrip of bookingWithRoute.bookingTrips) {
-        for (const seat of bookingTrip.seats) {
-          await tx.seat.update({
-            where: { id: seat.id },
-            data: {
-              status: SeatStatus.BOOKED,
+        // Update seat status
+        for (const bookingTrip of bookingWithRoute.bookingTrips) {
+          for (const seat of bookingTrip.seats) {
+            await tx.seat.update({
+              where: { id: seat.id },
+              data: {
+                status: SeatStatus.BOOKED,
+              },
+            });
+          }
+        }
+
+        // Create history record
+        await tx.bookingHistory.create({
+          data: {
+            bookingId: booking.id,
+            changedFields: {
+              paymentStatus: { from: PaymentStatus.PENDING, to: PaymentStatus.COMPLETED },
+              status: { from: BookingStatus.PENDING, to: BookingStatus.CONFIRMED },
             },
-          });
+            changedBy: booking.userId || 'system',
+            changeReason: `Payment completed via SePay. Amount: ${receivedAmount}VND, Reference: ${paymentReference}`,
+          },
+        });
 
+        // Generate tickets in the same transaction
+        await generateTicketsInTransaction(tx, booking.id);
+      },
+      {
+        timeout: 60000,
+        maxWait: 61000,
+      }
+    );
+
+    // After successful transaction, broadcast changes
+    const confirmedBooking = await prisma.booking.findUnique({
+      where: { id: booking.id },
+      include: {
+        bookingTrips: {
+          include: {
+            trip: {
+              include: {
+                route: true,
+              },
+            },
+            seats: true,
+          },
+        },
+      },
+    });
+
+    if (confirmedBooking) {
+      // Broadcast seat status changes
+      for (const bookingTrip of confirmedBooking.bookingTrips) {
+        for (const seat of bookingTrip.seats) {
           broadcastSeatStatusChange(bookingTrip.trip.id, seat.id, SeatStatus.BOOKED, {
             seatNumber: seat.seatNumber,
-            bookedBy: bookingWithRoute.userId,
-            bookingId: bookingWithRoute.id,
+            bookedBy: confirmedBooking.userId,
+            bookingId: confirmedBooking.id,
             paidAmount: receivedAmount,
           });
         }
 
+        // Broadcast booking status change
         broadcastBookingStatusChange(bookingTrip.bookingId, BookingStatus.CONFIRMED, {
-          trips: bookingWithRoute.bookingTrips?.map((bt) => ({
+          trips: confirmedBooking.bookingTrips?.map((bt) => ({
             tripId: bt.trip.id,
             routeName: bt.trip.route.name,
             departureTime: bt.trip.departureTime,
@@ -1043,30 +1088,42 @@ export const handlePaymentWebhook = async (req: Request, res: Response): Promise
         });
       }
 
-      // Create history record
-      await tx.bookingHistory.create({
-        data: {
-          bookingId: booking.id,
-          changedFields: {
-            paymentStatus: { from: PaymentStatus.PENDING, to: PaymentStatus.COMPLETED },
-            status: { from: BookingStatus.PENDING, to: BookingStatus.CONFIRMED },
+      // Queue email sending (non-blocking)
+      try {
+        await addJob(
+          QueueType.EMAIL_BOOKING_CONFIRMATION,
+          { bookingId: booking.id },
+          {
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 2000, // 2 second delay to ensure data is fully committed
+            },
+            removeOnComplete: 10,
+            removeOnFail: 50,
+          }
+        );
+        console.log(`Queued email sending for booking ${booking.id}`);
+      } catch (queueError) {
+        console.error(`Error queuing email for booking ${booking.id}:`, queueError);
+        // Log to booking history but don't fail the webhook
+        await prisma.bookingHistory.create({
+          data: {
+            bookingId: booking.id,
+            changedFields: {
+              emailQueue: {
+                error: queueError instanceof Error ? queueError.message : JSON.stringify(queueError),
+              },
+            },
+            changedBy: 'system',
+            changeReason: `Failed to queue email: ${queueError instanceof Error ? queueError.message : 'Unknown error'}`,
           },
-          changedBy: booking.userId || '',
-          changeReason: `Payment completed via SePay. Amount: ${receivedAmount}VND, Reference: ${paymentReference}`,
-        },
-      });
-    });
+        });
+      }
 
-    // Generate tickets and send via email (do not include in response)
-    try {
-      await generateTicketsForBooking(booking.id);
-      console.log(`Tickets generated and emailed for booking ${booking.id}`);
-    } catch (ticketError) {
-      console.error(`Error generating tickets for booking ${booking.id}:`, ticketError);
-      // Log error but don't fail webhook processing
+      console.log(`Payment processing completed successfully for booking ${booking.id}`);
     }
 
-    console.log(`Payment completed successfully for booking ${booking.id}`);
     return sendSuccess(res, 'payment.webhookReceived', { bookingId: booking.id }, language);
   } catch (error) {
     console.error('Error processing payment webhook:', error);

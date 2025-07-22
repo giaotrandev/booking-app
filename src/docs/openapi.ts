@@ -9190,17 +9190,18 @@ export const apiSpecification: OpenAPIV3.Document = {
         summary: 'Get ticket PDF',
         description: 'Retrieves the PDF version of a specific ticket',
         security: [{ BearerAuth: [] }],
+
         parameters: [
           {
             name: 'bookingId',
-            in: 'path',
+            in: 'query',
             description: 'ID of the booking',
             required: true,
             schema: { type: 'string' },
           },
           {
             name: 'seatNumber',
-            in: 'path',
+            in: 'query',
             description: 'Seat number of the ticket',
             required: true,
             schema: { type: 'string' },

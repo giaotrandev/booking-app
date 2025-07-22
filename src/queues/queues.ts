@@ -5,6 +5,7 @@ import { getRedisQueueUrl, waitForRedisConnection } from '#config/redis';
 // Queue types
 export enum QueueType {
   EMAIL = 'email',
+  EMAIL_BOOKING_CONFIRMATION = 'email-booking-confirmation',
   HISTORY = 'history',
   SCHEDULED_POSTS = 'scheduled-posts',
   IMAGE_PROCESSING = 'image-processing',

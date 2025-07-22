@@ -103,7 +103,16 @@ export async function getUncheckedInTicketsCtrl(req: Request, res: Response) {
       const firstChar = local[0];
       const lastTwo = local.length > 2 ? local.slice(-2) : local;
       const maskedLocal = `${firstChar}${'*'.repeat(Math.max(0, local.length - 3))}${lastTwo}`;
-      return `${maskedLocal}@****`;
+      // Show first char of domain and mask the rest, keep TLD if possible
+      const domainParts = domain.split('.');
+      if (domainParts.length < 2) {
+        // fallback if domain is weird
+        return `${maskedLocal}@${domain[0] || ''}***`;
+      }
+      const tld = domainParts.pop();
+      const domainName = domainParts.join('.');
+      const domainFirstChar = domainName[0] || '';
+      return `${maskedLocal}@${domainFirstChar}***.${tld}`;
     }
 
     function maskPhone(phone: string): string {
@@ -111,8 +120,8 @@ export async function getUncheckedInTicketsCtrl(req: Request, res: Response) {
       const len = phone.length;
       if (len <= 4) return `${phone[0] || ''}${'*'.repeat(Math.max(0, len - 2))}${phone[len - 1] || ''}`;
       const firstTwo = phone.slice(0, 2);
-      const lastTwo = phone.slice(-2);
-      const maskedMiddle = '*'.repeat(len - 4);
+      const lastTwo = phone.slice(-3);
+      const maskedMiddle = '*'.repeat(len - 5);
       return `${firstTwo}${maskedMiddle}${lastTwo}`;
     }
 
@@ -184,14 +193,21 @@ export async function checkInBulkTicketsCtrl(req: Request, res: Response) {
 
 export async function getPublicTicketPDF(req: Request, res: Response) {
   try {
-    const { bookingId, seatNumber } = req.params;
+    const { bookingId, seatNumber } = req.query;
+
+    // Ensure bookingId and seatNumber are strings
+    if (typeof bookingId !== 'string' || typeof seatNumber !== 'string') {
+      return sendServerError(res, 'ticket.pdfError', { message: 'Invalid bookingId or seatNumber' }, req.language);
+    }
+
     const { pdfBuffer, passengerName, routeName, departureTime } = await generatePublicTicketPDF(bookingId, seatNumber);
-    // Đổi tên file vé để thêm thông tin đã nhận (passengerName, routeName, departureTime)
-    // Loại bỏ ký tự đặc biệt và thay thế khoảng trắng bằng dấu gạch dưới cho tên file
+
+    // Clean filename components
     const safePassengerName = passengerName.replace(/[^a-zA-Z0-9]/g, '_');
     const safeRouteName = routeName.replace(/[^a-zA-Z0-9]/g, '_');
     const safeDepartureTime = departureTime.replace(/[^a-zA-Z0-9]/g, '_');
     const fileName = `ticket-${seatNumber}-${safePassengerName}-${safeRouteName}-${safeDepartureTime}.pdf`;
+
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename=${fileName}`,
