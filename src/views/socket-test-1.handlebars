@@ -1537,7 +1537,7 @@
         async function fetchUncheckedInTickets(bookingId) {
             try {
                 addLog(`📡 Fetching unchecked-in tickets for booking ${bookingId}...`, 'info');
-                const response = await fetch(`http://localhost:5000/api/tickets/unchecked-in/${bookingId}`, {
+                const response = await fetch(`https://booking-app-s5m3.onrender.com/api/tickets/unchecked-in/${bookingId}`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json'
