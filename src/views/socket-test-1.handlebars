@@ -1534,6 +1534,30 @@
             eventLogs.scrollTop = eventLogs.scrollHeight;
         }
 
+        async function fetchUncheckedInTickets(bookingId) {
+            try {
+                addLog(`📡 Fetching unchecked-in tickets for booking ${bookingId}...`, 'info');
+                const response = await fetch(`http://localhost:5000/api/tickets/unchecked-in/${bookingId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log("Ra vé hong: ", data)
+                addLog(`✅ Successfully fetched unchecked-in tickets for booking ${bookingId}`, JSON.stringify(data));
+                return data;
+            } catch (error) {
+                addLog(`❌ Error fetching unchecked-in tickets: ${error.message}`, 'error');
+                showApiResponseModal({ error: error.message });
+            }
+        }
+
         // Connect to socket server
         connectBtn.addEventListener('click', () => {
             const serverUrl = document.getElementById('serverUrl').value;
@@ -1656,6 +1680,7 @@
                 socket.on('bookingStatusChanged', (data) => {
                     addLog(`Booking ${data.bookingId} status changed to ${data.status}`, 'info');
                     if (data.status === 'CONFIRMED' && currentBooking && currentBooking.id === data.bookingId) {
+                        fetchUncheckedInTickets(data.bookingId);
                         showBookingSuccessModal(data);
                         showBookingSuccess();
                     }
