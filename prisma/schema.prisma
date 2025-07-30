@@ -414,6 +414,8 @@ model Role {
   name        String  @unique
   description String?
 
+  type RoleType @default(USER)
+
   // Store permission IDs directly
   permissionIds String[] @db.ObjectId
 
@@ -967,4 +969,9 @@ enum NotificationCategory {
   TRIP
   PAYMENT
   SYSTEM
+}
+
+enum RoleType {
+  USER
+  ADMIN
 }

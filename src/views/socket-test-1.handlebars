@@ -1398,8 +1398,18 @@
 
                 // If selectedSeats is empty (after booking), get seat info from booking
                 let displaySeats = seatNumbers;
+                let seatsForDownload = [];
+                
                 if (!seatNumbers && currentBooking.bookingTrips && currentBooking.bookingTrips[0]) {
-                    displaySeats = currentBooking.bookingTrips[0].seats?.map(s => s.seatNumber).join(', ') || 'N/A';
+                    const bookingSeats = currentBooking.bookingTrips[0].seats || [];
+                    displaySeats = bookingSeats.map(s => s.seatNumber).join(', ') || 'N/A';
+                    seatsForDownload = bookingSeats.map(s => s.seatNumber);
+                } else {
+                    // Get seat numbers from selectedSeats
+                    seatsForDownload = Array.from(selectedSeats).map(seatId => {
+                        const seat = tripSeats.find(s => s.id === seatId);
+                        return seat ? seat.seatNumber : seatId;
+                    });
                 }
 
                 bookingDetails.innerHTML = `
@@ -1409,12 +1419,46 @@
                         <p><strong>🪑 Seats:</strong> ${displaySeats}</p>
                         <p><strong>📅 Booking Date:</strong> ${currentBooking.createdAt ? new Date(currentBooking.createdAt).toLocaleDateString() : 'N/A'}</p>
                         <p><strong>🔗 Reference:</strong> ${currentBooking.paymentWebhookReference}</p>
+                        <div style="margin-top: 20px; text-align: center;">
+                            <button id="downloadAllTickets" style="
+                                background: #28a745;
+                                color: white;
+                                border: none;
+                                padding: 12px 24px;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                font-size: 16px;
+                                font-weight: bold;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                                transition: all 0.3s ease;
+                            " onmouseover="this.style.background='#218838'" onmouseout="this.style.background='#28a745'">
+                                📥 Download All Tickets (${seatsForDownload.length})
+                            </button>
+                        </div>
                     </div>
                 `;
+
+                // Add click event for download button
+                setTimeout(() => {
+                    const downloadBtn = document.getElementById('downloadAllTickets');
+                    if (downloadBtn && seatsForDownload.length > 0) {
+                        downloadBtn.addEventListener('click', () => {
+                            downloadAllTickets(currentBooking.id, seatsForDownload);
+                        });
+                    }
+                }, 100);
+
+                // Auto-download tickets after 3 seconds
+                setTimeout(() => {
+                    if (seatsForDownload.length > 0) {
+                        downloadAllTickets(currentBooking.id, seatsForDownload);
+                    }
+                }, 3000);
             }
 
             addLog('🎉 Payment completed successfully!', 'success');
             addLog('Your booking is now confirmed. Have a great trip!', 'success');
+            addLog('📥 Tickets will be downloaded automatically in 3 seconds...', 'info');
 
             // Auto-reload seats to show updated status
             setTimeout(() => {
@@ -1431,6 +1475,106 @@
             }
         }
 
+        // Function to download all tickets
+        async function downloadAllTickets(bookingId, seatNumbers) {
+            if (!bookingId || !seatNumbers || seatNumbers.length === 0) {
+                addLog('❌ Cannot download tickets: Missing booking ID or seat numbers', 'error');
+                return;
+            }
+
+            addLog(`📥 Starting download of ${seatNumbers.length} ticket(s)...`, 'info');
+            
+            try {
+                for (let i = 0; i < seatNumbers.length; i++) {
+                    const seatNumber = seatNumbers[i];
+                    
+                    try {
+                        addLog(`📄 Downloading ticket for seat ${seatNumber}...`, 'info');
+                        
+                        const url = `http://localhost:5000/api/tickets/pdf?bookingId=${encodeURIComponent(bookingId)}&seatNumber=${encodeURIComponent(seatNumber)}`;
+                        
+                        const response = await fetch(url, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+                            }
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+
+                        const blob = await response.blob();
+                        
+                        // Create download link
+                        const downloadUrl = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = downloadUrl;
+                        link.download = `ticket_${bookingId}_seat_${seatNumber}.pdf`;
+                        
+                        // Trigger download
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        // Clean up blob URL
+                        window.URL.revokeObjectURL(downloadUrl);
+                        
+                        addLog(`✅ Downloaded ticket for seat ${seatNumber}`, 'success');
+                        
+                        // Add small delay between downloads to avoid overwhelming the server
+                        if (i < seatNumbers.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                        
+                    } catch (seatError) {
+                        console.error(`Error downloading ticket for seat ${seatNumber}:`, seatError);
+                        addLog(`❌ Failed to download ticket for seat ${seatNumber}: ${seatError.message}`, 'error');
+                    }
+                }
+                
+                addLog(`🎉 Completed downloading ${seatNumbers.length} ticket(s)!`, 'success');
+                
+            } catch (error) {
+                console.error('Error in downloadAllTickets:', error);
+                addLog(`❌ Error downloading tickets: ${error.message}`, 'error');
+            }
+        }
+
+        // Helper function to download individual ticket (can be used separately)
+        async function downloadSingleTicket(bookingId, seatNumber) {
+            try {
+                const url = `http://localhost:5000/api/tickets/pdf?bookingId=${encodeURIComponent(bookingId)}&seatNumber=${encodeURIComponent(seatNumber)}`;
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = `ticket_${bookingId}_seat_${seatNumber}.pdf`;
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                window.URL.revokeObjectURL(downloadUrl);
+                
+                return true;
+            } catch (error) {
+                console.error('Error downloading single ticket:', error);
+                throw error;
+            }
+        }
         // Resend QR code
         async function resendQR() {
             const apiUrl = document.getElementById('apiUrl').value;

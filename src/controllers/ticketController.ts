@@ -132,6 +132,7 @@ export async function getUncheckedInTicketsCtrl(req: Request, res: Response) {
         passengerName: ticket.passengerName,
         passengerEmail: maskEmail(ticket.passengerEmail ?? ''),
         passengerPhone: maskPhone(ticket.passengerPhone ?? ''),
+        passengerNote: ticket.booking.passengerNote || 'N/A',
         qrCodeImage: ticket.qrCodeImage ? getPublicR2Url(ticket.qrCodeImage) : null,
         status: ticket.status,
         metadata: ticket.metadata,

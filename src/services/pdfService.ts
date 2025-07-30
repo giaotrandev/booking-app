@@ -15,10 +15,6 @@ export async function generatePublicTicketPDF(
   routeName: string;
   departureTime: string;
 }> {
-  console.log('Tào lao: ', {
-    bookingId: bookingId,
-    seatNumber: seatNumber,
-  });
   const ticket = await prisma.ticket.findFirst({
     where: {
       bookingId: bookingId,
@@ -127,7 +123,7 @@ export async function generatePublicTicketPDF(
 
   // Get logo path if available
   const logoPath = config?.textLogo ? getPublicR2Url(config.textLogo) : null;
-  const pickupName = ticket.booking.pickup
+  const pickupAddress = ticket.booking.pickup
     ? ticket.booking.pickup?.address +
       ', ' +
       ticket.booking.pickup?.ward.name +
@@ -136,7 +132,7 @@ export async function generatePublicTicketPDF(
       ', ' +
       ticket.booking.pickup?.ward.district.province.name
     : null;
-  const dropoffName = ticket.booking.dropoff
+  const dropoffAddress = ticket.booking.dropoff
     ? ticket.booking.dropoff?.address +
       ', ' +
       ticket.booking.dropoff?.ward.name +
@@ -154,8 +150,10 @@ export async function generatePublicTicketPDF(
     routeName: routeName,
     departureTime: departureTime,
     seatNumbers: ticket.seat.seatNumber || 'N/A',
-    pickupName: pickupName || 'N/A',
-    dropoffName: dropoffName || 'N/A',
+    pickupName: ticket.booking.pickup?.name || 'N/A',
+    pickupAddress: pickupAddress || 'N/A',
+    dropoffName: ticket.booking.dropoff?.name || 'N/A',
+    dropoffAddress: dropoffAddress || 'N/A',
     qrCodePath: ticket.qrCodeImage ? getPublicR2Url(ticket.qrCodeImage) : null,
   });
 
@@ -170,7 +168,7 @@ export async function generatePublicTicketPDF(
 
   const pdfBuffer = await page.pdf({
     width: '80mm',
-    height: '205mm',
+    height: '230mm',
     printBackground: true,
     margin: { top: '0mm', bottom: '0mm', left: '0mm', right: '0mm' },
     preferCSSPageSize: false,

@@ -479,6 +479,7 @@ export async function getUncheckedInTickets(bookingId: string) {
       isCheckedIn: false,
     },
     include: {
+      booking: true,
       seat: true,
     },
   });

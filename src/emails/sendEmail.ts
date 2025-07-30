@@ -1,24 +1,36 @@
-import sgMail from '@sendgrid/mail';
+import * as brevo from '@getbrevo/brevo';
 
 export const sendEmail = async <T>(to: string, subject: string, template: (params: T) => string, params: T) => {
-  const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+  const BREVO_API_KEY = process.env.BREVO_API_KEY;
 
-  if (!SENDGRID_API_KEY) {
-    throw new Error('SENDGRID_API_KEY is not defined');
+  if (!BREVO_API_KEY) {
+    throw new Error('BREVO_API_KEY is not defined');
   }
 
-  sgMail.setApiKey(SENDGRID_API_KEY);
+  // Initialize Brevo client
+  const apiInstance = new brevo.TransactionalEmailsApi();
+  apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, BREVO_API_KEY);
 
   try {
-    const msg = {
-      to,
-      from: process.env.EMAIL_FROM || 'tranngocgiao147@gmail.com',
-      subject,
-      html: template(params),
-    };
+    const sendSmtpEmail = new brevo.SendSmtpEmail();
 
-    await sgMail.send(msg);
-    console.log('Email sent successfully');
+    sendSmtpEmail.to = [{ email: to }];
+    sendSmtpEmail.sender = {
+      email: process.env.EMAIL_FROM || 'tranngocgiao25022001@gmail.com',
+      name: process.env.EMAIL_FROM_NAME || 'Your App Name',
+    };
+    sendSmtpEmail.subject = subject;
+    sendSmtpEmail.htmlContent = template(params);
+
+    const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
+
+    // Debug response structure
+    console.log('Full response:', JSON.stringify(result, null, 2));
+    console.log('Response body:', result.body);
+    console.log('Message ID:', result.body?.messageId);
+
+    console.log('Email sent successfully to:', to);
+    return result;
   } catch (error) {
     console.error('Error sending email:', error);
     throw error;
@@ -35,30 +47,42 @@ export const sendEmailWithAttachments = async (
     contentType: string;
   }>
 ) => {
-  const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+  const BREVO_API_KEY = process.env.BREVO_API_KEY;
 
-  if (!SENDGRID_API_KEY) {
-    throw new Error('SENDGRID_API_KEY is not defined');
+  if (!BREVO_API_KEY) {
+    throw new Error('BREVO_API_KEY is not defined');
   }
 
-  sgMail.setApiKey(SENDGRID_API_KEY);
+  // Initialize Brevo client
+  const apiInstance = new brevo.TransactionalEmailsApi();
+  apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, BREVO_API_KEY);
 
   try {
-    const msg = {
-      to,
-      from: process.env.EMAIL_FROM || 'tranngocgiao147@gmail.com',
-      subject,
-      html: htmlContent,
-      attachments: attachments.map((attachment) => ({
-        filename: attachment.filename,
-        content: attachment.content.toString('base64'),
-        type: attachment.contentType,
-        disposition: 'attachment',
-      })),
-    };
+    const sendSmtpEmail = new brevo.SendSmtpEmail();
 
-    await sgMail.send(msg);
+    sendSmtpEmail.to = [{ email: to }];
+    sendSmtpEmail.sender = {
+      email: process.env.EMAIL_FROM || 'tranngocgiao25022001@gmail.com',
+      name: process.env.EMAIL_FROM_NAME || 'Your App Name',
+    };
+    sendSmtpEmail.subject = subject;
+    sendSmtpEmail.htmlContent = htmlContent;
+
+    // Convert attachments to Brevo format
+    sendSmtpEmail.attachment = attachments.map((attachment) => ({
+      name: attachment.filename,
+      content: attachment.content.toString('base64'),
+    }));
+
+    const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
+
+    // Debug response structure
+    console.log('Full response:', JSON.stringify(result, null, 2));
+    console.log('Response body:', result.body);
+    console.log('Message ID:', result.body?.messageId);
+
     console.log('Booking confirmation email with tickets sent successfully to:', to);
+    return result;
   } catch (error) {
     console.error('Error sending booking confirmation email:', error);
     throw error;

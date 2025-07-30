@@ -292,6 +292,181 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+export const loginAdmin = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+  try {
+    const { email, password, rememberMe } = req.body;
+
+    // Check for user email
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: {
+        role: {
+          include: {
+            permissions: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      sendUnauthorized(res, 'auth.invalidCredentials', null, language);
+      return;
+    }
+
+    // Only allow users with role type ADMIN to login
+    if (!user.role || user.role.type !== 'ADMIN') {
+      sendUnauthorized(res, 'auth.notAdmin', null, language);
+      return;
+    }
+
+    // Check if email is verified
+    if (!user.isEmailVerified) {
+      sendUnauthorized(res, 'auth.emailNotVerified', null, language);
+      return;
+    }
+
+    // Check password
+    const isMatch = await TokenHandler.comparePassword(password, user.password);
+
+    if (!isMatch) {
+      sendUnauthorized(res, 'auth.invalidCredentials', null, language);
+      return;
+    }
+
+    // Parse token expiration from environment variables
+    const ACCESS_TOKEN_EXPIRATION = process.env.ACCESS_TOKEN_EXPIRATION || '1d';
+    const REFRESH_TOKEN_EXPIRATION = process.env.REFRESH_TOKEN_EXPIRATION || '30d';
+
+    // Convert time strings to milliseconds
+    const accessTokenExpirationMs = ms(ACCESS_TOKEN_EXPIRATION as ms.StringValue);
+    const refreshTokenExpirationMs = ms(REFRESH_TOKEN_EXPIRATION as ms.StringValue);
+
+    // Remove old login sessions
+    const oldSessions = await prisma.loginSession.findMany({
+      where: {
+        userId: user.id,
+        lastActivityAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      },
+      select: { id: true },
+    });
+
+    if (oldSessions.length > 0) {
+      await prisma.refreshToken.deleteMany({
+        where: {
+          sessionId: { in: oldSessions.map((session) => session.id) },
+        },
+      });
+
+      await prisma.loginSession.deleteMany({
+        where: {
+          id: { in: oldSessions.map((session) => session.id) },
+        },
+      });
+    }
+
+    // Create new login session
+    const session = await prisma.loginSession.create({
+      data: {
+        userId: user.id,
+        ip: req.ip || 'unknown',
+        userAgent: req.get('User-Agent') || 'unknown',
+        isActive: true,
+      },
+    });
+
+    // Create access token
+    const accessToken = TokenHandler.generateAccessToken(
+      {
+        userId: user.id,
+        role: user.role.name,
+        sessionId: session.id,
+      },
+      ACCESS_TOKEN_EXPIRATION
+    );
+
+    // Prepare cookie options with environment-based configuration
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? ('strict' as const) : ('lax' as const),
+      expires: new Date(Date.now() + accessTokenExpirationMs),
+      path: '/',
+    };
+
+    // Conditional cookie name based on environment
+    const accessTokenCookieName = 'at';
+
+    const refreshTokenCookieName = 'rt';
+
+    // Set access token cookie
+    res.cookie(accessTokenCookieName, accessToken, {
+      ...cookieOptions,
+      ...(process.env.NODE_ENV === 'production' && {
+        secure: true,
+      }),
+    });
+
+    // Initialize refresh token as null
+    let refreshToken = null;
+
+    // Handle remember me functionality
+    if (rememberMe) {
+      const refreshTokenString = TokenHandler.generateRefreshToken(
+        {
+          userId: user.id,
+          sessionId: session.id,
+        },
+        REFRESH_TOKEN_EXPIRATION
+      );
+
+      // Store refresh token in database
+      await prisma.refreshToken.create({
+        data: {
+          token: refreshTokenString,
+          sessionId: session.id,
+          expiresAt: new Date(Date.now() + refreshTokenExpirationMs),
+          isRevoked: false,
+        },
+      });
+
+      // Set refresh token cookie
+      res.cookie(refreshTokenCookieName, refreshTokenString, {
+        ...cookieOptions,
+        expires: new Date(Date.now() + refreshTokenExpirationMs),
+        ...(process.env.NODE_ENV === 'production' && {
+          secure: true,
+        }),
+      });
+
+      refreshToken = refreshTokenString;
+    }
+
+    // Successful login response
+    sendSuccess(
+      res,
+      'auth.loginSuccess',
+      {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role.name,
+        permissions: user.role.permissions.map((p) => p.code),
+        gender: user.gender,
+        phoneNumber: user.phoneNumber,
+        birthday: user.birthday,
+        address: user.address,
+        // accessToken,
+        // refreshToken,
+      },
+      language
+    );
+  } catch (error) {
+    sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
+  }
+};
+
 export const refreshAccessToken = async (req: Request, res: Response): Promise<void> => {
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
   try {

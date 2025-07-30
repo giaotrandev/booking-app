@@ -49,7 +49,7 @@ server.listen(port, () => {
 // seedBusStops();
 // seedVehicleTypes();
 // seedVehicles();
-// seedRoutesAndRouteStops();
+seedRoutesAndRouteStops();
 // seedSeats();
 
 const initializeServices = async () => {
@@ -86,7 +86,6 @@ initializeServices();
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err: Error) => {
   console.log(`Error: ${err.message}`);
-  console.log('Tào lao');
   prisma.$disconnect(); // Disconnect Prisma
   server.close(() => process.exit(1));
 });

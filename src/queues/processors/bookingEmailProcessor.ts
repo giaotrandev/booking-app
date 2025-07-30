@@ -2,16 +2,14 @@
 import { QueueType, getQueue } from '#queues/index';
 import { prisma } from '#src/config/db';
 
-import sgMail from '@sendgrid/mail';
+import * as brevo from '@getbrevo/brevo';
 import * as fs from 'fs';
 import * as path from 'path';
 import handlebars from 'handlebars';
 import { generatePublicTicketPDF } from '#src/services/pdfService';
 import { getSystemConfig } from '#src/services/systemConfigService';
 import { getPublicR2Url } from '#src/services/r2Service';
-
-// Set SendGrid API key
-sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
+import { processLogoForEmail } from '#src/services/imageService';
 
 interface BookingEmailJobData {
   bookingId: string;
@@ -175,10 +173,8 @@ export function setupBookingEmailProcessor(): void {
           const filename = `ticket-${ticket.seat.seatNumber}-${safePassengerName}-${safeRouteName}.pdf`;
 
           return {
-            filename,
+            name: filename, // Brevo uses 'name' instead of 'filename'
             content: pdfBuffer.toString('base64'),
-            type: 'application/pdf',
-            disposition: 'attachment',
           };
         })
       );
@@ -186,16 +182,16 @@ export function setupBookingEmailProcessor(): void {
       // Generate email content
       const emailContent = await generateEmailContent(booking, tickets);
 
-      // Send email with SendGrid
-      await sgMail.send({
-        to: passengerEmail,
-        from: process.env.EMAIL_FROM || 'tranngocgiao147@gmail.com',
-        subject: `Xác nhận đặt vé - Booking #${booking.id}`,
-        html: emailContent,
-        attachments: pdfAttachments,
-      });
+      // Send email with Brevo
+      const result = await sendEmailWithBrevo(
+        passengerEmail,
+        `Xác nhận đặt vé - Booking #${booking.id}`,
+        emailContent,
+        pdfAttachments
+      );
 
       console.log(`Booking confirmation email sent successfully to ${passengerEmail} for booking ${bookingId}`);
+      console.log('Brevo Message ID:', result.body?.messageId);
 
       // Log success to booking history
       await prisma.bookingHistory.create({
@@ -205,6 +201,7 @@ export function setupBookingEmailProcessor(): void {
             emailStatus: 'sent_successfully',
             emailSentTo: passengerEmail,
             attachmentCount: pdfAttachments.length,
+            messageId: result.body?.messageId || 'unknown',
           },
           changedBy: 'system',
           changeReason: `Booking confirmation email sent successfully to ${passengerEmail}`,
@@ -216,6 +213,7 @@ export function setupBookingEmailProcessor(): void {
         emailSent: passengerEmail,
         attachmentCount: pdfAttachments.length,
         ticketCount: tickets.length,
+        messageId: result.body?.messageId,
       };
     } catch (error) {
       console.error(`Error sending booking confirmation email for ${bookingId}:`, error);
@@ -266,6 +264,42 @@ export function setupBookingEmailProcessor(): void {
 }
 
 /**
+ * Send email using Brevo
+ */
+async function sendEmailWithBrevo(
+  to: string,
+  subject: string,
+  htmlContent: string,
+  attachments: Array<{ name: string; content: string }>
+) {
+  const BREVO_API_KEY = process.env.BREVO_API_KEY;
+
+  if (!BREVO_API_KEY) {
+    throw new Error('BREVO_API_KEY is not defined');
+  }
+
+  // Initialize Brevo client
+  const apiInstance = new brevo.TransactionalEmailsApi();
+  apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, BREVO_API_KEY);
+
+  const sendSmtpEmail = new brevo.SendSmtpEmail();
+
+  sendSmtpEmail.to = [{ email: to }];
+  sendSmtpEmail.sender = {
+    email: process.env.EMAIL_FROM || 'tranngocgiao147@gmail.com',
+    name: process.env.EMAIL_FROM_NAME || 'Bus Booking System',
+  };
+  sendSmtpEmail.subject = subject;
+  sendSmtpEmail.htmlContent = htmlContent;
+
+  if (attachments && attachments.length > 0) {
+    sendSmtpEmail.attachment = attachments;
+  }
+
+  return await apiInstance.sendTransacEmail(sendSmtpEmail);
+}
+
+/**
  * Generate email content using template
  */
 async function generateEmailContent(booking: any, tickets: any[]): Promise<string> {
@@ -299,9 +333,20 @@ async function generateEmailContent(booking: any, tickets: any[]): Promise<strin
     hour12: false,
   });
 
+  let companyLogoBase64 = null;
+  if (config?.textLogo) {
+    try {
+      companyLogoBase64 = await processLogoForEmail(config.textLogo, getPublicR2Url);
+    } catch (error) {
+      console.error('Error converting logo to base64:', error);
+      companyLogoBase64 = null;
+    }
+  }
+  console.log('Ra 11: ', companyLogoBase64);
+
   const emailParams = {
     companyName: config?.name || process.env.COMPANY_NAME || 'Bus Company',
-    companyLogo: config?.textLogo ? getPublicR2Url(config.textLogo) : null,
+    companyLogo: companyLogoBase64,
     bookingId: booking.id,
     bookingDate: new Date(booking.createdAt).toLocaleDateString('vi-VN'),
     passengerName:

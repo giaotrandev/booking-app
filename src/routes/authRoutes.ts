@@ -47,4 +47,6 @@ router.post('/change-password', authenticateToken, validateSchema(changePassword
 router.post('/logout', authenticateToken, authController.logoutUser);
 router.post('/logout-all-device', authenticateToken, authController.logoutAllDevices);
 
+router.post('/admin/login', authController.loginAdmin);
+
 export default router;

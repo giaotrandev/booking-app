@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "cross-env NODE_ENV=production node dist/server.js",
     "dev": "cross-env NODE_ENV=development nodemon -r tsconfig-paths/register src/server.ts",
-    "build": "cross-env NODE_ENV=production tsc -p . && yarn copy-locales",
+    "build": "npx puppeteer browsers install chrome && cross-env NODE_ENV=production tsc -p . && yarn copy-locales",
     "copy-locales": "copyfiles -u 1 \"src/locales/**/*\" dist",
     "prepare": "husky",
     "lint": "eslint . --ext .ts",
@@ -34,6 +34,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.802.0",
     "@aws-sdk/s3-request-presigner": "^3.802.0",
+    "@getbrevo/brevo": "^3.0.1",
     "@prisma/client": "^6.8.2",
     "@sendgrid/mail": "^8.1.4",
     "@types/bull": "^4.10.4",
