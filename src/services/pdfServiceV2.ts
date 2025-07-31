@@ -1,12 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as puppeteer from 'puppeteer';
 import * as handlebars from 'handlebars';
 import { prisma } from '#config/db';
 import { getPublicR2Url } from './r2Service';
 import { getSystemConfig } from './systemConfigService';
-
-// Using html-pdf-node instead of puppeteer
-import * as htmlPdf from 'html-pdf-node';
 
 export async function generatePublicTicketPDF(
   bookingId: string,
@@ -90,6 +88,7 @@ export async function generatePublicTicketPDF(
   }
 
   const config = await getSystemConfig();
+
   const templatePath = path.join(process.cwd(), 'src/templates', 'ticket.hbs');
   const templateContent = fs.readFileSync(templatePath, 'utf-8');
   const template = handlebars.compile(templateContent);
@@ -158,51 +157,24 @@ export async function generatePublicTicketPDF(
     qrCodePath: ticket.qrCodeImage ? getPublicR2Url(ticket.qrCodeImage) : null,
   });
 
-  // Inject CSS to force print colors
-  const finalHtmlContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        * { 
-          -webkit-print-color-adjust: exact !important;
-          color-adjust: exact !important;
-        }
-        body { -webkit-print-color-adjust: exact !important; }
-      </style>
-    </head>
-    <body>
-      ${htmlContent}
-    </body>
-    </html>
-  `;
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+  const page = await browser.newPage();
 
-  // Options for html-pdf-node (receipt size)
-  const options = {
-    // Don't use format - it overrides width/height
+  await page.setContent(htmlContent);
+  await page.setViewport({ width: 227, height: 800, deviceScaleFactor: 2 });
+
+  const pdfBuffer = await page.pdf({
     width: '80mm',
     height: '230mm',
     printBackground: true,
-    preferCSSPageSize: false, // Use our width/height instead of CSS
-    margin: {
-      top: '0mm',
-      right: '0mm',
-      bottom: '0mm',
-      left: '0mm',
-    },
-    displayHeaderFooter: false,
-    // Make sure Chromium args support colors
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security'],
-  };
+    margin: { top: '0mm', bottom: '0mm', left: '0mm', right: '0mm' },
+    preferCSSPageSize: false,
+  });
 
-  const file = { content: finalHtmlContent };
-
-  // Generate PDF using html-pdf-node
-  const pdfBuffer = await htmlPdf.generatePdf(file, options);
-
-  if (typeof pdfBuffer === 'undefined') {
-    throw new Error('Failed to generate PDF');
-  }
+  await browser.close();
 
   return {
     pdfBuffer: Buffer.from(pdfBuffer),
@@ -242,43 +214,25 @@ export async function generateTicketPDF(ticketId: string): Promise<Buffer> {
     qrCodePath: ticket.qrCodeImage ? getPublicR2Url(ticket.qrCodeImage) : null,
   });
 
-  // Inject CSS to force print colors
-  const finalHtmlContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        * { 
-          -webkit-print-color-adjust: exact !important;
-          color-adjust: exact !important;
-        }
-        body { -webkit-print-color-adjust: exact !important; }
-      </style>
-    </head>
-    <body>
-      ${htmlContent}
-    </body>
-    </html>
-  `;
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'], // For server compatibility
+  });
+  const page = await browser.newPage();
 
-  // Options for html-pdf-node (receipt size)
-  const options = {
+  // Set content and viewport for 80mm width (227px at 72dpi)
+  await page.setContent(htmlContent);
+  await page.setViewport({ width: 227, height: 800, deviceScaleFactor: 1 });
+
+  // Generate PDF with receipt-like dimensions
+  const pdfBuffer = await page.pdf({
     width: '80mm',
-    height: '230mm',
     printBackground: true,
-    preferCSSPageSize: false,
-    margin: {
-      top: '5mm',
-      bottom: '5mm',
-      left: '0mm',
-      right: '0mm',
-    },
-    displayHeaderFooter: false,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security'],
-  };
+    margin: { top: '5mm', bottom: '5mm', left: '0mm', right: '0mm' },
+    preferCSSPageSize: true,
+  });
 
-  const file = { content: finalHtmlContent };
-  const pdfBuffer = await htmlPdf.generatePdf(file, options);
+  await browser.close();
 
   // Update print count and last printed timestamp
   await prisma.ticket.update({
@@ -288,10 +242,6 @@ export async function generateTicketPDF(ticketId: string): Promise<Buffer> {
       lastPrintedAt: new Date(),
     },
   });
-
-  if (typeof pdfBuffer === 'undefined') {
-    throw new Error('Failed to generate PDF');
-  }
 
   return Buffer.from(pdfBuffer);
 }
