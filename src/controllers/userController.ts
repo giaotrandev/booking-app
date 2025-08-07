@@ -236,6 +236,8 @@ export const uploadAvatar = async (req: RequestWithFile, res: Response): Promise
 
     if (!user) {
       // Delete temporary file if it exists
+      console.log('File có vào không user: ', req.file);
+
       if (req.file && fs.existsSync(req.file.path)) {
         await safeDeleteFile(req.file.path);
       }

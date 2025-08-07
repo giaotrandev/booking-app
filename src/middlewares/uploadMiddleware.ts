@@ -1,10 +1,22 @@
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/temp');
+    const uploadPath = path.join(process.cwd(), 'uploads', 'temp');
+
+    try {
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+        console.log(`Created directory: ${uploadPath}`);
+      }
+      cb(null, uploadPath);
+    } catch (error) {
+      console.error('Error creating upload directory:', error);
+      cb(error as Error, '');
+    }
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
