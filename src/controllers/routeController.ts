@@ -14,6 +14,7 @@ import { queryData, DataQueryParams } from '#utils/dataQuery';
 import { sendSuccess, sendBadRequest, sendNotFound, sendServerError, sendForbidden } from '#utils/apiResponse';
 import { CommonStatus, DistanceUnit } from '@prisma/client';
 import safeDeleteFile from '#utils/safeDeleteFile';
+import { deepRemoveTimestamps } from '#src/helpers/dataHelper';
 
 interface RequestWithFile extends Request {
   file?: Express.Multer.File;
@@ -92,6 +93,103 @@ export const getRouteList = async (req: Request, res: Response): Promise<void> =
     return sendSuccess(res, 'route.listRetrieved', result, language);
   } catch (error) {
     console.error('Error retrieving route list:', error);
+    return sendServerError(
+      res,
+      'common.serverError',
+      error instanceof Error
+        ? {
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+          }
+        : null,
+      language
+    );
+  }
+};
+
+export const getTopBookedRoutes = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+
+  try {
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 10; // Default top 10
+
+    // Get all routes with their related information
+    const allRoutes = await prisma.route.findMany({
+      include: {
+        sourceProvince: true,
+        destinationProvince: true,
+      },
+    });
+
+    // Get booking counts per route
+    const bookingCounts = await prisma.bookingTrip.groupBy({
+      by: ['tripId'],
+      where: {
+        booking: {
+          status: 'CONFIRMED', // Assuming successful bookings have CONFIRMED status
+        },
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    // Get trips to map bookings to routes
+    const trips = await prisma.trip.findMany({
+      where: {
+        id: { in: bookingCounts.map((b) => b.tripId) },
+      },
+      select: {
+        id: true,
+        routeId: true,
+      },
+    });
+
+    // Calculate total bookings per route
+    const routeBookingCounts = new Map<string, number>();
+
+    bookingCounts.forEach((booking) => {
+      const trip = trips.find((t) => t.id === booking.tripId);
+      if (trip) {
+        const currentCount = routeBookingCounts.get(trip.routeId) || 0;
+        routeBookingCounts.set(trip.routeId, currentCount + booking._count.id);
+      }
+    });
+
+    // Combine routes with booking counts (0 if no bookings)
+    const routesWithBookings = allRoutes.map((route) => ({
+      ...route,
+      totalBookings: routeBookingCounts.get(route.id) || 0,
+    }));
+
+    // Sort by booking count (descending) and limit results
+    const sortedRoutes = routesWithBookings.sort((a, b) => b.totalBookings - a.totalBookings).slice(0, limit);
+
+    // Generate signed URLs for route images
+    const routesWithImages = await Promise.all(
+      sortedRoutes.map(async (route) => {
+        let imageUrl = null;
+        if (route.image) {
+          imageUrl = await getPublicR2Url(route.image);
+        }
+        return {
+          ...route,
+          imageUrl,
+        };
+      })
+    );
+
+    const result = {
+      data: deepRemoveTimestamps(routesWithImages),
+      meta: {
+        total: routesWithImages.length,
+        limit,
+      },
+    };
+
+    return sendSuccess(res, 'route.topBookedRoutesRetrieved', result, language);
+  } catch (error) {
+    console.error('Error retrieving top booked routes:', error);
     return sendServerError(
       res,
       'common.serverError',

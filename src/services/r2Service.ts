@@ -13,6 +13,7 @@ export const StorageFolders = {
   TRIPS: 'trips',
   ROUTES: 'trips',
   VEHICLES: 'vehicles',
+  SYSTEM_CONFIG: 'system-config',
 };
 
 /**

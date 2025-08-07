@@ -36,7 +36,6 @@ export const createTrip = async (req: RequestWithFile, res: Response): Promise<v
 
     // Validate input
     if (!routeId || !vehicleId || !departureTime || !arrivalTime || !basePrice) {
-      console.log('Dô này hong: ');
       if (req.file && fs.existsSync(req.file.path)) {
         await safeDeleteFile(req.file.path);
       }

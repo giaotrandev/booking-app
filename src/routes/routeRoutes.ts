@@ -15,6 +15,13 @@ const router = express.Router();
 router.get('/', RouteController.getRouteList);
 
 /**
+ * @route GET /api/routes/popular
+ * @desc Get all routes
+ * @access Public
+ */
+router.get('/popular', RouteController.getTopBookedRoutes);
+
+/**
  * @route GET /api/routes/:id
  * @desc Get route by ID
  * @access Public

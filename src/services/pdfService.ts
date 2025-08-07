@@ -4,8 +4,6 @@ import * as handlebars from 'handlebars';
 import { prisma } from '#config/db';
 import { getPublicR2Url } from './r2Service';
 import { getSystemConfig } from './systemConfigService';
-
-// Using html-pdf-node instead of puppeteer
 import * as htmlPdf from 'html-pdf-node';
 
 export async function generatePublicTicketPDF(

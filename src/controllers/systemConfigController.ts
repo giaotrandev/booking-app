@@ -116,18 +116,20 @@ export async function uploadLogoCtrl(req: Request, res: Response) {
       return sendBadRequest(res, 'systemConfig.logoRequired', null, req.language);
     }
 
-    if (!['logo', 'textLogo'].includes(logoType)) {
-      // Clean up uploaded file
+    if (!['logo', 'textLogo', 'favicon', 'icon', 'appleIcon'].includes(logoType)) {
       if (fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
       }
-
       return sendBadRequest(res, 'systemConfig.invalidLogoType', null, req.language);
     }
 
-    const updatedConfig = await updateSystemConfigLogo(id, req.file.path, logoType as 'logo' | 'textLogo', userId);
+    const updatedConfig = await updateSystemConfigLogo(
+      id,
+      req.file.path,
+      logoType as 'logo' | 'textLogo' | 'favicon' | 'icon' | 'appleIcon',
+      userId
+    );
 
-    // Clean up uploaded file
     if (fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
@@ -135,7 +137,6 @@ export async function uploadLogoCtrl(req: Request, res: Response) {
     const cleanConfig = deepRemoveTimestamps(updatedConfig);
     return sendSuccess(res, 'systemConfig.logoUploaded', cleanConfig, req.language, { logoType });
   } catch (error) {
-    // Clean up file if it exists
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
@@ -201,6 +202,9 @@ export async function getPublicSystemConfigCtrl(req: Request, res: Response) {
       globalName: config.globalName,
       logo: config.logo ? getPublicR2Url(config.logo) : null,
       textLogo: config.textLogo ? getPublicR2Url(config.textLogo) : null,
+      favicon: config.favicon ? getPublicR2Url(config.favicon) : null,
+      icon: config.icon ? getPublicR2Url(config.icon) : null,
+      appleIcon: config.appleIcon ? getPublicR2Url(config.appleIcon) : null,
       isMaintaining: config.isMaintaining,
       maintenanceStartTime: config.maintenanceStartTime,
       maintenanceEndTime: config.maintenanceEndTime,

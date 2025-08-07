@@ -232,6 +232,8 @@ export const uploadAvatar = async (req: RequestWithFile, res: Response): Promise
       where: { id },
     });
 
+    let fileKey = '';
+
     if (!user) {
       // Delete temporary file if it exists
       if (req.file && fs.existsSync(req.file.path)) {
@@ -246,50 +248,53 @@ export const uploadAvatar = async (req: RequestWithFile, res: Response): Promise
       return;
     }
 
-    // Optimize the image
-    const optimizedImagePath = await optimizeImage(req.file.path, {
-      width: 500,
-      height: 500,
-      quality: 80,
-      format: 'webp',
-    });
+    if (req.file) {
+      console.log('File có vào upload: ', req.file);
+      // Optimize the image
+      const optimizedImagePath = await optimizeImage(req.file.path, {
+        width: 500,
+        height: 500,
+        quality: 80,
+        format: 'webp',
+      });
 
-    // Create a unique key for the avatar - store in avatars/userId folder
-    const fileExtension = '.webp'; // We're converting to WebP
-    const fileName = `${Date.now()}${fileExtension}`;
-    const filePath = `${StorageFolders.AVATARS}/${id}`;
-    const fileKey = `${StorageFolders.AVATARS}/${id}/${fileName}`;
+      // Create a unique key for the avatar - store in avatars/userId folder
+      const fileExtension = '.webp'; // We're converting to WebP
+      const fileName = `${Date.now()}${fileExtension}`;
+      const filePath = `${StorageFolders.AVATARS}/${id}`;
+      fileKey = `${StorageFolders.AVATARS}/${id}/${fileName}`;
 
-    try {
-      // Upload to Cloudflare R2 with the correct parameters
-      await uploadFileToR2(optimizedImagePath, filePath, fileName, 'image/webp');
+      try {
+        // Upload to Cloudflare R2 with the correct parameters
+        await uploadFileToR2(optimizedImagePath, filePath, fileName, 'image/webp');
 
-      // Delete the old avatar from R2 if it exists
-      if (user.avatar) {
-        try {
-          await deleteFileFromR2(user.avatar);
-        } catch (deleteError) {
-          console.error('Error deleting old avatar:', deleteError);
-          // Continue anyway, we don't want to fail the upload because of this
+        // Delete the old avatar from R2 if it exists
+        if (user.avatar) {
+          try {
+            await deleteFileFromR2(user.avatar);
+          } catch (deleteError) {
+            console.error('Error deleting old avatar:', deleteError);
+            // Continue anyway, we don't want to fail the upload because of this
+          }
         }
-      }
-    } catch (uploadError) {
-      console.error('Error during R2 operations:', uploadError);
-      sendServerError(
-        res,
-        'user.avatarUploadFailed',
-        { message: uploadError instanceof Error ? uploadError.message : 'Unknown error occurred' },
-        language
-      );
+      } catch (uploadError) {
+        console.error('Error during R2 operations:', uploadError);
+        sendServerError(
+          res,
+          'user.avatarUploadFailed',
+          { message: uploadError instanceof Error ? uploadError.message : 'Unknown error occurred' },
+          language
+        );
 
-      // Clean up files safely
-      if (req.file && fs.existsSync(req.file.path)) {
-        await safeDeleteFile(req.file.path);
+        // Clean up files safely
+        if (req.file && fs.existsSync(req.file.path)) {
+          await safeDeleteFile(req.file.path);
+        }
+        if (fs.existsSync(optimizedImagePath)) {
+          await safeDeleteFile(optimizedImagePath);
+        }
+        return;
       }
-      if (fs.existsSync(optimizedImagePath)) {
-        await safeDeleteFile(optimizedImagePath);
-      }
-      return;
     }
 
     // Update user with new avatar path
@@ -305,10 +310,6 @@ export const uploadAvatar = async (req: RequestWithFile, res: Response): Promise
         avatar: true,
       },
     });
-
-    // Delete temporary files with safe deletion
-    await safeDeleteFile(req.file.path);
-    await safeDeleteFile(optimizedImagePath);
 
     // Generate a pre-signed URL for immediate use
     let url = null;

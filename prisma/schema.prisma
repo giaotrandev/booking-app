@@ -21,6 +21,9 @@ model SystemConfig {
 
   logo  String?
   textLogo  String?
+  favicon  String?
+  icon  String?
+  appleIcon  String?
 
   rateLimit       Int @default(5)
   rateLimitWindow Int @default(3600)

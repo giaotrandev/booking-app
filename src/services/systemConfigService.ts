@@ -122,7 +122,10 @@ export async function updateSystemConfig(data: UpdateSystemConfigData) {
 /**
  * Upload and optimize logo image
  */
-export async function uploadSystemLogo(filePath: string, logoType: 'logo' | 'textLogo' = 'logo'): Promise<string> {
+export async function uploadSystemLogo(
+  filePath: string,
+  logoType: 'logo' | 'textLogo' | 'favicon' | 'icon' | 'appleIcon' = 'logo'
+): Promise<string> {
   try {
     const tempDir = path.join(process.cwd(), 'temp');
     if (!fs.existsSync(tempDir)) {
@@ -131,43 +134,50 @@ export async function uploadSystemLogo(filePath: string, logoType: 'logo' | 'tex
 
     const fileExtension = path.extname(filePath).toLowerCase();
     const isVector = fileExtension === '.svg';
+    const isIco = fileExtension === '.ico';
 
     let optimizedPath: string;
     let finalFileName: string;
+    let mimeType: string;
+
+    const optimizationSettings: Record<string, { width: number; height: number; quality: number }> = {
+      logo: { width: 200, height: 200, quality: 90 },
+      textLogo: { width: 300, height: 80, quality: 90 },
+      favicon: { width: 32, height: 32, quality: 85 },
+      icon: { width: 192, height: 192, quality: 90 },
+      appleIcon: { width: 180, height: 180, quality: 90 },
+    };
 
     if (isVector) {
-      // For SVG files, just rename and upload directly
       const svgFileName = `${logoType}-${crypto.randomBytes(8).toString('hex')}.svg`;
       optimizedPath = path.join(tempDir, svgFileName);
       fs.copyFileSync(filePath, optimizedPath);
       finalFileName = svgFileName;
+      mimeType = 'image/svg+xml';
+    } else if (isIco && logoType === 'favicon') {
+      const icoFileName = `${logoType}-${crypto.randomBytes(8).toString('hex')}.ico`;
+      optimizedPath = path.join(tempDir, icoFileName);
+      fs.copyFileSync(filePath, optimizedPath);
+      finalFileName = icoFileName;
+      mimeType = 'image/x-icon';
     } else {
-      // For raster images, optimize to WebP
       const webpFileName = `${logoType}-${crypto.randomBytes(8).toString('hex')}.webp`;
+      const settings = optimizationSettings[logoType];
 
       optimizedPath = await optimizeImage(filePath, {
-        width: logoType === 'logo' ? 200 : 300,
-        height: logoType === 'logo' ? 200 : 80,
+        ...settings,
         format: 'webp',
-        quality: 90,
       });
 
-      // Rename to final filename
       const finalPath = path.join(tempDir, webpFileName);
       fs.renameSync(optimizedPath, finalPath);
       optimizedPath = finalPath;
       finalFileName = webpFileName;
+      mimeType = 'image/webp';
     }
 
-    // Upload to R2
-    const logoKey = await uploadFileToR2(
-      optimizedPath,
-      StorageFolders.DOCUMENTS,
-      finalFileName,
-      isVector ? 'image/svg+xml' : 'image/webp'
-    );
+    const logoKey = await uploadFileToR2(optimizedPath, StorageFolders.SYSTEM_CONFIG, finalFileName, mimeType);
 
-    // Clean up temp file
     fs.unlinkSync(optimizedPath);
 
     return logoKey;
@@ -183,11 +193,10 @@ export async function uploadSystemLogo(filePath: string, logoType: 'logo' | 'tex
 export async function updateSystemConfigLogo(
   configId: string,
   logoPath: string,
-  logoType: 'logo' | 'textLogo' = 'logo',
+  logoType: 'logo' | 'textLogo' | 'favicon' | 'icon' | 'appleIcon' = 'logo',
   lastUpdatedBy?: string
 ) {
   try {
-    // Get current config to delete old logo if exists
     const currentConfig = await prisma.systemConfig.findUnique({
       where: { id: configId },
     });
@@ -196,11 +205,16 @@ export async function updateSystemConfigLogo(
       throw new Error('System config not found');
     }
 
-    // Upload new logo
     const newLogoKey = await uploadSystemLogo(logoPath, logoType);
 
-    // Delete old logo if exists
-    const oldLogoKey = logoType === 'logo' ? currentConfig.logo : currentConfig.textLogo;
+    const oldLogoKey = {
+      logo: currentConfig.logo,
+      textLogo: currentConfig.textLogo,
+      favicon: currentConfig.favicon,
+      icon: currentConfig.icon,
+      appleIcon: currentConfig.appleIcon,
+    }[logoType];
+
     if (oldLogoKey) {
       try {
         await deleteFileFromR2(oldLogoKey);
@@ -209,7 +223,6 @@ export async function updateSystemConfigLogo(
       }
     }
 
-    // Update config with new logo
     const updateData = {
       [logoType]: newLogoKey,
       lastUpdatedBy,
