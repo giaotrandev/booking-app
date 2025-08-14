@@ -353,6 +353,69 @@ export const uploadAvatar = async (req: RequestWithFile, res: Response): Promise
 };
 
 /**
+ * Delete avatar (User themselves or admin)
+ */
+export const deleteAvatar = async (req: Request, res: Response): Promise<void> => {
+  const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+
+  try {
+    const { id } = req.params;
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      sendNotFound(res, 'user.notFound', null, language);
+      return;
+    }
+
+    // Check if user has an avatar
+    if (!user.avatar) {
+      sendBadRequest(res, 'user.noAvatarToDelete', null, language);
+      return;
+    }
+
+    // Delete the avatar from Cloudflare R2
+    try {
+      await deleteFileFromR2(user.avatar);
+    } catch (deleteError) {
+      console.error('Error deleting avatar from R2:', deleteError);
+      sendServerError(
+        res,
+        'user.avatarDeleteFailed',
+        { message: deleteError instanceof Error ? deleteError.message : 'Unknown error occurred' },
+        language
+      );
+      return;
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: {
+        avatar: null,
+      },
+    });
+
+    sendSuccess(res, 'user.avatarDeleted', {}, language);
+  } catch (error) {
+    console.error('Error deleting avatar:', error);
+    sendServerError(
+      res,
+      'common.serverError',
+      error instanceof Error
+        ? {
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+          }
+        : null,
+      language
+    );
+  }
+};
+
+/**
  * Update user details (User themselves or admin)
  */
 export const updateUser = async (req: RequestWithFile, res: Response): Promise<void> => {

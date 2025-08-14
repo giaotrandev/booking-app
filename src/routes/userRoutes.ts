@@ -25,6 +25,14 @@ router.post(
   userController.uploadAvatar
 );
 
+router.delete(
+  '/avatar/:id',
+  authenticateToken,
+  validatePermissions(['ADMIN_USER_MANAGE', 'SELF_ACCESS']),
+  upload.single('avatar'),
+  userController.deleteAvatar
+);
+
 router.get('/avatar/:id', userController.getUserAvatar);
 
 // Protected routes - need authentication

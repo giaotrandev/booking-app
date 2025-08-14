@@ -1010,6 +1010,44 @@ export const apiSpecification: OpenAPIV3.Document = {
           },
         },
       },
+      delete: {
+        tags: ['User'],
+        summary: 'Xoá avatar người dùng',
+        description: 'Xoá avatar người dùng (yêu cầu quyền ADMIN_USER_MANAGE, SELF_ACCESS)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+            description: 'ID của người dùng',
+          },
+          {
+            in: 'query',
+            name: 'lang',
+            schema: { type: 'string' },
+            description: 'Ngôn ngữ phản hồi (mặc định: en)',
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Xoá avatar thành công',
+          },
+          '401': {
+            description: 'Không có quyền truy cập',
+          },
+          '403': {
+            description: 'Quyền không hợp lệ',
+          },
+          '404': {
+            description: 'Không tìm thấy người dùng',
+          },
+          '500': {
+            description: 'Lỗi server',
+          },
+        },
+      },
     },
     '/users/{id}/change-password': {
       post: {
