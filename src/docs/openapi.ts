@@ -848,8 +848,8 @@ export const apiSpecification: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['User'],
-        summary: 'Xóa mềm người dùng',
-        description: 'Xóa mềm người dùng bằng cách đặt trạng thái thành DISABLED (yêu cầu quyền ADMIN_USER_MANAGE)',
+        summary: 'Xoá mềm người dùng',
+        description: 'Xoá mềm người dùng bằng cách đặt trạng thái thành DISABLED (yêu cầu quyền ADMIN_USER_MANAGE)',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -868,7 +868,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         ],
         responses: {
           '200': {
-            description: 'Xóa mềm thành công',
+            description: 'Xoá mềm thành công',
           },
           '401': {
             description: 'Không có quyền truy cập',
@@ -2152,9 +2152,9 @@ export const apiSpecification: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['Role'],
-        summary: 'Xóa vai trò',
+        summary: 'Xoá vai trò',
         description:
-          'Xóa một vai trò (yêu cầu xác thực và quyền ADMIN_ROLE_MANAGE, không thể xóa nếu vai trò đang được sử dụng)',
+          'Xoá một vai trò (yêu cầu xác thực và quyền ADMIN_ROLE_MANAGE, không thể xóa nếu vai trò đang được sử dụng)',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -2173,7 +2173,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         ],
         responses: {
           '200': {
-            description: 'Xóa vai trò thành công',
+            description: 'Xoá vai trò thành công',
           },
           '400': {
             description: 'Vai trò đang được sử dụng bởi người dùng',
@@ -2594,9 +2594,9 @@ export const apiSpecification: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['Permission'],
-        summary: 'Xóa quyền',
+        summary: 'Xoá quyền',
         description:
-          'Xóa một quyền (yêu cầu xác thực và quyền ADMIN_PERMISSION_MANAGE, không thể xóa nếu quyền đang được sử dụng)',
+          'Xoá một quyền (yêu cầu xác thực và quyền ADMIN_PERMISSION_MANAGE, không thể xóa nếu quyền đang được sử dụng)',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -2615,7 +2615,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         ],
         responses: {
           '200': {
-            description: 'Xóa quyền thành công',
+            description: 'Xoá quyền thành công',
           },
           '400': {
             description: 'Quyền đang được sử dụng bởi vai trò',
@@ -3095,9 +3095,9 @@ export const apiSpecification: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['Post'],
-        summary: 'Xóa mềm bài viết',
+        summary: 'Xoá mềm bài viết',
         description:
-          'Xóa mềm bài viết bằng cách đánh dấu isDeleted (yêu cầu xác thực và quyền ADMIN hoặc CONTENT_MANAGER)',
+          'Xoá mềm bài viết bằng cách đánh dấu isDeleted (yêu cầu xác thực và quyền ADMIN hoặc CONTENT_MANAGER)',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -3116,7 +3116,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         ],
         responses: {
           '200': {
-            description: 'Xóa mềm bài viết thành công',
+            description: 'Xoá mềm bài viết thành công',
             content: {
               'application/json': {
                 schema: {
@@ -3528,9 +3528,9 @@ export const apiSpecification: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['Category'],
-        summary: 'Xóa mềm danh mục',
+        summary: 'Xoá mềm danh mục',
         description:
-          'Xóa mềm danh mục nếu không có bài viết liên kết (yêu cầu xác thực và quyền ADMIN hoặc CONTENT_MANAGER)',
+          'Xoá mềm danh mục nếu không có bài viết liên kết (yêu cầu xác thực và quyền ADMIN hoặc CONTENT_MANAGER)',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -3549,7 +3549,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         ],
         responses: {
           '200': {
-            description: 'Xóa mềm danh mục thành công',
+            description: 'Xoá mềm danh mục thành công',
             content: {
               'application/json': {
                 schema: {
@@ -4101,8 +4101,8 @@ export const apiSpecification: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['Route'],
-        summary: 'Xóa mềm tuyến đường',
-        description: 'Xóa mềm tuyến đường bằng cách đánh dấu isDeleted (yêu cầu xác thực và quyền phù hợp)',
+        summary: 'Xoá mềm tuyến đường',
+        description: 'Xoá mềm tuyến đường bằng cách đánh dấu isDeleted (yêu cầu xác thực và quyền phù hợp)',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -4121,7 +4121,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         ],
         responses: {
           '200': {
-            description: 'Xóa mềm tuyến đường thành công',
+            description: 'Xoá mềm tuyến đường thành công',
             content: {
               'application/json': {
                 schema: {
@@ -4431,8 +4431,8 @@ export const apiSpecification: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['Bus Stop'],
-        summary: 'Xóa mềm điểm dừng',
-        description: 'Xóa mềm điểm dừng bằng cách đánh dấu isDeleted (yêu cầu xác thực và quyền phù hợp)',
+        summary: 'Xoá mềm điểm dừng',
+        description: 'Xoá mềm điểm dừng bằng cách đánh dấu isDeleted (yêu cầu xác thực và quyền phù hợp)',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -4451,7 +4451,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         ],
         responses: {
           '200': {
-            description: 'Xóa mềm điểm dừng thành công',
+            description: 'Xoá mềm điểm dừng thành công',
             content: {
               'application/json': {
                 schema: {
@@ -5981,8 +5981,8 @@ export const apiSpecification: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['Vehicle Type'],
-        summary: 'Xóa mềm loại phương tiện',
-        description: 'Xóa mềm loại phương tiện bằng cách đánh dấu isDeleted (yêu cầu xác thực và quyền phù hợp)',
+        summary: 'Xoá mềm loại phương tiện',
+        description: 'Xoá mềm loại phương tiện bằng cách đánh dấu isDeleted (yêu cầu xác thực và quyền phù hợp)',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -6001,7 +6001,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         ],
         responses: {
           '200': {
-            description: 'Xóa mềm loại phương tiện thành công',
+            description: 'Xoá mềm loại phương tiện thành công',
             content: {
               'application/json': {
                 schema: {
@@ -6252,8 +6252,8 @@ export const apiSpecification: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['Vehicle'],
-        summary: 'Xóa mềm phương tiện',
-        description: 'Xóa mềm phương tiện bằng cách đánh dấu isDeleted (yêu cầu xác thực và quyền phù hợp)',
+        summary: 'Xoá mềm phương tiện',
+        description: 'Xoá mềm phương tiện bằng cách đánh dấu isDeleted (yêu cầu xác thực và quyền phù hợp)',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -6272,7 +6272,7 @@ export const apiSpecification: OpenAPIV3.Document = {
         ],
         responses: {
           '200': {
-            description: 'Xóa mềm phương tiện thành công',
+            description: 'Xoá mềm phương tiện thành công',
             content: {
               'application/json': {
                 schema: {

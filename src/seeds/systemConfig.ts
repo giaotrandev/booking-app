@@ -2,7 +2,7 @@ import { prisma } from '#src/config/db';
 
 export async function seedSystemConfig() {
   try {
-    // Xóa dữ liệu cũ nếu muốn
+    // Xoá dữ liệu cũ nếu muốn
     await prisma.systemConfig.deleteMany();
 
     // Tạo cấu hình mặc định

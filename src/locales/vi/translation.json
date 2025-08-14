@@ -9,7 +9,7 @@
         "serverError": "Lỗi máy chủ nội bộ",
         "created": "Tạo tài nguyên thành công",
         "updated": "Cập nhật tài nguyên thành công",
-        "deleted": "Xóa tài nguyên thành công",
+        "deleted": "Xoá tài nguyên thành công",
         "tooManyRequests": "Quá nhiều yêu cầu, vui lòng thử lại sau"
     },
     "validation": {
@@ -88,7 +88,7 @@
         "profileUpdated": "Cập nhật hồ sơ thành công",
         "passwordChanged": "Thay đổi mật khẩu thành công",
         "emailVerified": "Xác minh email thành công",
-        "accountDeleted": "Xóa tài khoản thành công"
+        "accountDeleted": "Xoá tài khoản thành công"
     },
     "booking": {
         "bookingCreated": "Đặt vé thành công",

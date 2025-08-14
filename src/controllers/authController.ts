@@ -19,6 +19,7 @@ import { verificationEmailTemplate } from '#emails/templates/verificationEmail';
 import { prisma } from '#config/db';
 import { translate } from '#src/services/translationService';
 import { TokenPayload } from '#src/types/auth';
+import { getPublicR2Url } from '#src/services/r2Service';
 
 // Generate JWT
 const generateToken = (id: string): string => {
@@ -267,6 +268,12 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       refreshToken = refreshTokenString;
     }
 
+    // Get avatar URL if exists
+    let avatarUrl = null;
+    if (user.avatar) {
+      avatarUrl = await getPublicR2Url(user.avatar);
+    }
+
     // Successful login response
     sendSuccess(
       res,
@@ -282,6 +289,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
         phoneNumber: user.phoneNumber,
         birthday: user.birthday,
         address: user.address,
+        avatarUrl,
         // accessToken,
         // refreshToken,
       },

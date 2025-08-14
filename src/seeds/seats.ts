@@ -7,7 +7,7 @@ export const seedSeats = async () => {
   try {
     const tripId = '6822e17be29951b9424a63b2';
 
-    // Xóa tất cả seats khác
+    // Xoá tất cả seats khác
     const deletedSeats = await prisma.seat.deleteMany({
       where: {
         tripId,
@@ -72,7 +72,7 @@ export const seedSeats = async () => {
       }
     }
 
-    // Xóa seats cũ của trip này (nếu có)
+    // Xoá seats cũ của trip này (nếu có)
     // await prisma.seat.deleteMany({
     //   where: { tripId: tripId },
     // });
