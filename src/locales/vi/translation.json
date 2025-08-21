@@ -1,5 +1,6 @@
 {
     "common": {
+        "Loading": "Đang tải",
         "success": "Thao tác thành công",
         "error": "Đã xảy ra lỗi",
         "notFound": "Không tìm thấy tài nguyên",

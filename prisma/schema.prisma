@@ -16,14 +16,16 @@ datasource db {
 model SystemConfig {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  name String @unique
+  name       String  @unique
   globalName String? @unique
 
-  logo  String?
-  textLogo  String?
-  favicon  String?
-  icon  String?
-  appleIcon  String?
+  logo         String?
+  logoDark     String?
+  textLogo     String?
+  textLogoDark String?
+  favicon      String?
+  icon         String?
+  appleIcon    String?
 
   rateLimit       Int @default(5)
   rateLimitWindow Int @default(3600)
@@ -600,7 +602,7 @@ model Booking {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
-  
+
   ipAddress String?
 
   histories  BookingHistory[]

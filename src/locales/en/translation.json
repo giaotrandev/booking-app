@@ -1,5 +1,6 @@
 {
     "common": {
+        "loading": "Loading",
         "error": "An error occurred",
         "success": "Operation successful",
         "notFound": "Resource not found",

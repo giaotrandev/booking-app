@@ -124,7 +124,7 @@ export async function updateSystemConfig(data: UpdateSystemConfigData) {
  */
 export async function uploadSystemLogo(
   filePath: string,
-  logoType: 'logo' | 'textLogo' | 'favicon' | 'icon' | 'appleIcon' = 'logo'
+  logoType: 'logo' | 'textLogo' | 'logoDark' | 'textLogoDark' | 'favicon' | 'icon' | 'appleIcon' = 'logo'
 ): Promise<string> {
   try {
     const tempDir = path.join(process.cwd(), 'temp');
@@ -142,7 +142,9 @@ export async function uploadSystemLogo(
 
     const optimizationSettings: Record<string, { width: number; height: number; quality: number }> = {
       logo: { width: 200, height: 200, quality: 90 },
+      logoDark: { width: 200, height: 200, quality: 90 },
       textLogo: { width: 300, height: 80, quality: 90 },
+      textLogoDark: { width: 300, height: 80, quality: 90 },
       favicon: { width: 32, height: 32, quality: 85 },
       icon: { width: 192, height: 192, quality: 90 },
       appleIcon: { width: 180, height: 180, quality: 90 },
@@ -193,7 +195,7 @@ export async function uploadSystemLogo(
 export async function updateSystemConfigLogo(
   configId: string,
   logoPath: string,
-  logoType: 'logo' | 'textLogo' | 'favicon' | 'icon' | 'appleIcon' = 'logo',
+  logoType: 'logo' | 'textLogo' | 'logoDark' | 'textLogoDark' | 'favicon' | 'icon' | 'appleIcon' = 'logo',
   lastUpdatedBy?: string
 ) {
   try {
@@ -209,7 +211,9 @@ export async function updateSystemConfigLogo(
 
     const oldLogoKey = {
       logo: currentConfig.logo,
+      logoDark: currentConfig.logoDark,
       textLogo: currentConfig.textLogo,
+      textLogoDark: currentConfig.textLogoDark,
       favicon: currentConfig.favicon,
       icon: currentConfig.icon,
       appleIcon: currentConfig.appleIcon,
@@ -246,7 +250,7 @@ export async function updateSystemConfigLogo(
  */
 export async function deleteSystemConfigLogo(
   configId: string,
-  logoType: 'logo' | 'textLogo' = 'logo',
+  logoType: 'logo' | 'textLogo' | 'logoDark' | 'textLogoDark' = 'logo',
   lastUpdatedBy?: string
 ) {
   try {
@@ -258,7 +262,14 @@ export async function deleteSystemConfigLogo(
       throw new Error('System config not found');
     }
 
-    const logoKey = logoType === 'logo' ? config.logo : config.textLogo;
+    const propertiesObj = {
+      logo: config.logo,
+      logoDark: config.logoDark,
+      textLogo: config.textLogo,
+      textLogoDark: config.textLogoDark,
+    };
+
+    const logoKey = propertiesObj[logoType];
 
     if (logoKey) {
       // Delete from R2

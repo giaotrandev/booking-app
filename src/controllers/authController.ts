@@ -450,6 +450,11 @@ export const loginAdmin = async (req: Request, res: Response): Promise<void> => 
       refreshToken = refreshTokenString;
     }
 
+    let avatarUrl = null;
+    if (user.avatar) {
+      avatarUrl = await getPublicR2Url(user.avatar);
+    }
+
     // Successful login response
     sendSuccess(
       res,
@@ -465,6 +470,7 @@ export const loginAdmin = async (req: Request, res: Response): Promise<void> => 
         phoneNumber: user.phoneNumber,
         birthday: user.birthday,
         address: user.address,
+        avatarUrl,
         // accessToken,
         // refreshToken,
       },

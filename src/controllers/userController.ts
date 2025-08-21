@@ -418,138 +418,203 @@ export const deleteAvatar = async (req: Request, res: Response): Promise<void> =
 /**
  * Update user details (User themselves or admin)
  */
+const buildUpdateData = (body: any) => {
+  const { firstName, lastName, phoneNumber, gender, address, birthday } = body;
+  const updateData: any = {};
+
+  if (firstName !== undefined) updateData.firstName = firstName;
+  if (lastName !== undefined) updateData.lastName = lastName;
+  if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+  if (gender !== undefined) updateData.gender = gender;
+  if (address !== undefined) updateData.address = address;
+
+  if (birthday !== undefined) {
+    const birthdayDate = new Date(birthday);
+    if (!isNaN(birthdayDate.getTime())) {
+      updateData.birthday = birthdayDate;
+    }
+  }
+
+  return updateData;
+};
+
+const cleanupTempFiles = async (filePaths: string[]) => {
+  await Promise.allSettled(
+    filePaths.filter(Boolean).map((path) => (fs.existsSync(path) ? safeDeleteFile(path) : Promise.resolve()))
+  );
+};
+
+interface AvatarOperationResult {
+  newAvatarKey?: string | null;
+  oldAvatarKey?: string | null;
+  tempFiles: string[];
+}
+
+const handleAvatarOperation = async (
+  req: RequestWithFile,
+  currentAvatar: string | null,
+  userId: string
+): Promise<AvatarOperationResult> => {
+  const tempFiles: string[] = [];
+
+  // Case 1: Delete avatar only
+  if (req.body.deleteAvatar === 'true') {
+    return {
+      newAvatarKey: null,
+      oldAvatarKey: currentAvatar,
+      tempFiles,
+    };
+  }
+
+  // Case 2: Upload new avatar
+  if (req.file) {
+    tempFiles.push(req.file.path);
+
+    // Optimize image
+    const optimizedImagePath = await optimizeImage(req.file.path, {
+      width: 500,
+      height: 500,
+      quality: 80,
+      format: 'webp',
+    });
+    tempFiles.push(optimizedImagePath);
+
+    // Generate file key
+    const fileName = `${Date.now()}.webp`;
+    const filePath = `${StorageFolders.AVATARS}/${userId}`;
+    const fileKey = `${StorageFolders.AVATARS}/${userId}/${fileName}`;
+
+    // Upload to R2
+    await uploadFileToR2(optimizedImagePath, filePath, fileName, 'image/webp');
+
+    return {
+      newAvatarKey: fileKey,
+      oldAvatarKey: currentAvatar,
+      tempFiles,
+    };
+  }
+
+  return { tempFiles };
+};
+
 export const updateUser = async (req: RequestWithFile, res: Response): Promise<void> => {
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
+  let tempFiles: string[] = [];
+  let newAvatarUploaded: string | null = null;
 
   try {
-    const { id } = req.params;
     const currentUserId = (req.user as { userId: string })?.userId;
-    const isCurrentUser = id === currentUserId;
 
-    // Check if user exists
+    // Get current user
     const user = await prisma.user.findUnique({
-      where: { id: currentUserId || id },
+      where: { id: currentUserId },
     });
 
     if (!user) {
-      // Delete temporary file if it exists
-      if (req.file) {
-        fs.unlinkSync(req.file.path);
-      }
+      if (req.file) tempFiles.push(req.file.path);
+      await cleanupTempFiles(tempFiles);
       sendNotFound(res, 'user.notFound', null, language);
       return;
     }
 
-    // Extract update data from request body
-    const { name, email, phoneNumber, gender, address, age, status } = req.body;
+    // Build basic update data
+    const updateData = buildUpdateData(req.body);
 
-    // Build update object
-    const updateData: any = {};
+    // Handle avatar operations
+    let avatarResult: AvatarOperationResult = { tempFiles: [] };
 
-    // Basic user info that can be updated by the user themselves
-    if (name !== undefined) updateData.name = name;
-    if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
-    if (gender !== undefined) updateData.gender = gender;
-    if (address !== undefined) updateData.address = address;
-    if (age !== undefined && !isNaN(parseInt(age))) updateData.age = parseInt(age);
+    if (req.body.deleteAvatar === 'true' || req.file) {
+      try {
+        avatarResult = await handleAvatarOperation(req, user.avatar, currentUserId);
+        tempFiles.push(...avatarResult.tempFiles);
 
-    // // Email change requires verification - handle separately
-    // if (email !== undefined && email !== user.email) {
-    //   // Handle email change - generate verification token, send email, etc.
-    //   // This is a placeholder - implement email verification flow
-    //   updateData.email = email;
-    //   updateData.isEmailVerified = false;
-    //   updateData.emailVerificationToken = Math.random().toString(36).substring(2, 15);
-    //   updateData.emailVerificationExpire = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-    //   // TODO: Send verification email
-    // }
-
-    // Admin-only fields
-    if (!isCurrentUser) {
-      if (status !== undefined) updateData.status = status;
-      // Add other admin-only fields here
-    }
-
-    // Handle avatar update if file is provided
-    if (req.file) {
-      // Optimize the image
-      const optimizedImagePath = await optimizeImage(req.file.path, {
-        width: 500,
-        height: 500,
-        quality: 80,
-        format: 'webp',
-      });
-
-      // Create a unique key for the avatar
-      const fileExtension = '.webp'; // We're converting to WebP
-      const fileName = `${Date.now()}${fileExtension}`;
-      const fileKey = `${StorageFolders.AVATARS}/${id}/${fileName}`;
-
-      // Upload to Cloudflare R2
-      await uploadFileToR2(optimizedImagePath, StorageFolders.AVATARS, fileName, 'image/webp');
-
-      // Delete the old avatar from R2 if it exists
-      if (user.avatar) {
-        try {
-          await deleteFileFromR2(user.avatar);
-        } catch (deleteError) {
-          console.error('Error deleting old avatar:', deleteError);
+        if (avatarResult.newAvatarKey !== undefined) {
+          updateData.avatar = avatarResult.newAvatarKey;
+          newAvatarUploaded = avatarResult.newAvatarKey;
         }
+      } catch (uploadError) {
+        await cleanupTempFiles(tempFiles);
+        console.error('Error in avatar operation:', uploadError);
+        sendServerError(
+          res,
+          'user.avatarUploadFailed',
+          { message: uploadError instanceof Error ? uploadError.message : 'Unknown error' },
+          language
+        );
+        return;
       }
-
-      // Add avatar path to update data
-      updateData.avatar = fileKey;
-
-      // Delete temporary files
-      fs.unlinkSync(req.file.path);
-      fs.unlinkSync(optimizedImagePath);
     }
 
-    // Update user
-    const updatedUser = await prisma.user.update({
-      where: { id: currentUserId || id },
-      data: updateData,
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phoneNumber: true,
-        birthday: true,
-        status: true,
-        gender: true,
-        address: true,
-        avatar: true,
-        role: {
-          select: {
-            name: true,
+    // Database transaction with rollback capability
+    const result = await prisma.$transaction(async (tx) => {
+      // Update user in database
+      const updatedUser = await tx.user.update({
+        where: { id: currentUserId },
+        data: updateData,
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phoneNumber: true,
+          birthday: true,
+          gender: true,
+          status: true,
+          avatar: true,
+          address: true,
+          role: {
+            select: {
+              name: true,
+              permissions: {
+                select: {
+                  code: true,
+                  name: true,
+                },
+              },
+            },
           },
         },
-      },
+      });
+
+      return updatedUser;
     });
+
+    // Only delete old avatar after successful DB update
+    if (avatarResult.oldAvatarKey && (newAvatarUploaded || req.body.deleteAvatar === 'true')) {
+      try {
+        await deleteFileFromR2(avatarResult.oldAvatarKey);
+      } catch (deleteError) {
+        console.error('Warning: Failed to delete old avatar:', deleteError);
+        // Don't fail the request for old avatar deletion
+      }
+    }
+
+    // Cleanup temp files
+    await cleanupTempFiles(tempFiles);
 
     // Get avatar URL if exists
     let avatarUrl = null;
-    if (updatedUser.avatar) {
-      avatarUrl = await getPublicR2Url(updatedUser.avatar);
+    if (result.avatar) {
+      avatarUrl = await getPublicR2Url(result.avatar);
     }
 
-    sendSuccess(
-      res,
-      'user.updated',
-      {
-        user: { ...updatedUser, avatarUrl },
-      },
-      language
-    );
+    sendSuccess(res, 'user.updated', { user: { ...result, avatarUrl } }, language);
   } catch (error) {
-    // Delete temporary file if it exists
-    if (req.file) {
-      fs.unlinkSync(req.file.path);
+    console.error('Error updating user:', error);
+
+    // Rollback: Delete newly uploaded avatar if DB update failed
+    if (newAvatarUploaded) {
+      try {
+        await deleteFileFromR2(newAvatarUploaded);
+        console.log('Rolled back newly uploaded avatar:', newAvatarUploaded);
+      } catch (rollbackError) {
+        console.error('Failed to rollback avatar upload:', rollbackError);
+      }
     }
 
-    console.error('Error updating user:', error);
+    // Cleanup temp files
+    await cleanupTempFiles(tempFiles);
+
     sendServerError(
       res,
       'common.serverError',

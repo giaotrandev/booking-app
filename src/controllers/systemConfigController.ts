@@ -25,6 +25,9 @@ export async function getSystemConfigCtrl(req: Request, res: Response) {
     config.logo = config.logo ? getPublicR2Url(config.logo) : null;
     config.textLogo = config.textLogo ? getPublicR2Url(config.textLogo) : null;
 
+    config.logoDark = config.logoDark ? getPublicR2Url(config.logoDark) : null;
+    config.textLogoDark = config.textLogoDark ? getPublicR2Url(config.textLogoDark) : null;
+
     const cleanConfig = deepRemoveTimestamps(config);
     return sendSuccess(res, 'systemConfig.retrieved', cleanConfig, req.language);
   } catch (error) {
@@ -116,7 +119,7 @@ export async function uploadLogoCtrl(req: Request, res: Response) {
       return sendBadRequest(res, 'systemConfig.logoRequired', null, req.language);
     }
 
-    if (!['logo', 'textLogo', 'favicon', 'icon', 'appleIcon'].includes(logoType)) {
+    if (!['logo', 'textLogo', 'logoDark', 'textLogoDark', 'favicon', 'icon', 'appleIcon'].includes(logoType)) {
       if (fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
       }
@@ -126,7 +129,7 @@ export async function uploadLogoCtrl(req: Request, res: Response) {
     const updatedConfig = await updateSystemConfigLogo(
       id,
       req.file.path,
-      logoType as 'logo' | 'textLogo' | 'favicon' | 'icon' | 'appleIcon',
+      logoType as 'logo' | 'textLogo' | 'logoDark' | 'textLogoDark' | 'favicon' | 'icon' | 'appleIcon',
       userId
     );
 
@@ -163,11 +166,15 @@ export async function deleteLogoCtrl(req: Request, res: Response) {
     const { logoType = 'logo' } = req.query;
     const userId = (req.user as { userId: string })?.userId;
 
-    if (!['logo', 'textLogo'].includes(logoType as string)) {
+    if (!['logo', 'logoDark', 'textLogo', 'textLogoDark'].includes(logoType as string)) {
       return sendBadRequest(res, 'systemConfig.invalidLogoType', null, req.language);
     }
 
-    const updatedConfig = await deleteSystemConfigLogo(id, logoType as 'logo' | 'textLogo', userId);
+    const updatedConfig = await deleteSystemConfigLogo(
+      id,
+      logoType as 'logo' | 'textLogo' | 'logoDark' | 'textLogoDark',
+      userId
+    );
 
     const cleanConfig = deepRemoveTimestamps(updatedConfig);
     return sendSuccess(res, 'systemConfig.logoDeleted', cleanConfig, req.language, { logoType });
@@ -201,7 +208,9 @@ export async function getPublicSystemConfigCtrl(req: Request, res: Response) {
       name: config.name,
       globalName: config.globalName,
       logo: config.logo ? getPublicR2Url(config.logo) : null,
+      logoDark: config.logoDark ? getPublicR2Url(config.logoDark) : null,
       textLogo: config.textLogo ? getPublicR2Url(config.textLogo) : null,
+      textLogoDark: config.textLogoDark ? getPublicR2Url(config.textLogoDark) : null,
       favicon: config.favicon ? getPublicR2Url(config.favicon) : null,
       icon: config.icon ? getPublicR2Url(config.icon) : null,
       appleIcon: config.appleIcon ? getPublicR2Url(config.appleIcon) : null,
