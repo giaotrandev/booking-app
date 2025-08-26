@@ -83,6 +83,8 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
   const userId = (req.user as { userId: string })?.userId || undefined;
 
+  console.log('Sao vậy ta: ', userId);
+
   try {
     const {
       tripId,

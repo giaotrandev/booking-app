@@ -160,6 +160,8 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     // Determine which token to use
     const token = headerToken || cookieToken;
 
+    console.log('Có token không: ', token);
+
     // If no tokens present, continue as guest user
     if (!token && !refreshToken) {
       req.user = undefined;
@@ -185,6 +187,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
           req.user = undefined;
           return next();
         }
+        console.log('Decode: ', decoded);
 
         // Set user and proceed
         req.user = decoded;
