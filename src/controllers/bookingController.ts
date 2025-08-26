@@ -702,7 +702,6 @@ export const getPaymentQR = async (req: Request, res: Response): Promise<void> =
       sendNotFound(res, 'booking.notFound', null, language);
       return;
     }
-    console.log('User id 2: ', { userId, test: booking?.userId });
 
     // Check if user can access this booking
     if (booking.userId && booking.userId !== userId) {

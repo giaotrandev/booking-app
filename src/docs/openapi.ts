@@ -10474,8 +10474,9 @@ export const apiSpecification: OpenAPIV3.Document = {
             example: 'Booking cancelled by user',
           },
           changedBy: {
-            oneOf: [{ $ref: '#/components/schemas/User' }, { $ref: '#/components/schemas/UnknownUser' }],
-            description: 'Thông tin người thực hiện thay đổi',
+            type: 'string',
+            description: 'ID của người dùng',
+            example: '507f1f77bcf86cd799439016',
           },
           createdAt: {
             type: 'string',
