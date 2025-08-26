@@ -233,9 +233,9 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
           data: {
             userId: userId,
             isGuestBooking: !userId,
-            passengerName: !userId ? passengerName : undefined,
-            passengerEmail: !userId ? passengerEmail : undefined,
-            passengerPhone: !userId ? passengerPhone : undefined,
+            passengerName: passengerName ?? undefined,
+            passengerEmail: passengerEmail ?? undefined,
+            passengerPhone: passengerPhone ?? undefined,
             status: BookingStatus.PENDING,
             paymentStatus: PaymentStatus.PENDING,
             totalPrice,
@@ -1678,6 +1678,8 @@ export const getUserBookings = async (req: Request, res: Response): Promise<void
     } catch (parseError) {
       return sendBadRequest(res, 'common.invalidQueryParams', { error: 'Invalid sort format' }, language);
     }
+
+    console.log('Sai hả: ', userId);
 
     // Build filters
     const bookingFilters: Record<string, any> = {

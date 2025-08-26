@@ -1,6 +1,6 @@
 import express from 'express';
 import * as bookingController from '../controllers/bookingController';
-import { authenticateToken } from '#middlewares/authMiddleware';
+import { authenticateToken, optionalAuth } from '#middlewares/authMiddleware';
 import { validatePermissions } from '#middlewares/permissionMiddleware';
 import { createRateLimiter } from '#src/middlewares/rateLimitMiddleware';
 
@@ -19,8 +19,8 @@ router.get('/admin/stats', authenticateToken, validatePermissions(['admin']), bo
 router.get('/admin/export', authenticateToken, validatePermissions(['admin']), bookingController.exportBookingData);
 
 // Root CRUD operations
-router.post('/', bookingController.createBooking);
-router.put('/', bookingController.updateBooking);
+router.post('/', optionalAuth, bookingController.createBooking);
+router.put('/', optionalAuth, bookingController.updateBooking);
 
 // Specific /:id routes (must come before general /:id route)
 router.post('/:id/resend-payment', authenticateToken, bookingController.resendPaymentQR);
