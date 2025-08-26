@@ -25,7 +25,7 @@ router.put('/', bookingController.updateBooking);
 // Specific /:id routes (must come before general /:id route)
 router.post('/:id/resend-payment', authenticateToken, bookingController.resendPaymentQR);
 router.post('/:id/payment/qr-code', bookingController.generatePaymentQR);
-router.get('/:id/payment/qr-code', authenticateToken, bookingController.getPaymentQR);
+router.get('/:id/payment/qr-code', bookingController.getPaymentQR);
 router.post('/:id/cancel', authenticateToken, bookingController.cancelBooking);
 router.get('/:id/history', authenticateToken, bookingController.getBookingHistory);
 router.post(
