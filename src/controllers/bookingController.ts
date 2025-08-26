@@ -610,7 +610,6 @@ export const generatePaymentQR = async (req: Request, res: Response): Promise<vo
     const booking = await prisma.booking.findUnique({
       where: { id },
     });
-    console.log('User id: ', { userId, test: booking?.userId });
 
     if (!booking) {
       sendNotFound(res, 'booking.notFound', null, language);
@@ -618,10 +617,10 @@ export const generatePaymentQR = async (req: Request, res: Response): Promise<vo
     }
 
     // Check if user can access this booking
-    if (booking.userId && booking.userId !== userId) {
-      sendBadRequest(res, 'booking.unauthorized', null, language);
-      return;
-    }
+    // if (booking.userId && booking.userId !== userId) {
+    //   sendBadRequest(res, 'booking.unauthorized', null, language);
+    //   return;
+    // }
 
     // Only generate QR for PENDING bookings
     if (booking.status !== BookingStatus.PENDING || booking.paymentStatus !== PaymentStatus.PENDING) {
@@ -706,10 +705,10 @@ export const getPaymentQR = async (req: Request, res: Response): Promise<void> =
     }
 
     // Check if user can access this booking
-    if (booking.userId && booking.userId !== userId) {
-      sendBadRequest(res, 'booking.unauthorized', null, language);
-      return;
-    }
+    // if (booking.userId && booking.userId !== userId) {
+    //   sendBadRequest(res, 'booking.unauthorized', null, language);
+    //   return;
+    // }
 
     // Check if booking is in valid state for QR payment
     if (booking.status !== BookingStatus.PENDING || booking.paymentStatus !== PaymentStatus.PENDING) {
