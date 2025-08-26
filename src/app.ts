@@ -108,6 +108,12 @@ app.use((req, res, next) => {
 });
 
 // Routes
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end();
+  // Or serve an actual favicon file:
+  // res.sendFile(path.join(__dirname, 'public', 'favicon.ico'));
+});
+
 app.get('/', (req: Request, res: Response) => {
   res.redirect('/api/docs');
 });

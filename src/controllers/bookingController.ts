@@ -11,6 +11,7 @@ import { getSocketIOInstance } from './bookingControllerSocketInterface';
 import { generateTicketsForBooking, generateTicketsInTransaction } from '#services/ticketService';
 import { createRoomName } from '#src/services/socketService';
 import { deepRemoveTimestamps } from '#src/helpers/dataHelper';
+import { DataQueryParams, queryData } from '#src/utils/dataQuery';
 
 // Keep track of temporary seat reservations
 interface SeatReservation {
@@ -607,6 +608,7 @@ export const generatePaymentQR = async (req: Request, res: Response): Promise<vo
     const booking = await prisma.booking.findUnique({
       where: { id },
     });
+    console.log('User id: ', { userId, test: booking?.userId });
 
     if (!booking) {
       sendNotFound(res, 'booking.notFound', null, language);
@@ -700,6 +702,7 @@ export const getPaymentQR = async (req: Request, res: Response): Promise<void> =
       sendNotFound(res, 'booking.notFound', null, language);
       return;
     }
+    console.log('User id 2: ', { userId, test: booking?.userId });
 
     // Check if user can access this booking
     if (booking.userId && booking.userId !== userId) {
@@ -1627,119 +1630,286 @@ export const getBookingDetails = async (req: Request, res: Response): Promise<vo
 };
 
 /**
- * Get user's bookings
+ * Get user bookings with advanced filtering and search
+ *
+ * Query Parameters:
+ * - page, pageSize: pagination
+ * - search: search term
+ * - searchFields: comma-separated list of fields to search in
+ * - sort: JSON sort configuration
+ * - sortFilter: 'latest' | 'oldest' - quick sort options
+ * - status: BookingStatus filter
+ * - busType: filter by vehicle type name
+ * - startDate, endDate: booking creation date range
+ * - tripDepartureStart, tripDepartureEnd: trip departure time range
+ * - tripArrivalStart, tripArrivalEnd: trip arrival time range
+ * - tripStartDate, tripEndDate: legacy departure time range filter
+ * - filters: additional JSON filters
+ * - returnAll: boolean to return all results without pagination
  */
 export const getUserBookings = async (req: Request, res: Response): Promise<void> => {
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
   const userId = (req.user as { userId: string }).userId;
 
   try {
+    // Parse query parameters
     const page = req.query.page
       ? parseInt(req.query.page as string)
       : parseInt(process.env.PAGINATION_DEFAULT_PAGE as string) || 1;
     const pageSize = req.query.pageSize
       ? parseInt(req.query.pageSize as string)
       : parseInt(process.env.PAGINATION_DEFAULT_LIMIT as string) || 10;
-    const status = req.query.status as BookingStatus;
-    const skip = (page - 1) * pageSize;
+    const search = req.query.search as string | undefined;
+    const returnAll = req.query.returnAll === 'true';
 
-    // Build filter
-    const filter: any = {
+    // Search fields configuration - cho phép search theo booking code, trip info
+    const searchFields = req.query.searchFields
+      ? (req.query.searchFields as string).split(',').map((field) => field.trim())
+      : ['bookingCode', 'bookingTrips.trip.route.name', 'bookingTrips.trip.route.code', 'pickup.name', 'dropoff.name']; // Default search fields
+
+    // Parse sort
+    let sort: DataQueryParams['sort'] | undefined;
+    try {
+      if (req.query.sort) {
+        sort = JSON.parse(req.query.sort as string);
+      } else {
+        // Default sort by created date (newest first)
+        sort = [{ field: 'createdAt', order: 'desc' }];
+      }
+    } catch (parseError) {
+      return sendBadRequest(res, 'common.invalidQueryParams', { error: 'Invalid sort format' }, language);
+    }
+
+    // Build filters
+    const bookingFilters: Record<string, any> = {
       userId,
       isDeleted: false,
     };
 
+    // Status filter
+    const status = req.query.status as BookingStatus;
     if (status) {
-      filter.status = status;
+      bookingFilters.status = status;
     }
 
-    // Get bookings with pagination
-    const [bookings, totalCount] = await Promise.all([
-      prisma.booking.findMany({
-        where: filter,
-        include: {
-          bookingTrips: {
-            include: {
-              trip: {
-                include: {
-                  route: {
-                    include: {
-                      sourceProvince: true,
-                      destinationProvince: true,
-                    },
-                  },
-                  seats: true,
-                },
-              },
-              _count: {
-                select: {
-                  seats: true,
-                },
-              },
-            },
-          },
-        },
-        skip,
-        take: pageSize,
-        orderBy: {
-          createdAt: 'desc',
-        },
-      }),
-      prisma.booking.count({
-        where: filter,
-      }),
-    ]);
+    // Quick sort filter (latest/oldest)
+    const sortFilter = req.query.sortFilter as string;
+    if (sortFilter === 'latest' || sortFilter === 'oldest') {
+      sort = [{ field: 'createdAt', order: sortFilter === 'latest' ? 'desc' : 'asc' }];
+    }
 
-    // Get trip images
-    const bookingsWithImages = await Promise.all(
-      bookings?.map(async (booking) => {
-        const tripsWithImages = await Promise.all(
-          booking.bookingTrips?.map(async (bt) => {
+    // Date range filters for booking creation
+    if (req.query.startDate || req.query.endDate) {
+      const dateFilter: any = {};
+      if (req.query.startDate) {
+        dateFilter.gte = new Date(req.query.startDate as string);
+      }
+      if (req.query.endDate) {
+        dateFilter.lte = new Date(req.query.endDate as string);
+      }
+      bookingFilters.createdAt = dateFilter;
+    }
+
+    // Build trip-related filters
+    const tripFilters: any = {};
+
+    // Vehicle/Bus type filter
+    const busType = req.query.busType as string;
+    if (busType) {
+      tripFilters.vehicle = {
+        vehicleType: {
+          name: busType,
+        },
+      };
+    }
+
+    // Trip departure time filters
+    if (req.query.tripDepartureStart || req.query.tripDepartureEnd) {
+      const departureDateFilter: any = {};
+      if (req.query.tripDepartureStart) {
+        departureDateFilter.gte = new Date(req.query.tripDepartureStart as string);
+      }
+      if (req.query.tripDepartureEnd) {
+        departureDateFilter.lte = new Date(req.query.tripDepartureEnd as string);
+      }
+      tripFilters.departureTime = departureDateFilter;
+    }
+
+    // Trip arrival time filters
+    if (req.query.tripArrivalStart || req.query.tripArrivalEnd) {
+      const arrivalDateFilter: any = {};
+      if (req.query.tripArrivalStart) {
+        arrivalDateFilter.gte = new Date(req.query.tripArrivalStart as string);
+      }
+      if (req.query.tripArrivalEnd) {
+        arrivalDateFilter.lte = new Date(req.query.tripArrivalEnd as string);
+      }
+      tripFilters.arrivalTime = arrivalDateFilter;
+    }
+
+    // Legacy support - Trip date range filters (filter by trip departure time)
+    if (req.query.tripStartDate || req.query.tripEndDate) {
+      const tripDateFilter: any = {};
+      if (req.query.tripStartDate) {
+        tripDateFilter.gte = new Date(req.query.tripStartDate as string);
+      }
+      if (req.query.tripEndDate) {
+        tripDateFilter.lte = new Date(req.query.tripEndDate as string);
+      }
+      tripFilters.departureTime = tripDateFilter;
+    }
+
+    // Apply trip filters if any exist
+    if (Object.keys(tripFilters).length > 0) {
+      bookingFilters.bookingTrips = {
+        some: {
+          trip: tripFilters,
+        },
+      };
+    }
+
+    // Additional filters from query string
+    let additionalFilters: Record<string, any> = {};
+    try {
+      if (req.query.filters) {
+        additionalFilters = JSON.parse(req.query.filters as string);
+      }
+    } catch (parseError) {
+      return sendBadRequest(res, 'common.invalidQueryParams', { error: 'Invalid filters format' }, language);
+    }
+
+    // Merge filters
+    const filters = {
+      ...bookingFilters,
+      ...additionalFilters,
+    };
+
+    // Define enum fields
+    const enumFields = {
+      status: Object.values(BookingStatus),
+    };
+
+    // Define relations to include - simplified for list view
+    const relations = [
+      'bookingTrips.trip.route.sourceProvince',
+      'bookingTrips.trip.route.destinationProvince',
+      'bookingTrips.trip.vehicle.vehicleType',
+      'bookingTrips.seats', // For seat info
+    ];
+
+    // Prepare query parameters
+    const queryParams: DataQueryParams = {
+      page,
+      pageSize,
+      search,
+      searchFields,
+      filters,
+      sort,
+      returnAll,
+      relations,
+      enumFields,
+    };
+
+    // Execute query
+    const result = await queryData(prisma.booking, queryParams);
+
+    // Post-processing: Add computed fields and URLs
+    const bookingsWithAdditionalData = await Promise.all(
+      result.data.map(async (booking: any) => {
+        // Process booking trips
+        const processedBookingTrips = await Promise.all(
+          booking.bookingTrips?.map(async (bt: any) => {
+            // Generate trip image URL
             let tripImageUrl = null;
             if (bt.trip.image) {
               tripImageUrl = await getPublicR2Url(bt.trip.image);
             }
 
+            // Count seats for this booking trip
+            const seatCount = bt.seats?.length || 0;
+
+            // For list view, return simplified trip info
             return {
-              ...bt,
+              id: bt.id,
+              tripId: bt.tripId,
+              seatCount,
               trip: {
-                ...bt.trip,
+                id: bt.trip.id,
+                departureTime: bt.trip.departureTime,
+                arrivalTime: bt.trip.arrivalTime,
+                duration: bt.trip.duration,
                 imageUrl: tripImageUrl,
+                route: {
+                  id: bt.trip.route.id,
+                  name: bt.trip.route.name,
+                  code: bt.trip.route.code,
+                  sourceProvince: bt.trip.route.sourceProvince,
+                  destinationProvince: bt.trip.route.destinationProvince,
+                },
+                vehicle: bt.trip.vehicle
+                  ? {
+                      id: bt.trip.vehicle.id,
+                      licensePlate: bt.trip.vehicle.licensePlate,
+                      vehicleType: bt.trip.vehicle.vehicleType,
+                    }
+                  : null,
               },
             };
-          })
+          }) || []
         );
 
+        // Calculate total seats across all trips
+        const totalSeats = processedBookingTrips.reduce((sum, bt) => sum + bt.seatCount, 0);
+
         return {
-          ...booking,
-          bookingTrips: tripsWithImages,
+          id: booking.id,
+          bookingCode: booking.bookingCode,
+          status: booking.status,
+          totalAmount: booking.totalAmount,
+          createdAt: booking.createdAt,
+          updatedAt: booking.updatedAt,
+          totalSeats,
+          pickup: booking.pickup
+            ? {
+                id: booking.pickup.id,
+                name: booking.pickup.name,
+                code: booking.pickup.code,
+                address: booking.pickup.address,
+              }
+            : null,
+          dropoff: booking.dropoff
+            ? {
+                id: booking.dropoff.id,
+                name: booking.dropoff.name,
+                code: booking.dropoff.code,
+                address: booking.dropoff.address,
+              }
+            : null,
+          bookingTrips: processedBookingTrips,
         };
       })
     );
-
-    // Calculate pagination info
-    const totalPages = Math.ceil(totalCount / pageSize);
 
     return sendSuccess(
       res,
       'booking.listRetrieved',
       {
-        data: bookingsWithImages,
-        pagination: {
-          page,
-          pageSize,
-          totalCount,
-          totalPages,
-        },
+        data: bookingsWithAdditionalData,
+        meta: result.meta,
       },
       language
     );
   } catch (error) {
     console.error('Error retrieving user bookings:', error);
-    return sendServerError(
+    sendServerError(
       res,
       'common.serverError',
-      error instanceof Error ? { message: error.message } : null,
+      error instanceof Error
+        ? {
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+          }
+        : null,
       language
     );
   }
