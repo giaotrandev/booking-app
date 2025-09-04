@@ -7933,33 +7933,142 @@ export const apiSpecification: OpenAPIV3.Document = {
     },
     '/bookings/my-bookings': {
       get: {
+        operationId: 'getUserBookings',
         tags: ['Booking'],
         summary: 'Lấy danh sách đặt vé của người dùng',
-        description: 'Lấy danh sách tất cả đặt vé của người dùng hiện tại với phân trang',
+        description:
+          'Trả về danh sách đặt vé của người dùng hiện tại với hỗ trợ phân trang, tìm kiếm, lọc, và sắp xếp. Dữ liệu trả về được định dạng theo chế độ xem (view mode) được chỉ định.',
         security: [{ BearerAuth: [] }],
         parameters: [
           {
             name: 'page',
             in: 'query',
-            description: 'Số trang',
-            schema: { type: 'integer', example: 1 },
+            description: 'Số trang (mặc định: 1)',
+            schema: { type: 'integer', example: 1, minimum: 1 },
           },
           {
             name: 'pageSize',
             in: 'query',
-            description: 'Số lượng bản ghi mỗi trang',
-            schema: { type: 'integer', example: 10 },
+            description: 'Số lượng bản ghi mỗi trang (mặc định: 10)',
+            schema: { type: 'integer', example: 10, minimum: 1 },
+          },
+          {
+            name: 'search',
+            in: 'query',
+            description: 'Từ khóa tìm kiếm',
+            schema: { type: 'string', example: 'HCM' },
+          },
+          {
+            name: 'searchFields',
+            in: 'query',
+            description: 'Các trường để tìm kiếm (phân tách bởi dấu phẩy). Tùy thuộc vào view mode nếu không chỉ định.',
+            schema: { type: 'string', example: 'passengerName,passengerEmail' },
           },
           {
             name: 'status',
             in: 'query',
             description: 'Lọc theo trạng thái đặt vé',
-            schema: { type: 'string', enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'] },
+            schema: {
+              type: 'string',
+              enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'],
+              example: 'CONFIRMED',
+            },
+          },
+          {
+            name: 'startDate',
+            in: 'query',
+            description: 'Ngày bắt đầu tạo đặt vé (ISO 8601)',
+            schema: { type: 'string', format: 'date-time', example: '2025-09-01T00:00:00Z' },
+          },
+          {
+            name: 'endDate',
+            in: 'query',
+            description: 'Ngày kết thúc tạo đặt vé (ISO 8601)',
+            schema: { type: 'string', format: 'date-time', example: '2025-09-30T23:59:59Z' },
+          },
+          {
+            name: 'tripDepartureStart',
+            in: 'query',
+            description: 'Thời gian khởi hành chuyến đi từ (ISO 8601)',
+            schema: { type: 'string', format: 'date-time', example: '2025-09-04T08:00:00Z' },
+          },
+          {
+            name: 'tripDepartureEnd',
+            in: 'query',
+            description: 'Thời gian khởi hành chuyến đi đến (ISO 8601)',
+            schema: { type: 'string', format: 'date-time', example: '2025-09-04T23:59:59Z' },
+          },
+          {
+            name: 'tripArrivalStart',
+            in: 'query',
+            description: 'Thời gian đến chuyến đi từ (ISO 8601)',
+            schema: { type: 'string', format: 'date-time', example: '2025-09-04T12:00:00Z' },
+          },
+          {
+            name: 'tripArrivalEnd',
+            in: 'query',
+            description: 'Thời gian đến chuyến đi đến (ISO 8601)',
+            schema: { type: 'string', format: 'date-time', example: '2025-09-04T23:59:59Z' },
+          },
+          {
+            name: 'tripStartDate',
+            in: 'query',
+            description: 'Ngày khởi hành chuyến đi từ (hỗ trợ legacy, ISO 8601)',
+            schema: { type: 'string', format: 'date-time', example: '2025-09-04T00:00:00Z' },
+          },
+          {
+            name: 'tripEndDate',
+            in: 'query',
+            description: 'Ngày khởi hành chuyến đi đến (hỗ trợ legacy, ISO 8601)',
+            schema: { type: 'string', format: 'date-time', example: '2025-09-04T23:59:59Z' },
+          },
+          {
+            name: 'busType',
+            in: 'query',
+            description: 'Loại phương tiện (lọc theo tên loại xe)',
+            schema: { type: 'string', example: 'Xe giường nằm' },
+          },
+          {
+            name: 'sort',
+            in: 'query',
+            description: 'Sắp xếp theo trường và thứ tự (JSON string, ví dụ: [{"field":"createdAt","order":"desc"}])',
+            schema: {
+              type: 'string',
+              example: '[{"field":"createdAt","order":"desc"}]',
+            },
+          },
+          {
+            name: 'sortFilter',
+            in: 'query',
+            description: 'Tùy chọn sắp xếp nhanh (latest: mới nhất, oldest: cũ nhất)',
+            schema: { type: 'string', enum: ['latest', 'oldest'], example: 'latest' },
+          },
+          {
+            name: 'filters',
+            in: 'query',
+            description: 'Bộ lọc bổ sung (JSON string)',
+            schema: { type: 'string', example: '{"paymentStatus":"PAID"}' },
+          },
+          {
+            name: 'view',
+            in: 'query',
+            description: 'Chế độ xem của dữ liệu trả về',
+            schema: {
+              type: 'string',
+              enum: ['default', 'history', 'summary', 'export'],
+              example: 'default',
+            },
+          },
+          {
+            name: 'returnAll',
+            in: 'query',
+            description: 'Trả về tất cả bản ghi, bỏ qua phân trang (true/false)',
+            schema: { type: 'boolean', example: false },
           },
           {
             name: 'lang',
             in: 'query',
-            description: 'Ngôn ngữ trả về thông báo',
+            description: 'Ngôn ngữ trả về thông báo (mặc định: en)',
             schema: { type: 'string', example: 'en' },
           },
         ],
@@ -7978,26 +8087,60 @@ export const apiSpecification: OpenAPIV3.Document = {
                       properties: {
                         data: {
                           type: 'array',
-                          items: { $ref: '#/components/schemas/Booking' },
+                          description: 'Danh sách đặt vé, định dạng phụ thuộc vào view mode',
+                          items: {
+                            anyOf: [
+                              { $ref: '#/components/schemas/BookingDefaultList' },
+                              { $ref: '#/components/schemas/BookingHistoryList' },
+                              { $ref: '#/components/schemas/BookingSummaryList' },
+                              { $ref: '#/components/schemas/BookingExportList' },
+                            ],
+                          },
                         },
-                        pagination: {
+                        meta: {
                           type: 'object',
+                          description: 'Thông tin phân trang',
                           properties: {
                             page: { type: 'integer', example: 1 },
                             pageSize: { type: 'integer', example: 10 },
                             totalCount: { type: 'integer', example: 50 },
                             totalPages: { type: 'integer', example: 5 },
+                            hasNextPage: { type: 'boolean', example: true },
+                            hasPrevPage: { type: 'boolean', example: false },
                           },
+                        },
+                        view: {
+                          type: 'string',
+                          description: 'Chế độ xem được sử dụng',
+                          enum: ['default', 'history', 'summary', 'export'],
+                          example: 'default',
                         },
                       },
                     },
                   },
+                  required: ['success', 'message', 'data'],
                 },
+              },
+            },
+          },
+          '400': {
+            description: 'Yêu cầu không hợp lệ (ví dụ: view mode không hợp lệ)',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
               },
             },
           },
           '401': {
             description: 'Yêu cầu xác thực',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '500': {
+            description: 'Lỗi máy chủ',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -8431,19 +8574,19 @@ export const apiSpecification: OpenAPIV3.Document = {
         operationId: 'getBookingDetails',
         tags: ['Booking'],
         summary: 'Lấy chi tiết đặt vé',
-        description: 'Trả về chi tiết của một đặt vé cụ thể',
+        description: 'Trả về chi tiết của một đặt vé cụ thể dựa trên ID.',
         parameters: [
           {
             name: 'id',
             in: 'path',
             description: 'ID của đặt vé',
             required: true,
-            schema: { type: 'string', example: '507f1f77bcf86cd799439014' },
+            schema: { type: 'string' },
           },
           {
             name: 'lang',
             in: 'query',
-            description: 'Ngôn ngữ trả về thông báo',
+            description: 'Ngôn ngữ trả về thông báo (mặc định: en)',
             schema: { type: 'string', example: 'en' },
           },
         ],
@@ -8457,15 +8600,39 @@ export const apiSpecification: OpenAPIV3.Document = {
                   properties: {
                     success: { type: 'boolean', example: true },
                     message: { type: 'string', example: 'booking.detailsRetrieved' },
-                    data: { $ref: '#/components/schemas/Booking' },
+                    data: { $ref: '#/components/schemas/BookingDetails' },
                   },
                   required: ['success', 'message', 'data'],
                 },
               },
             },
           },
+          '400': {
+            description: 'Yêu cầu không hợp lệ (ví dụ: không tìm thấy chuyến đi trong đặt vé)',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '403': {
+            description: 'Không có quyền truy cập',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
           '404': {
             description: 'Đặt vé không tìm thấy',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '500': {
+            description: 'Lỗi máy chủ',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -10378,6 +10545,1238 @@ export const apiSpecification: OpenAPIV3.Document = {
             },
           },
         ],
+      },
+      BookingDefaultList: {
+        type: 'object',
+        properties: {
+          id: {
+            type: 'string',
+            description: 'ID của đặt vé',
+            example: '507f1f77bcf86cd799439011',
+          },
+          bookingCode: {
+            type: 'string',
+            description: 'Mã đặt vé',
+            example: 'BOOK123456',
+          },
+          status: {
+            type: 'string',
+            description: 'Trạng thái đặt vé',
+            example: 'CONFIRMED',
+            enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'],
+          },
+          totalPrice: {
+            type: 'number',
+            description: 'Tổng giá vé',
+            example: 200000,
+          },
+          discountAmount: {
+            type: 'number',
+            description: 'Số tiền giảm giá',
+            example: 20000,
+          },
+          finalPrice: {
+            type: 'number',
+            description: 'Giá cuối cùng sau giảm giá',
+            example: 180000,
+          },
+          createdAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian tạo đặt vé',
+            example: '2025-09-04T10:53:00Z',
+          },
+          updatedAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian cập nhật đặt vé',
+            example: '2025-09-04T10:53:00Z',
+          },
+          totalSeats: {
+            type: 'number',
+            description: 'Tổng số ghế đã đặt',
+            example: 2,
+          },
+          pickup: {
+            type: 'object',
+            description: 'Thông tin điểm đón',
+            properties: {
+              id: {
+                type: 'string',
+                description: 'ID của điểm đón',
+                example: '507f1f77bcf86cd799439012',
+              },
+              name: {
+                type: 'string',
+                description: 'Tên điểm đón',
+                example: 'Bến xe Miền Đông',
+              },
+              code: {
+                type: 'string',
+                description: 'Mã điểm đón',
+                example: 'BXMD',
+              },
+              address: {
+                type: 'string',
+                description: 'Địa chỉ điểm đón',
+                example: '292 Đinh Bộ Lĩnh',
+              },
+            },
+            nullable: true,
+          },
+          dropoff: {
+            type: 'object',
+            description: 'Thông tin điểm trả',
+            properties: {
+              id: {
+                type: 'string',
+                description: 'ID của điểm trả',
+                example: '507f1f77bcf86cd799439013',
+              },
+              name: {
+                type: 'string',
+                description: 'Tên điểm trả',
+                example: 'Bến xe Đà Lạt',
+              },
+              code: {
+                type: 'string',
+                description: 'Mã điểm trả',
+                example: 'BXDL',
+              },
+              address: {
+                type: 'string',
+                description: 'Địa chỉ điểm trả',
+                example: '1 Tô Hiến Thành',
+              },
+            },
+            nullable: true,
+          },
+          bookingTrips: {
+            type: 'array',
+            description: 'Danh sách các chuyến đi trong đặt vé',
+            items: {
+              type: 'object',
+              properties: {
+                id: {
+                  type: 'string',
+                  description: 'ID của chuyến đi trong đặt vé',
+                  example: '507f1f77bcf86cd799439014',
+                },
+                tripId: {
+                  type: 'string',
+                  description: 'ID của chuyến đi',
+                  example: '507f1f77bcf86cd799439015',
+                },
+                seatCount: {
+                  type: 'number',
+                  description: 'Số lượng ghế đã đặt',
+                  example: 2,
+                },
+                trip: {
+                  type: 'object',
+                  description: 'Thông tin chuyến đi',
+                  properties: {
+                    id: {
+                      type: 'string',
+                      description: 'ID của chuyến đi',
+                      example: '507f1f77bcf86cd799439015',
+                    },
+                    departureTime: {
+                      type: 'string',
+                      format: 'date-time',
+                      description: 'Thời gian khởi hành',
+                      example: '2025-09-04T08:00:00Z',
+                    },
+                    arrivalTime: {
+                      type: 'string',
+                      format: 'date-time',
+                      description: 'Thời gian đến',
+                      example: '2025-09-04T14:00:00Z',
+                    },
+                    duration: {
+                      type: 'number',
+                      description: 'Thời gian dự kiến của chuyến đi (phút)',
+                      example: 360,
+                    },
+                    imageUrl: {
+                      type: 'string',
+                      description: 'URL hình ảnh của chuyến đi',
+                      example: 'https://storage.example.com/trip-image.jpg',
+                      nullable: true,
+                    },
+                    route: {
+                      type: 'object',
+                      description: 'Thông tin tuyến đường',
+                      properties: {
+                        id: {
+                          type: 'string',
+                          description: 'ID của tuyến đường',
+                          example: '507f1f77bcf86cd799439016',
+                        },
+                        name: {
+                          type: 'string',
+                          description: 'Tên tuyến đường',
+                          example: 'Hồ Chí Minh - Đà Lạt',
+                        },
+                        code: {
+                          type: 'string',
+                          description: 'Mã tuyến đường',
+                          example: 'HCM-DL',
+                        },
+                        sourceProvince: {
+                          type: 'string',
+                          description: 'Tỉnh/thành phố khởi hành',
+                          example: 'TP. Hồ Chí Minh',
+                        },
+                        destinationProvince: {
+                          type: 'string',
+                          description: 'Tỉnh/thành phố đích đến',
+                          example: 'Lâm Đồng',
+                        },
+                      },
+                    },
+                    vehicle: {
+                      type: 'object',
+                      description: 'Thông tin phương tiện',
+                      properties: {
+                        id: {
+                          type: 'string',
+                          description: 'ID của phương tiện',
+                          example: '507f1f77bcf86cd799439017',
+                        },
+                        licensePlate: {
+                          type: 'string',
+                          description: 'Biển số xe',
+                          example: '51B-12345',
+                        },
+                        vehicleType: {
+                          type: 'object',
+                          description: 'Thông tin loại phương tiện',
+                          properties: {
+                            id: {
+                              type: 'string',
+                              description: 'ID của loại phương tiện',
+                              example: '507f1f77bcf86cd799439018',
+                            },
+                            name: {
+                              type: 'string',
+                              description: 'Tên loại phương tiện',
+                              example: 'Xe giường nằm',
+                            },
+                            description: {
+                              type: 'string',
+                              description: 'Mô tả loại phương tiện',
+                              example: 'Xe giường nằm 40 chỗ',
+                            },
+                            status: {
+                              type: 'string',
+                              description: 'Trạng thái loại phương tiện',
+                              example: 'active',
+                            },
+                          },
+                        },
+                      },
+                      nullable: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      BookingHistoryList: {
+        type: 'object',
+        properties: {
+          id: {
+            type: 'string',
+            description: 'ID của đặt vé',
+            example: '507f1f77bcf86cd799439011',
+          },
+          bookingCode: {
+            type: 'string',
+            description: 'Mã đặt vé',
+            example: 'BOOK123456',
+          },
+          status: {
+            type: 'string',
+            description: 'Trạng thái đặt vé',
+            example: 'CONFIRMED',
+            enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'],
+          },
+          totalPrice: {
+            type: 'number',
+            description: 'Tổng giá vé',
+            example: 200000,
+          },
+          discountAmount: {
+            type: 'number',
+            description: 'Số tiền giảm giá',
+            example: 20000,
+          },
+          finalPrice: {
+            type: 'number',
+            description: 'Giá cuối cùng sau giảm giá',
+            example: 180000,
+          },
+          createdAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian tạo đặt vé',
+            example: '2025-09-04T10:53:00Z',
+          },
+          route: {
+            type: 'object',
+            description: 'Thông tin tuyến đường của chuyến đi chính',
+            properties: {
+              from: {
+                type: 'string',
+                description: 'Tỉnh/thành phố khởi hành',
+                example: 'TP. Hồ Chí Minh',
+              },
+              to: {
+                type: 'string',
+                description: 'Tỉnh/thành phố đích đến',
+                example: 'Lâm Đồng',
+              },
+              departureTime: {
+                type: 'string',
+                format: 'date-time',
+                description: 'Thời gian khởi hành',
+                example: '2025-09-04T08:00:00Z',
+              },
+            },
+            nullable: true,
+          },
+          totalSeats: {
+            type: 'number',
+            description: 'Tổng số ghế đã đặt',
+            example: 2,
+          },
+          seatNumbers: {
+            type: 'array',
+            description: 'Danh sách số ghế',
+            items: {
+              type: 'string',
+              example: 'A01',
+            },
+          },
+          paymentMethod: {
+            type: 'string',
+            description: 'Phương thức thanh toán',
+            example: 'CREDIT_CARD',
+            nullable: true,
+          },
+        },
+      },
+      BookingSummaryList: {
+        type: 'object',
+        properties: {
+          id: {
+            type: 'string',
+            description: 'ID của đặt vé',
+            example: '507f1f77bcf86cd799439011',
+          },
+          bookingCode: {
+            type: 'string',
+            description: 'Mã đặt vé',
+            example: 'BOOK123456',
+          },
+          status: {
+            type: 'string',
+            description: 'Trạng thái đặt vé',
+            example: 'CONFIRMED',
+            enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'],
+          },
+          totalPrice: {
+            type: 'number',
+            description: 'Tổng giá vé',
+            example: 200000,
+          },
+          discountAmount: {
+            type: 'number',
+            description: 'Số tiền giảm giá',
+            example: 20000,
+          },
+          finalPrice: {
+            type: 'number',
+            description: 'Giá cuối cùng sau giảm giá',
+            example: 180000,
+          },
+          route: {
+            type: 'string',
+            description: 'Tuyến đường (định dạng: from → to)',
+            example: 'TP. Hồ Chí Minh → Lâm Đồng',
+            nullable: true,
+          },
+          departureTime: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian khởi hành của chuyến đi chính',
+            example: '2025-09-04T08:00:00Z',
+            nullable: true,
+          },
+        },
+      },
+      BookingExportList: {
+        type: 'object',
+        properties: {
+          id: {
+            type: 'string',
+            description: 'ID của đặt vé',
+            example: '507f1f77bcf86cd799439011',
+          },
+          bookingCode: {
+            type: 'string',
+            description: 'Mã đặt vé',
+            example: 'BOOK123456',
+          },
+          status: {
+            type: 'string',
+            description: 'Trạng thái đặt vé',
+            example: 'CONFIRMED',
+            enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'],
+          },
+          totalPrice: {
+            type: 'number',
+            description: 'Tổng giá vé',
+            example: 200000,
+          },
+          discountAmount: {
+            type: 'number',
+            description: 'Số tiền giảm giá',
+            example: 20000,
+          },
+          finalPrice: {
+            type: 'number',
+            description: 'Giá cuối cùng sau giảm giá',
+            example: 180000,
+          },
+          createdAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian tạo đặt vé',
+            example: '2025-09-04T10:53:00Z',
+          },
+          updatedAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian cập nhật đặt vé',
+            example: '2025-09-04T10:53:00Z',
+          },
+          totalSeats: {
+            type: 'number',
+            description: 'Tổng số ghế đã đặt',
+            example: 2,
+          },
+          pickup: {
+            type: 'object',
+            description: 'Thông tin điểm đón',
+            properties: {
+              id: {
+                type: 'string',
+                description: 'ID của điểm đón',
+                example: '507f1f77bcf86cd799439012',
+              },
+              name: {
+                type: 'string',
+                description: 'Tên điểm đón',
+                example: 'Bến xe Miền Đông',
+              },
+              code: {
+                type: 'string',
+                description: 'Mã điểm đón',
+                example: 'BXMD',
+              },
+              address: {
+                type: 'string',
+                description: 'Địa chỉ điểm đón',
+                example: '292 Đinh Bộ Lĩnh',
+              },
+            },
+            nullable: true,
+          },
+          dropoff: {
+            type: 'object',
+            description: 'Thông tin điểm trả',
+            properties: {
+              id: {
+                type: 'string',
+                description: 'ID của điểm trả',
+                example: '507f1f77bcf86cd799439013',
+              },
+              name: {
+                type: 'string',
+                description: 'Tên điểm trả',
+                example: 'Bến xe Đà Lạt',
+              },
+              code: {
+                type: 'string',
+                description: 'Mã điểm trả',
+                example: 'BXDL',
+              },
+              address: {
+                type: 'string',
+                description: 'Địa chỉ điểm trả',
+                example: '1 Tô Hiến Thành',
+              },
+            },
+            nullable: true,
+          },
+          bookingTrips: {
+            type: 'array',
+            description: 'Danh sách các chuyến đi trong đặt vé',
+            items: {
+              type: 'object',
+              properties: {
+                id: {
+                  type: 'string',
+                  description: 'ID của chuyến đi trong đặt vé',
+                  example: '507f1f77bcf86cd799439014',
+                },
+                tripId: {
+                  type: 'string',
+                  description: 'ID của chuyến đi',
+                  example: '507f1f77bcf86cd799439015',
+                },
+                seatCount: {
+                  type: 'number',
+                  description: 'Số lượng ghế đã đặt',
+                  example: 2,
+                },
+                trip: {
+                  type: 'object',
+                  description: 'Thông tin chuyến đi',
+                  properties: {
+                    id: {
+                      type: 'string',
+                      description: 'ID của chuyến đi',
+                      example: '507f1f77bcf86cd799439015',
+                    },
+                    departureTime: {
+                      type: 'string',
+                      format: 'date-time',
+                      description: 'Thời gian khởi hành',
+                      example: '2025-09-04T08:00:00Z',
+                    },
+                    arrivalTime: {
+                      type: 'string',
+                      format: 'date-time',
+                      description: 'Thời gian đến',
+                      example: '2025-09-04T14:00:00Z',
+                    },
+                    duration: {
+                      type: 'number',
+                      description: 'Thời gian dự kiến của chuyến đi (phút)',
+                      example: 360,
+                    },
+                    imageUrl: {
+                      type: 'string',
+                      description: 'URL hình ảnh của chuyến đi',
+                      example: 'https://storage.example.com/trip-image.jpg',
+                      nullable: true,
+                    },
+                    route: {
+                      type: 'object',
+                      description: 'Thông tin tuyến đường',
+                      properties: {
+                        id: {
+                          type: 'string',
+                          description: 'ID của tuyến đường',
+                          example: '507f1f77bcf86cd799439016',
+                        },
+                        name: {
+                          type: 'string',
+                          description: 'Tên tuyến đường',
+                          example: 'Hồ Chí Minh - Đà Lạt',
+                        },
+                        code: {
+                          type: 'string',
+                          description: 'Mã tuyến đường',
+                          example: 'HCM-DL',
+                        },
+                        sourceProvince: {
+                          type: 'string',
+                          description: 'Tỉnh/thành phố khởi hành',
+                          example: 'TP. Hồ Chí Minh',
+                        },
+                        destinationProvince: {
+                          type: 'string',
+                          description: 'Tỉnh/thành phố đích đến',
+                          example: 'Lâm Đồng',
+                        },
+                      },
+                    },
+                    vehicle: {
+                      type: 'object',
+                      description: 'Thông tin phương tiện',
+                      properties: {
+                        id: {
+                          type: 'string',
+                          description: 'ID của phương tiện',
+                          example: '507f1f77bcf86cd799439017',
+                        },
+                        licensePlate: {
+                          type: 'string',
+                          description: 'Biển số xe',
+                          example: '51B-12345',
+                        },
+                        vehicleType: {
+                          type: 'object',
+                          description: 'Thông tin loại phương tiện',
+                          properties: {
+                            id: {
+                              type: 'string',
+                              description: 'ID của loại phương tiện',
+                              example: '507f1f77bcf86cd799439018',
+                            },
+                            name: {
+                              type: 'string',
+                              description: 'Tên loại phương tiện',
+                              example: 'Xe giường nằm',
+                            },
+                            description: {
+                              type: 'string',
+                              description: 'Mô tả loại phương tiện',
+                              example: 'Xe giường nằm 40 chỗ',
+                            },
+                            status: {
+                              type: 'string',
+                              description: 'Trạng thái loại phương tiện',
+                              example: 'active',
+                            },
+                          },
+                        },
+                      },
+                      nullable: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          exportTimestamp: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian xuất dữ liệu',
+            example: '2025-09-04T11:16:00Z',
+          },
+          bookingDuration: {
+            type: 'number',
+            description: 'Thời gian từ lúc tạo đến cập nhật cuối cùng (miligiây)',
+            example: 3600000,
+            nullable: true,
+          },
+        },
+      },
+      BookingDetails: {
+        type: 'object',
+        properties: {
+          id: {
+            type: 'string',
+            description: 'ID của đặt vé',
+            example: '507f1f77bcf86cd799439011',
+          },
+          totalPrice: {
+            type: 'number',
+            description: 'Tổng giá vé',
+            example: 200000,
+          },
+          discountAmount: {
+            type: 'number',
+            description: 'Số tiền giảm giá',
+            example: 20000,
+          },
+          finalPrice: {
+            type: 'number',
+            description: 'Giá cuối cùng sau giảm giá',
+            example: 180000,
+          },
+          status: {
+            type: 'string',
+            description: 'Trạng thái đặt vé',
+            example: 'confirmed',
+          },
+          paymentStatus: {
+            type: 'string',
+            description: 'Trạng thái thanh toán',
+            example: 'paid',
+          },
+          passengerName: {
+            type: 'string',
+            description: 'Tên hành khách',
+            example: 'John Doe',
+            nullable: true,
+          },
+          passengerEmail: {
+            type: 'string',
+            format: 'email',
+            description: 'Email hành khách',
+            example: 'john.doe@example.com',
+            nullable: true,
+          },
+          passengerPhone: {
+            type: 'string',
+            description: 'Số điện thoại hành khách',
+            example: '+84123456789',
+            nullable: true,
+          },
+          isGuestBooking: {
+            type: 'boolean',
+            description: 'Có phải là đặt vé không đăng nhập',
+            example: true,
+          },
+          passengerNote: {
+            type: 'string',
+            description: 'Ghi chú của hành khách',
+            example: 'Gần cửa sổ',
+            nullable: true,
+          },
+          createdAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian tạo đặt vé',
+            example: '2025-09-04T10:53:00Z',
+          },
+          updatedAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Thời gian cập nhật đặt vé',
+            example: '2025-09-04T10:53:00Z',
+          },
+          user: {
+            type: 'object',
+            description: 'Thông tin người dùng (nếu không phải đặt vé khách)',
+            properties: {
+              id: {
+                type: 'string',
+                description: 'ID của người dùng',
+                example: '507f1f77bcf86cd799439012',
+              },
+              firstName: {
+                type: 'string',
+                description: 'Tên của người dùng',
+                example: 'John',
+              },
+              lastName: {
+                type: 'string',
+                description: 'Họ của người dùng',
+                example: 'Doe',
+              },
+              email: {
+                type: 'string',
+                format: 'email',
+                description: 'Email của người dùng',
+                example: 'john.doe@example.com',
+              },
+              phoneNumber: {
+                type: 'string',
+                description: 'Số điện thoại của người dùng',
+                example: '+84123456789',
+              },
+            },
+            nullable: true,
+          },
+          pickup: {
+            type: 'object',
+            description: 'Thông tin điểm đón',
+            properties: {
+              name: {
+                type: 'string',
+                description: 'Tên điểm đón',
+                example: 'Bến xe Miền Đông',
+                nullable: true,
+              },
+              address: {
+                type: 'string',
+                description: 'Địa chỉ điểm đón',
+                example: '292 Đinh Bộ Lĩnh',
+                nullable: true,
+              },
+              ward: {
+                type: 'string',
+                description: 'Tên phường/xã',
+                example: 'Phường 26',
+                nullable: true,
+              },
+              district: {
+                type: 'string',
+                description: 'Tên quận/huyện',
+                example: 'Quận Bình Thạnh',
+                nullable: true,
+              },
+              province: {
+                type: 'string',
+                description: 'Tên tỉnh/thành phố',
+                example: 'TP. Hồ Chí Minh',
+                nullable: true,
+              },
+            },
+          },
+          dropoff: {
+            type: 'object',
+            description: 'Thông tin điểm trả',
+            properties: {
+              name: {
+                type: 'string',
+                description: 'Tên điểm trả',
+                example: 'Bến xe Đà Lạt',
+                nullable: true,
+              },
+              address: {
+                type: 'string',
+                description: 'Địa chỉ điểm trả',
+                example: '1 Tô Hiến Thành',
+                nullable: true,
+              },
+              ward: {
+                type: 'string',
+                description: 'Tên phường/xã',
+                example: 'Phường 3',
+                nullable: true,
+              },
+              district: {
+                type: 'string',
+                description: 'Tên quận/huyện',
+                example: 'TP. Đà Lạt',
+                nullable: true,
+              },
+              province: {
+                type: 'string',
+                description: 'Tên tỉnh/thành phố',
+                example: 'Lâm Đồng',
+                nullable: true,
+              },
+            },
+          },
+          seats: {
+            type: 'array',
+            description: 'Danh sách các ghế được đặt',
+            items: {
+              type: 'object',
+              properties: {
+                id: {
+                  type: 'string',
+                  description: 'ID của ghế',
+                  example: '507f1f77bcf86cd799439013',
+                },
+                seatNumber: {
+                  type: 'string',
+                  description: 'Số ghế',
+                  example: 'A01',
+                },
+                seatType: {
+                  type: 'string',
+                  description: 'Loại ghế',
+                  example: 'VIP',
+                },
+                status: {
+                  type: 'string',
+                  description: 'Trạng thái ghế',
+                  example: 'booked',
+                },
+              },
+            },
+          },
+          bookingTrips: {
+            type: 'array',
+            description: 'Danh sách các chuyến đi trong đặt vé',
+            items: {
+              type: 'object',
+              properties: {
+                id: {
+                  type: 'string',
+                  description: 'ID của chuyến đi trong đặt vé',
+                  example: '507f1f77bcf86cd799439014',
+                },
+                route: {
+                  type: 'object',
+                  description: 'Thông tin tuyến đường',
+                  properties: {
+                    id: {
+                      type: 'string',
+                      description: 'ID của tuyến đường',
+                      example: '507f1f77bcf86cd799439015',
+                    },
+                    code: {
+                      type: 'string',
+                      description: 'Mã tuyến đường',
+                      example: 'HCM-DL',
+                    },
+                    name: {
+                      type: 'string',
+                      description: 'Tên tuyến đường',
+                      example: 'Hồ Chí Minh - Đà Lạt',
+                    },
+                    direction: {
+                      type: 'string',
+                      description: 'Hướng tuyến đường',
+                      example: 'outbound',
+                    },
+                    distance: {
+                      type: 'number',
+                      description: 'Khoảng cách tuyến đường',
+                      example: 300,
+                    },
+                    distanceUnit: {
+                      type: 'string',
+                      description: 'Đơn vị khoảng cách',
+                      example: 'km',
+                    },
+                    estimatedDuration: {
+                      type: 'number',
+                      description: 'Thời gian dự kiến (phút)',
+                      example: 360,
+                    },
+                    sourceProvince: {
+                      type: 'string',
+                      description: 'Tỉnh/thành phố khởi hành',
+                      example: 'TP. Hồ Chí Minh',
+                    },
+                    destinationProvince: {
+                      type: 'string',
+                      description: 'Tỉnh/thành phố đích đến',
+                      example: 'Lâm Đồng',
+                    },
+                    routeStops: {
+                      type: 'object',
+                      description: 'Danh sách điểm dừng trên tuyến đường',
+                      properties: {
+                        pickupPoints: {
+                          type: 'array',
+                          description: 'Các điểm đón',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              busStopId: {
+                                type: 'string',
+                                description: 'ID của điểm dừng',
+                                example: '507f1f77bcf86cd799439016',
+                              },
+                              name: {
+                                type: 'string',
+                                description: 'Tên điểm dừng',
+                                example: 'Bến xe Miền Đông',
+                              },
+                              latitude: {
+                                type: 'number',
+                                description: 'Vĩ độ',
+                                example: 10.987654,
+                              },
+                              longitude: {
+                                type: 'number',
+                                description: 'Kinh độ',
+                                example: 106.678901,
+                              },
+                              estimatedTime: {
+                                type: 'string',
+                                format: 'date-time',
+                                description: 'Thời gian dự kiến đến',
+                                example: '2025-09-04T12:00:00Z',
+                              },
+                              address: {
+                                type: 'string',
+                                description: 'Địa chỉ điểm dừng',
+                                example: '292 Đinh Bộ Lĩnh',
+                              },
+                              wardName: {
+                                type: 'string',
+                                description: 'Tên phường/xã',
+                                example: 'Phường 26',
+                              },
+                              districtName: {
+                                type: 'string',
+                                description: 'Tên quận/huyện',
+                                example: 'Quận Bình Thạnh',
+                              },
+                              provinceName: {
+                                type: 'string',
+                                description: 'Tên tỉnh/thành phố',
+                                example: 'TP. Hồ Chí Minh',
+                              },
+                              provinceId: {
+                                type: 'string',
+                                description: 'ID của tỉnh/thành phố',
+                                example: '507f1f77bcf86cd799439017',
+                              },
+                              stopOrder: {
+                                type: 'number',
+                                description: 'Thứ tự điểm dừng',
+                                example: 1,
+                              },
+                              isPickUp: {
+                                type: 'boolean',
+                                description: 'Là điểm đón',
+                                example: true,
+                              },
+                              isDropOff: {
+                                type: 'boolean',
+                                description: 'Là điểm trả',
+                                example: false,
+                              },
+                            },
+                          },
+                        },
+                        dropoffPoints: {
+                          type: 'array',
+                          description: 'Các điểm trả',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              busStopId: {
+                                type: 'string',
+                                description: 'ID của điểm dừng',
+                                example: '507f1f77bcf86cd799439018',
+                              },
+                              name: {
+                                type: 'string',
+                                description: 'Tên điểm dừng',
+                                example: 'Bến xe Đà Lạt',
+                              },
+                              latitude: {
+                                type: 'number',
+                                description: 'Vĩ độ',
+                                example: 11.940419,
+                              },
+                              longitude: {
+                                type: 'number',
+                                description: 'Kinh độ',
+                                example: 108.458313,
+                              },
+                              estimatedTime: {
+                                type: 'string',
+                                format: 'date-time',
+                                description: 'Thời gian dự kiến đến',
+                                example: '2025-09-04T18:00:00Z',
+                              },
+                              address: {
+                                type: 'string',
+                                description: 'Địa chỉ điểm dừng',
+                                example: '1 Tô Hiến Thành',
+                              },
+                              wardName: {
+                                type: 'string',
+                                description: 'Tên phường/xã',
+                                example: 'Phường 3',
+                              },
+                              districtName: {
+                                type: 'string',
+                                description: 'Tên quận/huyện',
+                                example: 'TP. Đà Lạt',
+                              },
+                              provinceName: {
+                                type: 'string',
+                                description: 'Tên tỉnh/thành phố',
+                                example: 'Lâm Đồng',
+                              },
+                              provinceId: {
+                                type: 'string',
+                                description: 'ID của tỉnh/thành phố',
+                                example: '507f1f77bcf86cd799439019',
+                              },
+                              stopOrder: {
+                                type: 'number',
+                                description: 'Thứ tự điểm dừng',
+                                example: 2,
+                              },
+                              isPickUp: {
+                                type: 'boolean',
+                                description: 'Là điểm đón',
+                                example: false,
+                              },
+                              isDropOff: {
+                                type: 'boolean',
+                                description: 'Là điểm trả',
+                                example: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+                seats: {
+                  type: 'array',
+                  description: 'Danh sách ghế của chuyến đi',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: {
+                        type: 'string',
+                        description: 'ID của ghế',
+                        example: '507f1f77bcf86cd799439013',
+                      },
+                      seatNumber: {
+                        type: 'string',
+                        description: 'Số ghế',
+                        example: 'A01',
+                      },
+                      seatType: {
+                        type: 'string',
+                        description: 'Loại ghế',
+                        example: 'VIP',
+                      },
+                      status: {
+                        type: 'string',
+                        description: 'Trạng thái ghế',
+                        example: 'booked',
+                      },
+                    },
+                  },
+                },
+                trip: {
+                  type: 'object',
+                  description: 'Thông tin chi tiết chuyến đi',
+                  properties: {
+                    id: {
+                      type: 'string',
+                      description: 'ID của chuyến đi',
+                      example: '507f1f77bcf86cd799439014',
+                    },
+                    arrivalTime: {
+                      type: 'string',
+                      format: 'date-time',
+                      description: 'Thời gian đến',
+                      example: '2025-09-04T18:00:00Z',
+                    },
+                    departureTime: {
+                      type: 'string',
+                      format: 'date-time',
+                      description: 'Thời gian khởi hành',
+                      example: '2025-09-04T12:00:00Z',
+                    },
+                    basePrice: {
+                      type: 'number',
+                      description: 'Giá cơ bản',
+                      example: 200000,
+                    },
+                    specialPrice: {
+                      type: 'number',
+                      description: 'Giá đặc biệt (nếu có)',
+                      example: 180000,
+                      nullable: true,
+                    },
+                    route: {
+                      $ref: '#/components/schemas/BookingDetails/properties/bookingTrips/items/properties/route',
+                    },
+                    capacity: {
+                      type: 'number',
+                      description: 'Số lượng ghế tối đa',
+                      example: 45,
+                    },
+                    imageUrl: {
+                      type: 'string',
+                      description: 'URL hình ảnh của chuyến đi',
+                      example: 'https://storage.example.com/trip-image.jpg',
+                      nullable: true,
+                    },
+                    vehicle: {
+                      type: 'object',
+                      description: 'Thông tin phương tiện',
+                      properties: {
+                        id: {
+                          type: 'string',
+                          description: 'ID của phương tiện',
+                          example: '507f1f77bcf86cd799439020',
+                        },
+                        type: {
+                          type: 'string',
+                          description: 'Loại phương tiện',
+                          example: 'Xe giường nằm',
+                        },
+                        vehicleType: {
+                          type: 'object',
+                          description: 'Chi tiết loại phương tiện',
+                          properties: {
+                            id: {
+                              type: 'string',
+                              description: 'ID của loại phương tiện',
+                              example: '507f1f77bcf86cd799439021',
+                            },
+                            name: {
+                              type: 'string',
+                              description: 'Tên loại phương tiện',
+                              example: 'Xe giường nằm',
+                            },
+                            description: {
+                              type: 'string',
+                              description: 'Mô tả loại phương tiện',
+                              example: 'Xe giường nằm 40 chỗ',
+                            },
+                            status: {
+                              type: 'string',
+                              description: 'Trạng thái loại phương tiện',
+                              example: 'active',
+                            },
+                          },
+                        },
+                        driver: {
+                          type: 'object',
+                          description: 'Thông tin tài xế',
+                          properties: {
+                            id: {
+                              type: 'string',
+                              description: 'ID của tài xế',
+                              example: '507f1f77bcf86cd799439022',
+                            },
+                            firstName: {
+                              type: 'string',
+                              description: 'Tên tài xế',
+                              example: 'Nguyen',
+                            },
+                            lastName: {
+                              type: 'string',
+                              description: 'Họ tài xế',
+                              example: 'Van A',
+                            },
+                            phoneNumber: {
+                              type: 'string',
+                              description: 'Số điện thoại tài xế',
+                              example: '+84123456788',
+                            },
+                            avatarUrl: {
+                              type: 'string',
+                              description: 'URL ảnh đại diện tài xế',
+                              example: 'https://storage.example.com/driver-avatar.jpg',
+                              nullable: true,
+                            },
+                          },
+                          nullable: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          voucherUsage: {
+            type: 'array',
+            description: 'Thông tin sử dụng voucher',
+            items: {
+              type: 'object',
+              properties: {
+                voucher: {
+                  type: 'object',
+                  description: 'Thông tin voucher',
+                  properties: {
+                    id: {
+                      type: 'string',
+                      description: 'ID của voucher',
+                      example: '507f1f77bcf86cd799439023',
+                    },
+                    code: {
+                      type: 'string',
+                      description: 'Mã voucher',
+                      example: 'SUMMER2025',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       BookingStatusChanged: {
         type: 'object',
