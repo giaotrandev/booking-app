@@ -146,6 +146,8 @@ export async function generateTicketsForBooking(bookingId: string) {
     )
   );
 
+  console.log('Ra dì dọ: ', ticketsToCreate);
+
   const result = await prisma.ticket.createMany({
     data: ticketsToCreate,
   });
@@ -221,7 +223,7 @@ async function sendBookingConfirmationEmail(booking: any, tickets: any[]) {
 
   const pdfAttachments = await Promise.all(
     tickets.map(async (ticket) => {
-      const { pdfBuffer } = await generatePublicTicketPDF(booking.id, ticket.seat.seatNumber);
+      const { pdfBuffer } = await generatePublicTicketPDF(booking.id, [ticket.seat.seatNumber]);
 
       // Create safe filename
       const safePassengerName = ticket.passengerName.replace(/[^a-zA-Z0-9]/g, '_');

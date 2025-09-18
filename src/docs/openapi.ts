@@ -7970,7 +7970,7 @@ export const apiSpecification: OpenAPIV3.Document = {
             description: 'Lọc theo trạng thái đặt vé',
             schema: {
               type: 'string',
-              enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'],
+              enum: ['PENDING', 'CONFIRMED', 'CANCELLED'],
               example: 'CONFIRMED',
             },
           },
@@ -9233,11 +9233,14 @@ export const apiSpecification: OpenAPIV3.Document = {
             schema: { type: 'string' },
           },
           {
-            name: 'seatNumber',
+            name: 'seatNumbers',
             in: 'query',
-            description: 'Seat number of the ticket',
-            required: true,
-            schema: { type: 'string' },
+            description: 'Comma-separated list of seat numbers for the tickets (optional)',
+            required: false,
+            schema: {
+              type: 'string',
+              example: 'A1,A2',
+            },
           },
           {
             name: 'lang',
@@ -10563,7 +10566,7 @@ export const apiSpecification: OpenAPIV3.Document = {
             type: 'string',
             description: 'Trạng thái đặt vé',
             example: 'CONFIRMED',
-            enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'],
+            enum: ['PENDING', 'CONFIRMED', 'CANCELLED'],
           },
           totalPrice: {
             type: 'number',
@@ -10802,7 +10805,7 @@ export const apiSpecification: OpenAPIV3.Document = {
             type: 'string',
             description: 'Trạng thái đặt vé',
             example: 'CONFIRMED',
-            enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'],
+            enum: ['PENDING', 'CONFIRMED', 'CANCELLED'],
           },
           totalPrice: {
             type: 'number',
@@ -10886,7 +10889,7 @@ export const apiSpecification: OpenAPIV3.Document = {
             type: 'string',
             description: 'Trạng thái đặt vé',
             example: 'CONFIRMED',
-            enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'],
+            enum: ['PENDING', 'CONFIRMED', 'CANCELLED'],
           },
           totalPrice: {
             type: 'number',
@@ -10935,7 +10938,7 @@ export const apiSpecification: OpenAPIV3.Document = {
             type: 'string',
             description: 'Trạng thái đặt vé',
             example: 'CONFIRMED',
-            enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'],
+            enum: ['PENDING', 'CONFIRMED', 'CANCELLED'],
           },
           totalPrice: {
             type: 'number',

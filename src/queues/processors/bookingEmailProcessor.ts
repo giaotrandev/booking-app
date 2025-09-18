@@ -166,7 +166,7 @@ export function setupBookingEmailProcessor(): void {
       // Generate PDF attachments
       const pdfAttachments = await Promise.all(
         tickets.map(async (ticket) => {
-          const { pdfBuffer } = await generatePublicTicketPDF(booking.id, ticket.seat.seatNumber);
+          const { pdfBuffer } = await generatePublicTicketPDF(booking.id, [ticket.seat.seatNumber]);
 
           const safePassengerName = ticket.passengerName.replace(/[^a-zA-Z0-9]/g, '_');
           const safeRouteName = ticket.bookingTrip.trip.route.name.replace(/[^a-zA-Z0-9]/g, '_');

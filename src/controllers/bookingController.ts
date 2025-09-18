@@ -83,8 +83,6 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
   const userId = (req.user as { userId: string })?.userId || undefined;
 
-  console.log('Sao vậy ta: ', userId);
-
   try {
     const {
       tripId,
@@ -2235,12 +2233,67 @@ async function transformBookingDefault(booking: any) {
 }
 
 async function transformBookingHistory(booking: any) {
+  let seats = await prisma.seat.findMany({
+    where: {
+      bookingTripId: { in: booking.bookingTrips?.map((bt: any) => bt.id) || [] },
+    },
+    select: {
+      seatNumber: true,
+    },
+  });
+
+  if (!seats || seats.length === 0) {
+    try {
+      const bookingHistory = await prisma.bookingHistory.findFirst({
+        where: {
+          bookingId: booking.id,
+          changeReason: 'Booking created',
+        },
+        select: {
+          changedFields: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      if (bookingHistory?.changedFields) {
+        const changedFields =
+          typeof bookingHistory.changedFields === 'string'
+            ? JSON.parse(bookingHistory.changedFields)
+            : bookingHistory.changedFields;
+
+        if (changedFields?.seats) {
+          seats = await prisma.seat.findMany({
+            where: {
+              id: { in: changedFields.seats },
+            },
+            select: {
+              id: true,
+              seatNumber: true,
+              seatType: true,
+              status: true,
+            },
+          });
+        } else {
+          console.warn('No seats found in BookingHistory changedFields');
+        }
+      } else {
+        console.warn('No changedFields found in BookingHistory');
+      }
+    } catch (historyError) {
+      console.error('Error fetching seats from BookingHistory:', historyError);
+    }
+  }
+
   const primaryTrip = booking.bookingTrips?.[0]?.trip;
 
-  const totalSeats = booking.bookingTrips?.reduce((sum: number, bt: any) => sum + (bt.seats?.length || 0), 0) || 0;
+  // const totalSeats = booking.bookingTrips?.reduce((sum: number, bt: any) => sum + (bt.seats?.length || 0), 0) || 0;
+  // const seatNumbers =
+  //   booking.bookingTrips?.flatMap((bt: any) => bt.seats?.map((seat: any) => seat.seatNumber) || []) || [];
 
-  const seatNumbers =
-    booking.bookingTrips?.flatMap((bt: any) => bt.seats?.map((seat: any) => seat.seatNumber) || []) || [];
+  const totalSeats = seats.length || 0;
+  const seatNumbers = seats?.map((seat: any) => seat.seatNumber) || [];
 
   return {
     id: booking.id,

@@ -194,20 +194,40 @@ export async function checkInBulkTicketsCtrl(req: Request, res: Response) {
 
 export async function getPublicTicketPDF(req: Request, res: Response) {
   try {
-    const { bookingId, seatNumber } = req.query;
+    const { bookingId, seatNumbers } = req.query;
 
-    // Ensure bookingId and seatNumber are strings
-    if (typeof bookingId !== 'string' || typeof seatNumber !== 'string') {
-      return sendServerError(res, 'ticket.pdfError', { message: 'Invalid bookingId or seatNumber' }, req.language);
+    // Ensure bookingId is string
+    if (typeof bookingId !== 'string') {
+      return sendServerError(res, 'ticket.pdfError', { message: 'Invalid bookingId' }, req.language);
     }
 
-    const { pdfBuffer, passengerName, routeName, departureTime } = await generatePublicTicketPDF(bookingId, seatNumber);
+    // Parse seatNumbers if provided (can be comma-separated string or array)
+    let selectedSeats: string[] | undefined;
+    if (seatNumbers) {
+      if (typeof seatNumbers === 'string') {
+        selectedSeats = seatNumbers
+          .split(',')
+          .map((seat) => seat.trim())
+          .filter((seat) => seat.length > 0);
+      } else if (Array.isArray(seatNumbers)) {
+        selectedSeats = seatNumbers.filter((seat) => typeof seat === 'string').map((seat) => seat.trim());
+      }
+    }
 
-    // Clean filename components
-    const safePassengerName = passengerName.replace(/[^a-zA-Z0-9]/g, '_');
-    const safeRouteName = routeName.replace(/[^a-zA-Z0-9]/g, '_');
-    const safeDepartureTime = departureTime.replace(/[^a-zA-Z0-9]/g, '_');
-    const fileName = `ticket-${seatNumber}-${safePassengerName}-${safeRouteName}-${safeDepartureTime}.pdf`;
+    const { pdfBuffer, ticketInfo } = await generatePublicTicketPDF(bookingId, selectedSeats);
+
+    // Create filename based on ticket info
+    const safeRouteName = ticketInfo.routeName.replace(/[^a-zA-Z0-9]/g, '_');
+    const safeDepartureTime = ticketInfo.departureTime.replace(/[^a-zA-Z0-9]/g, '_');
+
+    let fileName: string;
+    if (selectedSeats && selectedSeats.length === 1) {
+      const safePassengerName = ticketInfo.passengerNames[0]?.replace(/[^a-zA-Z0-9]/g, '_') || 'passenger';
+      fileName = `ticket-${selectedSeats[0]}-${safePassengerName}-${safeRouteName}-${safeDepartureTime}.pdf`;
+    } else {
+      const seatList = selectedSeats ? selectedSeats.join('_') : 'all';
+      fileName = `tickets-${seatList}-${safeRouteName}-${safeDepartureTime}.pdf`;
+    }
 
     res.set({
       'Content-Type': 'application/pdf',
