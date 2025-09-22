@@ -92,11 +92,14 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
         const accessTokenExpirationMs = ms(ACCESS_TOKEN_EXPIRATION as ms.StringValue);
 
         // Generate new access token
-        const newAccessToken = TokenHandler.generateAccessToken({
-          userId: storedToken.session.userId,
-          role: storedToken.session.user.role.name,
-          sessionId: storedToken.sessionId,
-        });
+        const newAccessToken = TokenHandler.generateAccessToken(
+          {
+            userId: storedToken.session.userId,
+            role: storedToken.session.user.role.name,
+            sessionId: storedToken.sessionId,
+          },
+          ACCESS_TOKEN_EXPIRATION
+        );
 
         // Update session activity
         await prisma.loginSession.update({
@@ -159,8 +162,6 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 
     // Determine which token to use
     const token = headerToken || cookieToken;
-
-    console.log('Có token không: ', token);
 
     // If no tokens present, continue as guest user
     if (!token && !refreshToken) {
@@ -239,11 +240,14 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
         const accessTokenExpirationMs = ms(ACCESS_TOKEN_EXPIRATION as ms.StringValue);
 
         // Generate new access token
-        const newAccessToken = TokenHandler.generateAccessToken({
-          userId: storedToken.session.userId,
-          role: storedToken.session.user.role.name,
-          sessionId: storedToken.sessionId,
-        });
+        const newAccessToken = TokenHandler.generateAccessToken(
+          {
+            userId: storedToken.session.userId,
+            role: storedToken.session.user.role.name,
+            sessionId: storedToken.sessionId,
+          },
+          ACCESS_TOKEN_EXPIRATION
+        );
 
         // Update session activity
         await prisma.loginSession.update({
