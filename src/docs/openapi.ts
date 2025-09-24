@@ -3989,6 +3989,7 @@ export const apiSpecification: OpenAPIV3.Document = {
                 properties: {
                   code: { type: 'string', description: 'Mã tuyến đường' },
                   name: { type: 'string', description: 'Tên tuyến đường' },
+                  description: { type: 'string', description: 'Mô tả tuyến đường' },
                   direction: { type: 'string', description: 'Hướng tuyến đường', nullable: true },
                   sourceProvinceId: { type: 'string', description: 'ID tỉnh/thành phố đầu' },
                   destinationProvinceId: { type: 'string', description: 'ID tỉnh/thành phố cuối' },
@@ -4068,6 +4069,7 @@ export const apiSpecification: OpenAPIV3.Document = {
                           id: { type: 'string', description: 'ID của tuyến đường' },
                           code: { type: 'string', description: 'Mã tuyến đường' },
                           name: { type: 'string', description: 'Tên tuyến đường' },
+                          description: { type: 'string', description: 'Mô tả tuyến đường' },
                           sourceProvince: { $ref: '#/components/schemas/Province' },
                           destinationProvince: { $ref: '#/components/schemas/Province' },
                           distance: { type: 'number', description: 'Khoảng cách' },
@@ -10257,6 +10259,7 @@ export const apiSpecification: OpenAPIV3.Document = {
           id: { type: 'string' },
           code: { type: 'string' },
           name: { type: 'string' },
+          description: { type: 'string' },
           direction: { type: 'string', nullable: true },
           sourceProvinceId: { type: 'string' },
           destinationProvinceId: { type: 'string' },
@@ -10407,6 +10410,7 @@ export const apiSpecification: OpenAPIV3.Document = {
                 properties: {
                   id: { type: 'string' },
                   name: { type: 'string' },
+                  description: { type: 'string' },
                   sourceProvince: {
                     type: 'object',
                     properties: {
@@ -10821,6 +10825,11 @@ export const apiSpecification: OpenAPIV3.Document = {
                           description: 'Tên tuyến đường',
                           example: 'Hồ Chí Minh - Đà Lạt',
                         },
+                        description: {
+                          type: 'string',
+                          description: 'Mô tả tuyến đường',
+                          example: 'Mô tả tuyến đường',
+                        },
                         code: {
                           type: 'string',
                           description: 'Mã tuyến đường',
@@ -11193,6 +11202,11 @@ export const apiSpecification: OpenAPIV3.Document = {
                           description: 'Tên tuyến đường',
                           example: 'Hồ Chí Minh - Đà Lạt',
                         },
+                        description: {
+                          type: 'string',
+                          description: 'Mô tả tuyến đường',
+                          example: 'Mô tả tuyến đường',
+                        },
                         code: {
                           type: 'string',
                           description: 'Mã tuyến đường',
@@ -11510,6 +11524,11 @@ export const apiSpecification: OpenAPIV3.Document = {
                       type: 'string',
                       description: 'Tên tuyến đường',
                       example: 'Hồ Chí Minh - Đà Lạt',
+                    },
+                    description: {
+                      type: 'string',
+                      description: 'Mô tả tuyến đường',
+                      example: 'Mô tả tuyến đường',
                     },
                     direction: {
                       type: 'string',
