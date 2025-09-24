@@ -111,6 +111,7 @@ model Route {
   id        String  @id @default(auto()) @map("_id") @db.ObjectId
   code      String  @unique
   name      String
+  description String?
   direction String?
   image     String?
 

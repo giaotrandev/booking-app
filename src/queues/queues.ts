@@ -45,7 +45,7 @@ const MAX_ATTEMPTS = parseInt(process.env.QUEUE_MAX_ATTEMPTS || '2', 10);
 const MAX_FAILED_JOBS = parseInt(process.env.QUEUE_MAX_FAILED_JOBS || '10', 10);
 
 // Get rate limiter max value from environment variable
-const LIMITER_MAX = parseInt(process.env.QUEUE_LIMITER_MAX || '5', 10);
+const LIMITER_MAX = parseInt(process.env.QUEUE_LIMITER_MAX || '10', 10);
 
 // Memory-optimized options for 25MB Redis instance
 const defaultJobOptions: JobOptions = {
