@@ -35,7 +35,7 @@ const RETRY_DELAY = getTimeFromEnv('QUEUE_RETRY_DELAY', '5s');
 const CLEANUP_INTERVAL = getTimeFromEnv('QUEUE_CLEANUP_INTERVAL', '10m');
 const FAILED_JOB_RETENTION = getTimeFromEnv('QUEUE_FAILED_JOB_RETENTION', '1d');
 const OLD_JOB_CLEANUP_TIME = getTimeFromEnv('QUEUE_OLD_JOB_CLEANUP_TIME', '1h');
-const LIMITER_DURATION = getTimeFromEnv('QUEUE_LIMITER_DURATION', '5s');
+const LIMITER_DURATION = getTimeFromEnv('QUEUE_LIMITER_DURATION', '10s');
 const MEMORY_CHECK_INTERVAL = getTimeFromEnv('QUEUE_MEMORY_CHECK_INTERVAL', '5m');
 
 // Get max retry attempts from environment variable

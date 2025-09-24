@@ -111,7 +111,8 @@ export const getTopBookedRoutes = async (req: Request, res: Response): Promise<v
   const language = (req.query.lang as string) || process.env.DEFAULT_LANGUAGE || 'en';
 
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : 10; // Default top 10
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+    const currentDate = new Date();
 
     // Get all routes with their related information
     const allRoutes = await prisma.route.findMany({
@@ -121,12 +122,12 @@ export const getTopBookedRoutes = async (req: Request, res: Response): Promise<v
       },
     });
 
-    // Get booking counts per route
+    // Get booking counts per route (all time for popularity ranking)
     const bookingCounts = await prisma.bookingTrip.groupBy({
       by: ['tripId'],
       where: {
         booking: {
-          status: 'CONFIRMED', // Assuming successful bookings have CONFIRMED status
+          status: 'CONFIRMED',
         },
       },
       _count: {
@@ -156,11 +157,110 @@ export const getTopBookedRoutes = async (req: Request, res: Response): Promise<v
       }
     });
 
-    // Combine routes with booking counts (0 if no bookings)
-    const routesWithBookings = allRoutes.map((route) => ({
-      ...route,
-      totalBookings: routeBookingCounts.get(route.id) || 0,
-    }));
+    // Get future trips for price calculation and promotion detection
+    const futureTrips = await prisma.trip.findMany({
+      where: {
+        departureTime: {
+          gte: currentDate,
+        },
+        status: 'SCHEDULED',
+      },
+      select: {
+        id: true,
+        routeId: true,
+        basePrice: true,
+        specialPrice: true,
+        departureTime: true,
+      },
+    });
+
+    // Group future trips by route for price calculation
+    const routeTripMap = new Map<string, typeof futureTrips>();
+    futureTrips.forEach((trip) => {
+      if (!routeTripMap.has(trip.routeId)) {
+        routeTripMap.set(trip.routeId, []);
+      }
+      routeTripMap.get(trip.routeId)!.push(trip);
+    });
+
+    // Helper function to determine promotion status
+    const getPromotionTag = (trips: typeof futureTrips) => {
+      if (trips.length === 0) return null;
+
+      // Check if any trip has special pricing
+      const hasSpecialPrice = trips.some((trip) => trip.specialPrice && trip.specialPrice < trip.basePrice);
+
+      if (hasSpecialPrice) {
+        // Calculate average discount percentage
+        const tripsWithDiscount = trips.filter((trip) => trip.specialPrice && trip.specialPrice < trip.basePrice);
+
+        if (tripsWithDiscount.length > 0) {
+          const avgDiscountPercent =
+            tripsWithDiscount.reduce((sum, trip) => {
+              const discount = ((trip.basePrice - trip.specialPrice!) / trip.basePrice) * 100;
+              return sum + discount;
+            }, 0) / tripsWithDiscount.length;
+
+          if (avgDiscountPercent >= 30) {
+            return {
+              type: 'SPECIAL_PROMOTION',
+              label: 'Special promotion',
+              discountPercent: Math.round(avgDiscountPercent),
+            };
+          } else if (avgDiscountPercent >= 15) {
+            return {
+              type: 'DISCOUNT',
+              label: 'Discount',
+              discountPercent: Math.round(avgDiscountPercent),
+            };
+          } else {
+            return {
+              type: 'SALE',
+              label: 'Sale off',
+              discountPercent: Math.round(avgDiscountPercent),
+            };
+          }
+        }
+      }
+
+      return null;
+    };
+
+    // Helper function to get price range
+    const getPriceRange = (trips: typeof futureTrips) => {
+      if (trips.length === 0) {
+        return {
+          minPrice: null,
+          maxPrice: null,
+        };
+      }
+
+      // Get effective prices (specialPrice if available, otherwise basePrice)
+      const effectivePrices = trips.map((trip) =>
+        trip.specialPrice && trip.specialPrice > 0 ? trip.specialPrice : trip.basePrice
+      );
+
+      return {
+        minPrice: Math.min(...effectivePrices),
+        maxPrice: Math.max(...effectivePrices),
+      };
+    };
+
+    // Combine routes with booking counts and price information
+    const routesWithBookings = allRoutes.map((route) => {
+      const routeTrips = routeTripMap.get(route.id) || [];
+      const priceRange = getPriceRange(routeTrips);
+      const promotionTag = getPromotionTag(routeTrips);
+
+      return {
+        ...route,
+        totalBookings: routeBookingCounts.get(route.id) || 0,
+        minPrice: priceRange.minPrice,
+        maxPrice: priceRange.maxPrice,
+        promotionTag,
+        availableTripsCount: routeTrips.length,
+      };
+    });
 
     // Sort by booking count (descending) and limit results
     const sortedRoutes = routesWithBookings.sort((a, b) => b.totalBookings - a.totalBookings).slice(0, limit);
@@ -184,6 +284,7 @@ export const getTopBookedRoutes = async (req: Request, res: Response): Promise<v
       meta: {
         total: routesWithImages.length,
         limit,
+        generatedAt: currentDate.toISOString(),
       },
     };
 

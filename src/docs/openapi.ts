@@ -4033,6 +4033,106 @@ export const apiSpecification: OpenAPIV3.Document = {
         },
       },
     },
+    '/routes/popular': {
+      get: {
+        tags: ['Route'],
+        summary: 'Lấy danh sách các tuyến đường phổ biến',
+        description: 'Lấy danh sách các tuyến đường được đặt nhiều nhất, bao gồm thông tin giá và khuyến mãi',
+        parameters: [
+          {
+            in: 'query',
+            name: 'limit',
+            schema: { type: 'integer', minimum: 1, default: 10 },
+            description: 'Số lượng tuyến đường tối đa trả về (mặc định: 10)',
+          },
+          {
+            in: 'query',
+            name: 'lang',
+            schema: { type: 'string' },
+            description: 'Ngôn ngữ phản hồi (mặc định: en)',
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Danh sách các tuyến đường phổ biến',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string', description: 'ID của tuyến đường' },
+                          code: { type: 'string', description: 'Mã tuyến đường' },
+                          name: { type: 'string', description: 'Tên tuyến đường' },
+                          sourceProvince: { $ref: '#/components/schemas/Province' },
+                          destinationProvince: { $ref: '#/components/schemas/Province' },
+                          distance: { type: 'number', description: 'Khoảng cách' },
+                          distanceUnit: { type: 'string', enum: ['KM', 'MILE'], description: 'Đơn vị khoảng cách' },
+                          estimatedDuration: { type: 'integer', description: 'Thời gian dự kiến (phút)' },
+                          imageUrl: { type: 'string', nullable: true, description: 'URL của ảnh tuyến đường' },
+                          totalBookings: { type: 'number', description: 'Tổng số lượt đặt' },
+                          minPrice: {
+                            type: 'number',
+                            nullable: true,
+                            description: 'Giá thấp nhất của các chuyến đi trong tương lai',
+                          },
+                          maxPrice: {
+                            type: 'number',
+                            nullable: true,
+                            description: 'Giá cao nhất của các chuyến đi trong tương lai',
+                          },
+                          promotionTag: {
+                            type: 'object',
+                            nullable: true,
+                            description: 'Thông tin khuyến mãi',
+                            properties: {
+                              type: {
+                                type: 'string',
+                                enum: ['SPECIAL_PROMOTION', 'DISCOUNT', 'SALE'],
+                                description: 'Loại khuyến mãi (SPECIAL_PROMOTION: >=30%, DISCOUNT: 15-30%, SALE: <15%',
+                              },
+                              label: { type: 'string', description: 'Nhãn khuyến mãi' },
+                              discountPercent: {
+                                type: 'number',
+                                description: 'Phần trăm giảm giá trung bình',
+                                example: 10,
+                              },
+                            },
+                          },
+                          availableTripsCount: {
+                            type: 'number',
+                            description: 'Số lượng chuyến đi có sẵn trong tương lai',
+                          },
+                          status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'], description: 'Trạng thái' },
+                        },
+                      },
+                    },
+                    meta: {
+                      type: 'object',
+                      properties: {
+                        total: { type: 'number', description: 'Tổng số tuyến đường' },
+                        limit: { type: 'number', description: 'Số lượng tuyến đường trả về' },
+                        generatedAt: { type: 'string', format: 'date-time', description: 'Thời điểm tạo dữ liệu' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Tham số truy vấn không hợp lệ',
+          },
+          '500': {
+            description: 'Lỗi server',
+          },
+        },
+      },
+    },
     '/routes/{id}': {
       get: {
         tags: ['Route'],
