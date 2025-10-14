@@ -2816,7 +2816,11 @@ export const apiSpecification: OpenAPIV3.Document = {
                   content: { type: 'string', description: 'Nội dung bài viết' },
                   excerpt: { type: 'string', description: 'Tóm tắt bài viết', nullable: true },
                   featuredImage: { type: 'string', format: 'binary', description: 'Ảnh nổi bật', nullable: true },
-                  categoryId: { type: 'string', description: 'ID của danh mục', nullable: true },
+                  categoryId: {
+                    type: 'string',
+                    description: 'ID của danh mục (có thể là một ID hoặc nhiều ID cách nhau bằng dấu phẩy)',
+                    nullable: true,
+                  },
                   tagIds: {
                     type: 'array',
                     items: { type: 'string' },

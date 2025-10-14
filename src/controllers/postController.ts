@@ -309,8 +309,6 @@ export const updatePost = async (req: Request, res: Response): Promise<void> => 
       tags = Array.isArray(tags) ? tags.filter((t) => t.trim() !== '') : [];
     }
 
-    console.log('Update data:', JSON.stringify(updateData, null, 2));
-
     // Kiểm tra nếu không có dữ liệu để cập nhật
     if (Object.keys(updateData).length === 0) {
       sendSuccess(res, 'post.noChange', { post: existingPost }, language);
@@ -459,16 +457,28 @@ export const getPosts = async (req: Request, res: Response): Promise<void> => {
       isDeleted: false,
     };
 
-    // Filter by category
+    // Filter by category (support single or multiple IDs)
     if (categoryId) {
-      whereConditions.categoryId = categoryId as string;
+      const categoryIds = (categoryId as string).split(',').map((id) => id.trim());
+
+      if (categoryIds.length === 1) {
+        whereConditions.categoryId = categoryIds[0];
+      } else {
+        whereConditions.categoryId = {
+          in: categoryIds,
+        };
+      }
     }
 
-    // Filter by tag
+    // Filter by tag (support single or multiple IDs)
     if (tagId) {
+      const tagIds = (tagId as string).split(',').map((id) => id.trim());
+
       whereConditions.postTags = {
         some: {
-          tagId: tagId as string,
+          tagId: {
+            in: tagIds,
+          },
         },
       };
     }
@@ -958,9 +968,6 @@ export const updateTag = async (req: Request, res: Response): Promise<void> => {
 
   try {
     const { slugOrId } = req.params;
-    console.log('Request params:', req.params);
-    console.log('Request body:', req.body);
-    console.log('slugOrId:', slugOrId);
 
     const orConditions: any[] = [{ slug: slugOrId }];
 
@@ -968,15 +975,11 @@ export const updateTag = async (req: Request, res: Response): Promise<void> => {
       orConditions.push({ _id: slugOrId }); // Kiểm tra xem field thực sự là id hay _id
     }
 
-    console.log('OR conditions:', JSON.stringify(orConditions));
-
     const existingTag = await prisma.tag.findFirst({
       where: {
         OR: orConditions,
       },
     });
-
-    console.log('Existing tag found:', existingTag);
 
     if (!existingTag) {
       console.log('Tag not found with conditions:', orConditions);
@@ -1021,8 +1024,6 @@ export const updateTag = async (req: Request, res: Response): Promise<void> => {
     if (status !== undefined) {
       updateData.status = status;
     }
-
-    console.log('Update data:', updateData);
 
     // Update tag chỉ với các trường đã được chỉ định
     const updatedTag = await prisma.tag.update({
@@ -1070,7 +1071,6 @@ export const getTagDetails = async (req: Request, res: Response): Promise<void> 
         },
       },
     });
-    console.log(tag);
 
     if (!tag) {
       sendNotFound(res, 'tag.notFound', null, language);

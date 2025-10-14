@@ -18,10 +18,11 @@ const basePostSchema = z.object({
   metaDescription: z.string().max(160, { message: 'validation.metaDescriptionTooLong' }).optional(),
   metaKeywords: z.string().optional(),
   status: PostStatusEnum.default('DRAFT'),
-  scheduledAt: z.preprocess((arg) => {
-    if (typeof arg === 'string' || arg instanceof Date) return new Date(arg);
-    return null;
-  }, z.date().nullable().optional()),
+  scheduledAt: z
+    .union([z.string(), z.date()])
+    .transform((val) => (val ? new Date(val) : undefined))
+    .optional()
+    .nullable(),
 });
 
 export const createPostSchema = basePostSchema.superRefine((data, ctx) => {

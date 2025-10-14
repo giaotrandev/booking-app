@@ -55,58 +55,57 @@ export function setupSeatStatusProcessor(): void {
     });
 
     // Process seat status check jobs
+    // Process seat status check jobs
     queue.process(concurrency, async (job) => {
       const { checkId } = job.data as SeatStatusCheckJobData;
 
       console.log(`🔍 Processing seat status check ${checkId}`);
 
       try {
-        // Start a transaction
         const result = await prisma.$transaction(async (tx) => {
-          // Find all seats with RESERVED status
-          const reservedSeats = await tx.seat.findMany({
-            where: { status: 'RESERVED' },
+          const now = new Date();
+          const timeoutThreshold = new Date(now.getTime() - reservedTimeout);
+
+          // Update tất cả seats đã timeout trong 1 query duy nhất
+          const updateResult = await tx.seat.updateMany({
+            where: {
+              status: 'RESERVED',
+              updatedAt: {
+                lt: timeoutThreshold, // Seats được update trước timeoutThreshold
+              },
+            },
+            data: {
+              status: 'AVAILABLE',
+              updatedAt: now,
+            },
           });
 
-          if (reservedSeats.length === 0) {
-            console.log('ℹ️ No RESERVED seats found');
-            return { success: true, checkId, updatedSeats: 0 };
-          }
+          // Log ra các seats đã update (optional)
+          if (updateResult.count > 0) {
+            const updatedSeats = await tx.seat.findMany({
+              where: {
+                status: 'AVAILABLE',
+                updatedAt: now,
+              },
+              select: { id: true },
+            });
 
-          const now = new Date();
-          let updatedSeats = 0;
-
-          // Check each reserved seat
-          for (const seat of reservedSeats) {
-            const updatedAt = new Date(seat.updatedAt);
-            const timeDiff = now.getTime() - updatedAt.getTime();
-
-            if (timeDiff > reservedTimeout) {
-              // Update seat status to AVAILABLE within transaction
-              await tx.seat.update({
-                where: { id: seat.id },
-                data: {
-                  status: 'AVAILABLE',
-                  updatedAt: new Date(), // Update timestamp
-                },
-              });
-              updatedSeats++;
+            updatedSeats.forEach((seat) => {
               console.log(`🔄 Seat ${seat.id} status changed to AVAILABLE due to timeout`);
-            }
+            });
           }
 
           return {
             success: true,
             checkId,
-            updatedSeats,
-            processedAt: new Date().toISOString(),
+            updatedSeats: updateResult.count,
+            processedAt: now.toISOString(),
           };
         });
 
         return result;
       } catch (error) {
         console.error(`❌ Error processing seat status check ${checkId}:`, error);
-        // Prisma transaction automatically rolls back on error
         throw new Error(
           `Failed to process seat status check ${checkId}: ${error instanceof Error ? error.message : 'Unknown error'}`
         );
