@@ -2690,8 +2690,8 @@ export const apiSpecification: OpenAPIV3.Document = {
           {
             in: 'query',
             name: 'limit',
-            schema: { type: 'integer', minimum: 1, default: 10 },
-            description: 'Số bài viết trên mỗi trang',
+            schema: { type: 'integer', minimum: -1, default: 10 },
+            description: 'Số bài viết trên mỗi trang, -1 lấy tất cả',
           },
           {
             in: 'query',

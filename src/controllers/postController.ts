@@ -450,7 +450,11 @@ export const getPosts = async (req: Request, res: Response): Promise<void> => {
 
     const pageNum = Number(page);
     const limitNum = Number(limit);
-    const skip = (pageNum - 1) * limitNum;
+
+    // Check if limit is -1 (get all)
+    const isGetAll = limitNum === -1;
+    const skip = isGetAll ? 0 : (pageNum - 1) * limitNum;
+    const take = isGetAll ? undefined : limitNum;
 
     // Prepare where conditions
     const whereConditions: any = {
@@ -497,7 +501,7 @@ export const getPosts = async (req: Request, res: Response): Promise<void> => {
       ];
     }
 
-    // Fetch posts
+    // Fetch posts and total count
     const [posts, total] = await Promise.all([
       prisma.post.findMany({
         where: whereConditions,
@@ -518,24 +522,25 @@ export const getPosts = async (req: Request, res: Response): Promise<void> => {
         },
         orderBy: { createdAt: 'desc' },
         skip: skip,
-        take: limitNum,
+        take: take, // undefined when limit=-1
       }),
       prisma.post.count({ where: whereConditions }),
     ]);
 
-    sendSuccess(
-      res,
-      'post.listRetrieved',
-      {
-        posts,
-        pagination: {
-          currentPage: pageNum,
-          totalPages: Math.ceil(total / limitNum),
-          totalPosts: total,
-        },
+    // Build response data
+    const responseData: any = {
+      posts,
+      pagination: {
+        total: total,
+        currentPage: isGetAll ? 1 : pageNum,
+        totalPages: isGetAll ? 1 : Math.ceil(total / limitNum),
+        limit: isGetAll ? total : limitNum,
+        hasNextPage: isGetAll ? false : pageNum * limitNum < total,
+        hasPrevPage: isGetAll ? false : pageNum > 1,
       },
-      language
-    );
+    };
+
+    sendSuccess(res, 'post.listRetrieved', responseData, language);
   } catch (error) {
     sendServerError(res, 'common.serverError', error instanceof Error ? { message: error.message } : null, language);
   }
