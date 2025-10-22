@@ -7032,6 +7032,8 @@ export const apiSpecification: OpenAPIV3.Document = {
           },
         },
       },
+    },
+    '/trips/{id}': {
       put: {
         tags: ['Trip'],
         summary: 'Update a trip',
