@@ -217,9 +217,23 @@ export const createVehicleType = async (req: Request, res: Response): Promise<vo
       parsedSeatConfiguration =
         typeof seatConfiguration === 'string' ? JSON.parse(seatConfiguration) : seatConfiguration;
 
-      // Basic validation: Check if seatConfiguration has rows and columns
-      if (!parsedSeatConfiguration.rows || !Array.isArray(parsedSeatConfiguration.seats)) {
+      // Basic validation: Check if seatConfiguration has decks array
+      if (!parsedSeatConfiguration.decks || !Array.isArray(parsedSeatConfiguration.decks)) {
         return sendBadRequest(res, 'vehicleType.invalidSeatConfiguration', null, language);
+      }
+
+      // Validate each deck has rows array
+      for (const deck of parsedSeatConfiguration.decks) {
+        if (!deck.rows || !Array.isArray(deck.rows)) {
+          return sendBadRequest(res, 'vehicleType.invalidSeatConfiguration', null, language);
+        }
+
+        // Validate each row has seats array
+        for (const row of deck.rows) {
+          if (!row.seats || !Array.isArray(row.seats)) {
+            return sendBadRequest(res, 'vehicleType.invalidSeatConfiguration', null, language);
+          }
+        }
       }
     } catch (error) {
       return sendBadRequest(res, 'vehicleType.invalidJsonFormat', null, language);
@@ -305,9 +319,23 @@ export const updateVehicleType = async (req: Request, res: Response): Promise<vo
         parsedSeatConfiguration =
           typeof seatConfiguration === 'string' ? JSON.parse(seatConfiguration) : seatConfiguration;
 
-        // Basic validation: Check if seatConfiguration has rows and columns
-        if (!parsedSeatConfiguration.rows || !Array.isArray(parsedSeatConfiguration.seats)) {
+        // ✅ ĐÚNG: Basic validation: Check if seatConfiguration has decks array
+        if (!parsedSeatConfiguration.decks || !Array.isArray(parsedSeatConfiguration.decks)) {
           return sendBadRequest(res, 'vehicleType.invalidSeatConfiguration', null, language);
+        }
+
+        // Validate each deck has rows array
+        for (const deck of parsedSeatConfiguration.decks) {
+          if (!deck.rows || !Array.isArray(deck.rows)) {
+            return sendBadRequest(res, 'vehicleType.invalidSeatConfiguration', null, language);
+          }
+
+          // Validate each row has seats array
+          for (const row of deck.rows) {
+            if (!row.seats || !Array.isArray(row.seats)) {
+              return sendBadRequest(res, 'vehicleType.invalidSeatConfiguration', null, language);
+            }
+          }
         }
 
         updateData.seatConfiguration = parsedSeatConfiguration;
