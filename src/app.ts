@@ -136,7 +136,7 @@ app.get('/api/docs', (req: Request, res: Response) => {
           id="api-reference"
           data-url="/openapi.json"
           data-theme="dark"
-          src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@latest/dist/browser/standalone.min.js"
+          src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.36.0/dist/browser/standalone.min.js"
         ></script>
       </body>
     </html>
